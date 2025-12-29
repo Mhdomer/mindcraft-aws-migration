@@ -1,3 +1,33 @@
+/**
+ * US010-02: View Class Performance Insight
+ * US010-05: Identify At-Risk Student
+ * US010-06: View Risk Indicator
+ * 
+ * This page provides comprehensive class performance analytics for instructors.
+ * 
+ * Features:
+ * - Overall class statistics (completion rates, average scores)
+ * - Individual student performance tracking
+ * - At-risk student identification based on configurable thresholds
+ * - Risk indicators: low scores, missed deadlines, inactivity
+ * - Anonymized class-level risk overview
+ * - Per-student detailed risk indicators
+ * - Performance trends and topic heatmaps
+ * - Export functionality (JSON and CSV)
+ * 
+ * Risk Assessment Criteria:
+ * - Average score below threshold (default: 60%)
+ * - Missed deadlines exceeding limit (default: 2)
+ * - Days inactive exceeding limit (default: 7 days)
+ * 
+ * Acceptance Criteria:
+ * - Instructor can view class performance insights
+ * - At-risk students are automatically identified
+ * - Risk indicators are visually highlighted
+ * - Data is updated in near real-time
+ * - Class-level view is anonymized
+ */
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -136,24 +166,6 @@ export default function AnalyticsPage() {
 				...doc.data(),
 			}));
 
-			if (enrollments.length === 0) {
-				setAnalyticsData({
-					enrollments: [],
-					completionRates: [],
-					scoreTrends: [],
-					atRiskStudents: [],
-					topicHeatmap: [],
-					overallStats: {
-						totalStudents: 0,
-						avgCompletionRate: 0,
-						avgScore: 0,
-					},
-					courseTitle: courseData.title,
-				});
-				setAnalyticsLoading(false);
-				return;
-			}
-
 			// Get course details
 			const courseDoc = await getDoc(doc(db, 'course', courseId));
 			if (!courseDoc.exists()) {
@@ -161,6 +173,17 @@ export default function AnalyticsPage() {
 				return;
 			}
 			const courseData = courseDoc.data();
+
+			// Risk configuration (per-course thresholds, with sensible defaults)
+			const defaultRiskConfig = {
+				minAvgScore: 60, // minimum acceptable average assessment score (%)
+				maxMissedDeadlines: 2, // how many missed deadlines before flagging
+				maxDaysInactive: 7, // days without activity before engagement is considered low
+			};
+			const riskConfig = {
+				...defaultRiskConfig,
+				...(courseData.riskConfig || {}),
+			};
 
 			// Get all modules and lessons for the course
 			const modules = [];
@@ -272,32 +295,106 @@ export default function AnalyticsPage() {
 				}
 			}
 
-			// Process submissions
+			// Process submissions (ensure students with submissions but no explicit enrollment are included)
 			allSubmissions.forEach(submission => {
 				const studentId = submission.studentId;
-				if (studentData[studentId]) {
-					studentData[studentId].submissions.push(submission);
-					if (submission.submittedAt && submission.submittedAt.toDate) {
-						const submitDate = submission.submittedAt.toDate();
-						const lastActivity = studentData[studentId].lastActivity?.toDate 
-							? studentData[studentId].lastActivity.toDate() 
-							: new Date(0);
-						if (submitDate > lastActivity) {
-							studentData[studentId].lastActivity = submission.submittedAt;
-						}
+				if (!studentData[studentId]) {
+					// Create a minimal placeholder enrollment so the student is still tracked
+					studentData[studentId] = {
+						studentId,
+						enrollment: null,
+						submissions: [],
+						completedLessons: 0,
+						completedModules: 0,
+						overallProgress: 0,
+						totalLessons,
+						totalModules: modules.length,
+						scores: [],
+						lastActivity: submission.submittedAt || null,
+					};
+					studentIds.add(studentId);
+				}
+
+				studentData[studentId].submissions.push(submission);
+				if (submission.submittedAt) {
+					const submitDate = submission.submittedAt.toDate
+						? submission.submittedAt.toDate()
+						: new Date(submission.submittedAt);
+					const lastActivity = studentData[studentId].lastActivity?.toDate 
+						? studentData[studentId].lastActivity.toDate() 
+						: new Date(0);
+					if (submitDate > lastActivity) {
+						studentData[studentId].lastActivity = submission.submittedAt;
 					}
-					if (submission.score !== undefined && submission.totalPoints) {
-						const percentage = (submission.score / submission.totalPoints) * 100;
-						studentData[studentId].scores.push(percentage);
-					} else if (submission.grade !== undefined) {
-						studentData[studentId].scores.push(submission.grade);
-					}
+				}
+				if (submission.score !== undefined && submission.totalPoints) {
+					const percentage = (submission.score / submission.totalPoints) * 100;
+					studentData[studentId].scores.push(percentage);
+				} else if (submission.grade !== undefined) {
+					studentData[studentId].scores.push(submission.grade);
 				}
 			});
 
 			// Update total lessons for all students
 			Object.values(studentData).forEach(student => {
 				student.totalLessons = totalLessons;
+			});
+
+			// Calculate missed deadlines per student (assignments + assessments)
+			Object.values(studentData).forEach(student => {
+				let missed = 0;
+
+				// Assessments with end dates
+				assessments.forEach(assessment => {
+					const endDate = assessment.config?.endDate;
+					if (!endDate) return;
+					const deadlineDate = endDate.toDate ? endDate.toDate() : new Date(endDate);
+					if (deadlineDate > now) return; // not due yet
+
+					const submission = allSubmissions.find(sub => 
+						sub.studentId === student.studentId && sub.assessmentId === assessment.id
+					);
+
+					if (!submission) {
+						// No submission after deadline
+						missed += 1;
+					} else if (submission.submittedAt) {
+						const submitDate = submission.submittedAt.toDate 
+							? submission.submittedAt.toDate() 
+							: new Date(submission.submittedAt);
+						if (submitDate > deadlineDate) {
+							missed += 1;
+						}
+					}
+				});
+
+				// Assignments with deadlines
+				assignments.forEach(assignment => {
+					const deadline = assignment.deadline;
+					if (!deadline) return;
+					const deadlineDate = deadline.toDate ? deadline.toDate() : new Date(deadline);
+					if (deadlineDate > now) return; // not due yet
+
+					const submission = allSubmissions.find(sub => 
+						sub.studentId === student.studentId && sub.assignmentId === assignment.id
+					);
+
+					if (!submission) {
+						// No submission after deadline
+						missed += 1;
+					} else if (submission.submittedAt) {
+						const submitDate = submission.submittedAt.toDate 
+							? submission.submittedAt.toDate() 
+							: new Date(submission.submittedAt);
+						// If work was submitted after deadline and late submissions are not explicitly allowed,
+						// treat as a missed/late deadline for risk purposes.
+						if (submitDate > deadlineDate && !assignment.allowLateSubmissions) {
+							missed += 1;
+						}
+					}
+				});
+
+				student.missedDeadlines = missed;
 			});
 
 			// Get student names
@@ -377,7 +474,7 @@ export default function AnalyticsPage() {
 				});
 			}
 
-			// Identify at-risk students
+			// Identify at-risk students (per-course, configurable thresholds)
 			const studentsArray = Object.values(studentData).map(student => {
 				const avgScore = student.scores.length > 0
 					? student.scores.reduce((sum, score) => sum + score, 0) / student.scores.length
@@ -388,6 +485,35 @@ export default function AnalyticsPage() {
 				const completionRate = student.totalLessons > 0
 					? (student.completedLessons / student.totalLessons) * 100
 					: 0;
+				const missedDeadlines = student.missedDeadlines || 0;
+
+				// Engagement is approximated from days since last activity
+				const highScoreRisk = avgScore < (riskConfig.minAvgScore - 10);
+				const mediumScoreRisk = avgScore < riskConfig.minAvgScore;
+
+				const highDeadlineRisk = missedDeadlines > riskConfig.maxMissedDeadlines;
+				const mediumDeadlineRisk = missedDeadlines > 0;
+
+				const highEngagementRisk = daysSinceActivity > (riskConfig.maxDaysInactive * 2);
+				const mediumEngagementRisk = daysSinceActivity > riskConfig.maxDaysInactive;
+
+				let riskLevel = 'low';
+				if (highScoreRisk || highDeadlineRisk || highEngagementRisk) {
+					riskLevel = 'high';
+				} else if (mediumScoreRisk || mediumDeadlineRisk || mediumEngagementRisk) {
+					riskLevel = 'medium';
+				}
+
+				const reasons = [];
+				if (highScoreRisk || mediumScoreRisk) {
+					reasons.push(`Average assessment score below ${riskConfig.minAvgScore}%`);
+				}
+				if (missedDeadlines > 0) {
+					reasons.push(`Missed ${missedDeadlines} deadline${missedDeadlines > 1 ? 's' : ''}`);
+				}
+				if (mediumEngagementRisk || highEngagementRisk) {
+					reasons.push(`Low engagement (inactive for ${daysSinceActivity} day${daysSinceActivity !== 1 ? 's' : ''})`);
+				}
 
 				return {
 					...student,
@@ -395,15 +521,9 @@ export default function AnalyticsPage() {
 					avgScore,
 					daysSinceActivity,
 					completionRate,
-					riskLevel: (
-						avgScore < 50 || 
-						completionRate < 30 || 
-						daysSinceActivity > 14
-					) ? 'high' : (
-						avgScore < 70 || 
-						completionRate < 50 || 
-						daysSinceActivity > 7
-					) ? 'medium' : 'low',
+					missedDeadlines,
+					riskLevel,
+					riskReasons: reasons,
 				};
 			});
 
@@ -414,6 +534,18 @@ export default function AnalyticsPage() {
 					if (b.riskLevel === 'high' && a.riskLevel !== 'high') return 1;
 					return a.avgScore - b.avgScore;
 				});
+
+			// Class-level, anonymized risk summary (no student names)
+			const highRiskCount = atRiskStudents.filter(s => s.riskLevel === 'high').length;
+			const mediumRiskCount = atRiskStudents.filter(s => s.riskLevel === 'medium').length;
+
+			const avgMissedDeadlines = studentsArray.length > 0
+				? studentsArray.reduce((sum, s) => sum + (s.missedDeadlines || 0), 0) / studentsArray.length
+				: 0;
+
+			const avgDaysInactive = studentsArray.length > 0
+				? studentsArray.reduce((sum, s) => sum + (s.daysSinceActivity || 0), 0) / studentsArray.length
+				: 0;
 
 			// Create topic heatmap (module-based)
 			const topicHeatmap = modules.map(module => {
@@ -457,7 +589,7 @@ export default function AnalyticsPage() {
 			});
 
 			// Calculate overall stats
-			const totalStudents = enrollments.length;
+			const totalStudents = studentsArray.length;
 			const avgCompletionRate = studentsArray.length > 0
 				? studentsArray.reduce((sum, s) => sum + s.completionRate, 0) / studentsArray.length
 				: 0;
@@ -473,6 +605,12 @@ export default function AnalyticsPage() {
 				scoreTrends,
 				atRiskStudents,
 				topicHeatmap,
+				riskSummary: {
+					highRiskCount,
+					mediumRiskCount,
+					avgMissedDeadlines: Math.round(avgMissedDeadlines * 10) / 10,
+					avgDaysInactive: Math.round(avgDaysInactive * 10) / 10,
+				},
 				overallStats: {
 					totalStudents,
 					avgCompletionRate: Math.round(avgCompletionRate),
@@ -504,27 +642,77 @@ export default function AnalyticsPage() {
 	function handleExport() {
 		if (!analyticsData) return;
 
-		const exportData = {
-			course: analyticsData.courseTitle,
-			generatedAt: new Date().toISOString(),
-			overallStats: analyticsData.overallStats,
-			completionRates: analyticsData.completionRates,
-			scoreTrends: analyticsData.scoreTrends,
-			atRiskStudents: analyticsData.atRiskStudents.map(s => ({
-				name: s.studentName,
-				averageScore: Math.round(s.avgScore),
-				completionRate: Math.round(s.completionRate),
-				daysSinceActivity: s.daysSinceActivity,
-				riskLevel: s.riskLevel,
-			})),
-			topicHeatmap: analyticsData.topicHeatmap,
-		};
+			const exportData = {
+				course: analyticsData.courseTitle,
+				generatedAt: new Date().toISOString(),
+				overallStats: analyticsData.overallStats,
+				completionRates: analyticsData.completionRates,
+				scoreTrends: analyticsData.scoreTrends,
+				// Anonymized risk data at class level (no names)
+				riskSummary: analyticsData.riskSummary,
+				atRiskStudents: analyticsData.atRiskStudents.map((s, index) => ({
+					id: index + 1,
+					averageScore: Math.round(s.avgScore),
+					completionRate: Math.round(s.completionRate),
+					daysSinceActivity: s.daysSinceActivity,
+					missedDeadlines: s.missedDeadlines || 0,
+					riskLevel: s.riskLevel,
+				})),
+				topicHeatmap: analyticsData.topicHeatmap,
+			};
 
+		// Export as JSON
 		const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
 		a.download = `class-performance-${selectedCourseId}-${Date.now()}.json`;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}
+
+	function exportAsCSV() {
+		if (!selectedCourseId || !analyticsData) return;
+
+		// Prepare CSV data
+		const headers = [
+			language === 'bm' ? 'Nama Pelajar' : 'Student Name',
+			language === 'bm' ? 'Email' : 'Email',
+			language === 'bm' ? 'Kadar Penyiapan (%)' : 'Completion Rate (%)',
+			language === 'bm' ? 'Skor Purata (%)' : 'Average Score (%)',
+			language === 'bm' ? 'Pelajaran Selesai' : 'Lessons Completed',
+			language === 'bm' ? 'Modul Selesai' : 'Modules Completed',
+			language === 'bm' ? 'Tarikh Aktiviti Terakhir' : 'Last Activity Date',
+			language === 'bm' ? 'Tingkat Risiko' : 'Risk Level',
+			language === 'bm' ? 'Sebab Risiko' : 'Risk Reasons',
+		];
+
+		const rows = analyticsData.students.map(student => [
+			student.name || 'N/A',
+			student.email || 'N/A',
+			Math.round(student.completionRate),
+			Math.round(student.avgScore),
+			student.completedLessons || 0,
+			student.completedModules || 0,
+			student.lastActivity ? new Date(student.lastActivity).toLocaleDateString() : 'N/A',
+			student.riskLevel || 'low',
+			(student.riskReasons || []).join('; '),
+		]);
+
+		// Create CSV content
+		const csvContent = [
+			headers.join(','),
+			...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+		].join('\n');
+
+		// Download CSV
+		const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `class-performance-${selectedCourseId}-${Date.now()}.csv`;
 		document.body.appendChild(a);
 		a.click();
 		document.body.removeChild(a);
@@ -681,6 +869,58 @@ export default function AnalyticsPage() {
 						</Card>
 					</div>
 
+					{/* Class Risk Overview (anonymized indicators) */}
+					{analyticsData.riskSummary && (
+						<Card>
+							<CardHeader>
+								<CardTitle>
+									{language === 'bm' ? 'Ringkasan Risiko Kelas' : 'Class Risk Overview'}
+								</CardTitle>
+								<CardDescription>
+									{language === 'bm'
+										? 'Ringkasan pelajar berisiko tanpa mendedahkan identiti'
+										: 'Summary of at-risk learners without revealing identities'}
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<div className="grid gap-4 md:grid-cols-4">
+									<div>
+										<p className="text-sm text-muted-foreground">
+											{language === 'bm' ? 'Pelajar Risiko Tinggi' : 'High-Risk Students'}
+										</p>
+										<p className="text-2xl font-bold text-destructive">
+											{analyticsData.riskSummary.highRiskCount}
+										</p>
+									</div>
+									<div>
+										<p className="text-sm text-muted-foreground">
+											{language === 'bm' ? 'Pelajar Risiko Sederhana' : 'Medium-Risk Students'}
+										</p>
+										<p className="text-2xl font-bold text-warning">
+											{analyticsData.riskSummary.mediumRiskCount}
+										</p>
+									</div>
+									<div>
+										<p className="text-sm text-muted-foreground">
+											{language === 'bm' ? 'Purata Tarikh Akhir Terlepas' : 'Avg Missed Deadlines'}
+										</p>
+										<p className="text-2xl font-bold text-neutralDark">
+											{analyticsData.riskSummary.avgMissedDeadlines}
+										</p>
+									</div>
+									<div>
+										<p className="text-sm text-muted-foreground">
+											{language === 'bm' ? 'Purata Hari Tanpa Aktiviti' : 'Avg Days Inactive'}
+										</p>
+										<p className="text-2xl font-bold text-neutralDark">
+											{analyticsData.riskSummary.avgDaysInactive}
+										</p>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+					)}
+
 					{/* Completion Rate Trend */}
 					<Card>
 						<CardHeader>
@@ -772,26 +1012,43 @@ export default function AnalyticsPage() {
 														: (language === 'bm' ? 'Risiko Sederhana' : 'Medium Risk')}
 												</span>
 											</div>
-											<div className="grid grid-cols-3 gap-4 text-sm">
+											<div className="grid grid-cols-4 gap-4 text-sm">
 												<div>
-													<p className="text-muted-foreground">
+													<p className="flex items-center gap-1 text-muted-foreground">
+														<BarChart3 className="h-3 w-3 text-info" />
 														{language === 'bm' ? 'Skor Purata' : 'Avg Score'}
 													</p>
 													<p className="font-medium">{Math.round(student.avgScore)}%</p>
 												</div>
 												<div>
-													<p className="text-muted-foreground">
+													<p className="flex items-center gap-1 text-muted-foreground">
+														<Target className="h-3 w-3 text-success" />
 														{language === 'bm' ? 'Kadar Penyiapan' : 'Completion'}
 													</p>
 													<p className="font-medium">{Math.round(student.completionRate)}%</p>
 												</div>
 												<div>
-													<p className="text-muted-foreground">
+													<p className="flex items-center gap-1 text-muted-foreground">
+														<FileText className="h-3 w-3 text-warning" />
+														{language === 'bm' ? 'Tarikh Akhir Terlepas' : 'Missed Deadlines'}
+													</p>
+													<p className="font-medium">{student.missedDeadlines || 0}</p>
+												</div>
+												<div>
+													<p className="flex items-center gap-1 text-muted-foreground">
+														<Clock className="h-3 w-3 text-warning" />
 														{language === 'bm' ? 'Hari Tanpa Aktiviti' : 'Days Inactive'}
 													</p>
 													<p className="font-medium">{student.daysSinceActivity}</p>
 												</div>
 											</div>
+											{student.riskReasons && student.riskReasons.length > 0 && (
+												<ul className="mt-3 text-xs text-muted-foreground list-disc list-inside">
+													{student.riskReasons.map((reason, index) => (
+														<li key={index}>{reason}</li>
+													))}
+												</ul>
+											)}
 										</div>
 									))}
 								</div>
