@@ -44,3 +44,4 @@ scripts/rename-collections.js
 scripts/analyze-branches.js
 scripts/safe-extract.js
 docs/COLLECTION_RENAME_MIGRATION.md
+
