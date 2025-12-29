@@ -219,13 +219,21 @@ export default function AdminCoursesPage() {
 				<div className="space-y-2">
 					<h1 className="text-h1 text-neutralDark">{t.pageTitle}</h1>
 					<p className="text-body text-muted-foreground">{t.pageDescription}</p>
+<<<<<<< HEAD
 					<div className="mt-2 max-w-md relative">
 						<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+=======
+					<div className="mt-2 max-w-md">
+>>>>>>> origin/feature/course-management-search
 						<Input
 							value={searchTerm}
 							onChange={(e) => setSearchTerm(e.target.value)}
 							placeholder={t.searchPlaceholder}
+<<<<<<< HEAD
 							className="w-full pl-10"
+=======
+							className="w-full"
+>>>>>>> origin/feature/course-management-search
 						/>
 					</div>
 				</div>
