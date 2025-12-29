@@ -8,8 +8,9 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, CheckCircle, AlertCircle, Loader2, Clock, Info, Play, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, CheckCircle, AlertCircle, Loader2, Clock, Info, Play, RefreshCcw, XCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useLanguage } from '@/app/contexts/LanguageContext';
 
 function withColor(blocks) {
 	const colorMap = {
@@ -75,7 +76,8 @@ export default function TakeAssessmentPage() {
 	const [canAttempt, setCanAttempt] = useState(true);
 	// Modals for regular assessments
 	const [confirmSubmitModal, setConfirmSubmitModal] = useState(null); // {title, message}
-	const [resultModal, setResultModal] = useState(null); // {title, message, isError}
+	const [resultModal, setResultModal] = useState(null); // {title, message, isError, score, totalPoints, percentage, passed}
+	const { language } = useLanguage();
 	// State for game-level assessments
 	const [gameBlocks, setGameBlocks] = useState([]);
 	const [gameMessage, setGameMessage] = useState('');
@@ -336,8 +338,10 @@ useEffect(() => {
 				for (let i = 0; i < assessment.questions.length; i++) {
 					if (answers[i] === null || answers[i] === undefined || answers[i] === '') {
 					setConfirmSubmitModal({
-						title: 'Submit assessment?',
-						message: 'You have unanswered questions. Submit anyway?',
+						title: language === 'bm' ? 'Hantar penilaian?' : 'Submit assessment?',
+						message: language === 'bm' 
+							? 'Anda mempunyai soalan yang belum dijawab. Hantar juga?'
+							: 'You have unanswered questions. Submit anyway?',
 					});
 					return;
 					}
@@ -406,11 +410,21 @@ async function performSubmission(isAutoSubmit = false) {
 
 			await addDoc(collection(db, 'submission'), submissionData);
 
-	setResultModal({
-		title: 'Assessment submitted',
-		message: `Your score: ${score}/${totalPoints}${isAutoSubmit ? ' (submitted automatically)' : ''}`,
-		isError: false,
-	});
+			// Calculate percentage and pass/fail status
+			const percentage = totalPoints > 0 ? (score / totalPoints) * 100 : 0;
+			const passed = percentage > 40;
+
+			setResultModal({
+				title: language === 'bm' ? 'Penilaian telah dihantar' : 'Assessment submitted',
+				message: language === 'bm' 
+					? `Markah anda: ${score}/${totalPoints}${isAutoSubmit ? ' (dihantar secara automatik)' : ''}`
+					: `Your score: ${score}/${totalPoints}${isAutoSubmit ? ' (submitted automatically)' : ''}`,
+				isError: false,
+				score,
+				totalPoints,
+				percentage,
+				passed,
+			});
 		} catch (err) {
 			console.error('Error submitting assessment:', err);
 	const msg = 'Failed to submit assessment: ' + (err.message || 'Unknown error');
@@ -762,7 +776,7 @@ function closeResultModal() {
 					</CardHeader>
 					<CardContent className="flex gap-3 justify-end">
 						<Button variant="outline" onClick={() => setConfirmSubmitModal(null)}>
-							Cancel
+							{language === 'bm' ? 'Batal' : 'Cancel'}
 						</Button>
 						<Button
 							onClick={() => {
@@ -770,7 +784,7 @@ function closeResultModal() {
 								performSubmission(false);
 							}}
 						>
-							Submit anyway
+							{language === 'bm' ? 'Hantar juga' : 'Submit anyway'}
 						</Button>
 					</CardContent>
 				</Card>
@@ -797,13 +811,59 @@ function closeResultModal() {
 						</CardTitle>
 						<CardDescription>{resultModal.message}</CardDescription>
 					</CardHeader>
-					<CardContent className="flex justify-end">
-						<Button
-							variant={resultModal.isError ? 'destructive' : 'default'}
-							onClick={closeResultModal}
-						>
-							OK
-						</Button>
+					<CardContent className="space-y-4">
+						{!resultModal.isError && resultModal.percentage !== undefined && (
+							<div className={`p-4 rounded-lg border-2 ${
+								resultModal.passed 
+									? 'bg-success/10 border-success/30' 
+									: 'bg-destructive/10 border-destructive/30'
+							}`}>
+								<div className="flex items-center justify-between mb-2">
+									<div className="flex items-center gap-2">
+										{resultModal.passed ? (
+											<CheckCircle className="h-6 w-6 text-success" />
+										) : (
+											<XCircle className="h-6 w-6 text-destructive" />
+										)}
+										<span className={`text-lg font-semibold ${
+											resultModal.passed ? 'text-success' : 'text-destructive'
+										}`}>
+											{resultModal.passed 
+												? (language === 'bm' ? 'LULUS' : 'PASS')
+												: (language === 'bm' ? 'GAGAL' : 'FAIL')
+											}
+										</span>
+									</div>
+									<span className={`text-lg font-bold ${
+										resultModal.passed ? 'text-success' : 'text-destructive'
+									}`}>
+										{resultModal.percentage.toFixed(1)}%
+									</span>
+								</div>
+								<p className="text-sm text-muted-foreground">
+									{language === 'bm' 
+										? `Markah: ${resultModal.score}/${resultModal.totalPoints} (${resultModal.percentage.toFixed(1)}%)`
+										: `Score: ${resultModal.score}/${resultModal.totalPoints} (${resultModal.percentage.toFixed(1)}%)`
+									}
+								</p>
+								{!resultModal.passed && (
+									<p className="text-xs text-muted-foreground mt-2">
+										{language === 'bm' 
+											? 'Anda perlu mendapat lebih daripada 40% untuk lulus.'
+											: 'You need to score more than 40% to pass.'
+										}
+									</p>
+								)}
+							</div>
+						)}
+						<div className="flex justify-end">
+							<Button
+								variant={resultModal.isError ? 'destructive' : 'default'}
+								onClick={closeResultModal}
+							>
+								{language === 'bm' ? 'OK' : 'OK'}
+							</Button>
+						</div>
 					</CardContent>
 				</Card>
 			</div>
