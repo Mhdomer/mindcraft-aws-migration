@@ -7,85 +7,16 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { FileText, Plus, Edit2, Trash2, Calendar, Clock, Eye, EyeOff, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { FileText, Plus, Edit2, Trash2, Calendar, Clock, Eye, EyeOff, CheckCircle, XCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useLanguage } from '@/app/contexts/LanguageContext';
 
 export default function AssignmentsPage() {
-	const { language } = useLanguage();
 	const [assignments, setAssignments] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [userRole, setUserRole] = useState(null);
 	const [currentUserId, setCurrentUserId] = useState(null);
+	const [deleteConfirm, setDeleteConfirm] = useState(null);
 	const router = useRouter();
-
-	// Translations
-	const translations = {
-		en: {
-			pageTitle: 'Assignments',
-			pageDescription: 'Create and manage assignments for your courses',
-			createAssignment: 'Create Assignment',
-			loading: 'Loading...',
-			accessDenied: 'Access denied. Only teachers and admins can manage assignments.',
-			noAssignments: 'No assignments created yet.',
-			createFirstAssignment: 'Create Your First Assignment',
-			published: 'Published',
-			draft: 'Draft',
-			open: 'Open',
-			closed: 'Closed',
-			pastDue: 'Past Due',
-			course: 'Course:',
-			due: 'Due:',
-			noDateSet: 'No date set',
-			edit: 'Edit',
-			unpublish: 'Unpublish',
-			publish: 'Publish',
-			close: 'Close',
-			delete: 'Delete',
-			deleteConfirm: 'Are you sure you want to delete this assignment? This action cannot be undone.',
-			deleteFailed: 'Failed to delete assignment: ',
-			updateFailed: 'Failed to update assignment: ',
-			editTitle: 'Edit Assignment',
-			publishTitle: 'Publish',
-			unpublishTitle: 'Unpublish',
-			closeTitle: 'Close Assignment',
-			openTitle: 'Open Assignment',
-			deleteTitle: 'Delete Assignment',
-		},
-		bm: {
-			pageTitle: 'Tugasan',
-			pageDescription: 'Cipta dan urus tugasan untuk kursus anda',
-			createAssignment: 'Cipta Tugasan',
-			loading: 'Memuatkan...',
-			accessDenied: 'Akses ditolak. Hanya guru dan admin boleh menguruskan tugasan.',
-			noAssignments: 'Tiada tugasan dicipta lagi.',
-			createFirstAssignment: 'Cipta Tugasan Pertama Anda',
-			published: 'Diterbitkan',
-			draft: 'Draf',
-			open: 'Buka',
-			closed: 'Tutup',
-			pastDue: 'Melepasi Tarikh Akhir',
-			course: 'Kursus:',
-			due: 'Tarikh Akhir:',
-			noDateSet: 'Tiada tarikh ditetapkan',
-			edit: 'Edit',
-			unpublish: 'Nyahterbit',
-			publish: 'Terbitkan',
-			close: 'Tutup',
-			delete: 'Padam',
-			deleteConfirm: 'Adakah anda pasti ingin memadam tugasan ini? Tindakan ini tidak boleh dibatalkan.',
-			deleteFailed: 'Gagal memadam tugasan: ',
-			updateFailed: 'Gagal mengemaskini tugasan: ',
-			editTitle: 'Edit Tugasan',
-			publishTitle: 'Terbitkan',
-			unpublishTitle: 'Nyahterbit',
-			closeTitle: 'Tutup Tugasan',
-			openTitle: 'Buka Tugasan',
-			deleteTitle: 'Padam Tugasan',
-		},
-	};
-
-	const t = translations[language] || translations.en;
 
 	useEffect(() => {
 		const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -107,21 +38,30 @@ export default function AssignmentsPage() {
 	}, [router]);
 
 	useEffect(() => {
-		if (userRole && (userRole === 'teacher' || userRole === 'admin')) {
+		if (userRole) {
 			loadAssignments();
-		} else if (userRole && userRole === 'student') {
-			// Students should be redirected or see a different view
-			router.push('/dashboard/student');
 		}
-	}, [userRole, router]);
+	}, [userRole]);
 
 	async function loadAssignments() {
 		setLoading(true);
 		try {
-			const assignmentsQuery = query(
-				collection(db, 'assignment'),
-				orderBy('createdAt', 'desc')
-			);
+			let assignmentsQuery;
+
+			if (userRole === 'student') {
+				// Students only see published assignments
+				assignmentsQuery = query(
+					collection(db, 'assignment'),
+					where('status', '==', 'published'),
+					orderBy('createdAt', 'desc')
+				);
+			} else {
+				// Teachers and admins see all assignments
+				assignmentsQuery = query(
+					collection(db, 'assignment'),
+					orderBy('createdAt', 'desc')
+				);
+			}
 
 			const snapshot = await getDocs(assignmentsQuery);
 			const loadedAssignments = snapshot.docs.map(doc => ({
@@ -137,17 +77,48 @@ export default function AssignmentsPage() {
 		}
 	}
 
-	async function handleDelete(assignmentId) {
-		if (!confirm(t.deleteConfirm)) {
-			return;
+	async function confirmDelete(assignmentId) {
+		const assignment = assignments.find(a => a.id === assignmentId);
+		let submissionCount = 0;
+		try {
+			const submissionsQuery = query(
+				collection(db, 'submission'),
+				where('assignmentId', '==', assignmentId)
+			);
+			const snapshot = await getDocs(submissionsQuery);
+			submissionCount = snapshot.size;
+		} catch (err) {
+			console.error('Error checking submissions:', err);
 		}
 
+		setDeleteConfirm({
+			id: assignmentId,
+			title: assignment?.title || 'Assignment',
+			submissionCount
+		});
+	}
+
+	async function executeDelete() {
+		if (!deleteConfirm) return;
+		const assignmentId = deleteConfirm.id;
+
 		try {
+			// Delete all associated submissions first
+			const submissionsQuery = query(
+				collection(db, 'submission'),
+				where('assignmentId', '==', assignmentId)
+			);
+			const submissionSnapshot = await getDocs(submissionsQuery);
+			const deletePromises = submissionSnapshot.docs.map(doc => deleteDoc(doc.ref));
+			await Promise.all(deletePromises);
+
 			await deleteDoc(doc(db, 'assignment', assignmentId));
 			setAssignments(prev => prev.filter(a => a.id !== assignmentId));
+			setDeleteConfirm(null);
 		} catch (err) {
 			console.error('Error deleting assignment:', err);
-			alert(t.deleteFailed + (err.message || 'Unknown error'));
+			alert('Failed to delete assignment: ' + (err.message || 'Unknown error'));
+			setDeleteConfirm(null);
 		}
 	}
 
@@ -160,7 +131,7 @@ export default function AssignmentsPage() {
 			loadAssignments();
 		} catch (err) {
 			console.error('Error updating assignment:', err);
-			alert(t.updateFailed + (err.message || 'Unknown error'));
+			alert('Failed to update assignment: ' + (err.message || 'Unknown error'));
 		}
 	}
 
@@ -173,16 +144,16 @@ export default function AssignmentsPage() {
 			loadAssignments();
 		} catch (err) {
 			console.error('Error updating assignment:', err);
-			alert(t.updateFailed + (err.message || 'Unknown error'));
+			alert('Failed to update assignment: ' + (err.message || 'Unknown error'));
 		}
 	}
 
 	function formatDate(timestamp) {
-		if (!timestamp) return t.noDateSet;
+		if (!timestamp) return 'No date set';
 		const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-		return date.toLocaleDateString('en-US', { 
-			year: 'numeric', 
-			month: 'short', 
+		return date.toLocaleDateString('en-US', {
+			year: 'numeric',
+			month: 'short',
 			day: 'numeric',
 			hour: '2-digit',
 			minute: '2-digit'
@@ -203,23 +174,14 @@ export default function AssignmentsPage() {
 		return tmp.textContent || tmp.innerText || '';
 	}
 
+	const isTeacherOrAdmin = userRole === 'teacher' || userRole === 'admin';
+
 	if (loading) {
 		return (
 			<div className="space-y-8">
 				<div>
-					<h1 className="text-h1 text-neutralDark mb-2">{t.pageTitle}</h1>
-					<p className="text-body text-muted-foreground">{t.loading}</p>
-				</div>
-			</div>
-		);
-	}
-
-	if (userRole !== 'teacher' && userRole !== 'admin') {
-		return (
-			<div className="space-y-8">
-				<div>
-					<h1 className="text-h1 text-neutralDark mb-2">{t.pageTitle}</h1>
-					<p className="text-body text-muted-foreground">{t.accessDenied}</p>
+					<h1 className="text-h1 text-neutralDark mb-2">Assignments</h1>
+					<p className="text-body text-muted-foreground">Loading...</p>
 				</div>
 			</div>
 		);
@@ -230,15 +192,19 @@ export default function AssignmentsPage() {
 			{/* Page Header */}
 			<div className="flex justify-between items-center">
 				<div>
-					<h1 className="text-h1 text-neutralDark mb-2">{t.pageTitle}</h1>
-					<p className="text-body text-muted-foreground">{t.pageDescription}</p>
+					<h1 className="text-h1 text-neutralDark mb-2">Assignments</h1>
+					<p className="text-body text-muted-foreground">
+						{isTeacherOrAdmin ? 'Create and manage assignments for your courses' : 'View and complete your assignments'}
+					</p>
 				</div>
-				<Link href="/assignments/new">
-					<Button>
-						<Plus className="h-4 w-4 mr-2" />
-						{t.createAssignment}
-					</Button>
-				</Link>
+				{isTeacherOrAdmin && (
+					<Link href="/assignments/new">
+						<Button>
+							<Plus className="h-4 w-4 mr-2" />
+							Create Assignment
+						</Button>
+					</Link>
+				)}
 			</div>
 
 			{/* Assignments List */}
@@ -247,18 +213,20 @@ export default function AssignmentsPage() {
 					<CardContent className="py-12 text-center">
 						<FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
 						<p className="text-body text-muted-foreground mb-4">
-							{t.noAssignments}
+							{isTeacherOrAdmin ? 'No assignments created yet.' : 'No active assignments found.'}
 						</p>
-						<Link href="/assignments/new">
-							<Button>{t.createFirstAssignment}</Button>
-						</Link>
+						{isTeacherOrAdmin && (
+							<Link href="/assignments/new">
+								<Button>Create Your First Assignment</Button>
+							</Link>
+						)}
 					</CardContent>
 				</Card>
 			) : (
 				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 					{assignments.map((assignment) => {
 						const deadlinePassed = isDeadlinePassed(assignment.deadline);
-						
+
 						return (
 							<Card key={assignment.id} className="card-hover">
 								<CardHeader className="bg-gradient-to-br from-primary/5 via-primary/3 to-white border-b-2 border-primary/20 pb-4">
@@ -268,28 +236,28 @@ export default function AssignmentsPage() {
 											<div className="flex flex-wrap gap-2">
 												{assignment.status === 'published' ? (
 													<span className="text-xs bg-success/10 text-success px-2.5 py-1.5 rounded-md font-medium border border-success/20">
-														{t.published}
+														Published
 													</span>
 												) : (
 													<span className="text-xs bg-warning/10 text-warning px-2.5 py-1.5 rounded-md font-medium border border-warning/20">
-														{t.draft}
+														Draft
 													</span>
 												)}
 												{assignment.isOpen ? (
 													<span className="text-xs bg-info/10 text-info px-2.5 py-1.5 rounded-md font-medium border border-info/20 flex items-center gap-1.5">
 														<CheckCircle className="h-3.5 w-3.5" />
-														{t.open}
+														Open
 													</span>
 												) : (
 													<span className="text-xs bg-muted/50 text-muted-foreground px-2.5 py-1.5 rounded-md font-medium border border-border flex items-center gap-1.5">
 														<XCircle className="h-3.5 w-3.5" />
-														{t.closed}
+														Closed
 													</span>
 												)}
 												{deadlinePassed && (
 													<span className="text-xs bg-destructive/10 text-destructive px-2.5 py-1.5 rounded-md font-medium border border-destructive/20 flex items-center gap-1.5">
 														<AlertCircle className="h-3.5 w-3.5" />
-														{t.pastDue}
+														Past Due
 													</span>
 												)}
 											</div>
@@ -302,10 +270,10 @@ export default function AssignmentsPage() {
 											{stripHtml(assignment.description)}
 										</p>
 									)}
-									
+
 									{assignment.courseTitle && (
 										<p className="text-sm text-muted-foreground">
-											{t.course} {assignment.courseTitle}
+											Course: {assignment.courseTitle}
 										</p>
 									)}
 
@@ -313,75 +281,134 @@ export default function AssignmentsPage() {
 										<div className="flex items-center gap-2 text-sm">
 											<Calendar className={`h-5 w-5 ${deadlinePassed ? 'text-destructive' : 'text-muted-foreground'}`} />
 											<span className={deadlinePassed ? 'text-destructive font-medium' : 'text-muted-foreground'}>
-												{t.due} {formatDate(assignment.deadline)}
+												Due: {formatDate(assignment.deadline)}
 											</span>
 										</div>
 									)}
 
-									<div className="flex flex-wrap gap-2 pt-2 border-t">
-										<Link href={`/assignments/${assignment.id}/edit`} className="flex-1 min-w-[100px]">
-											<Button variant="outline" className="w-full border-primary/20 hover:bg-primary/10 hover:border-primary/40" size="sm" title={t.editTitle}>
-												<Edit2 className="h-5 w-5 mr-2 text-primary" />
-												{t.edit}
-											</Button>
-										</Link>
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => togglePublish(assignment)}
-											title={assignment.status === 'published' ? t.unpublishTitle : t.publishTitle}
-											className={assignment.status === 'published' 
-												? "border-warning/20 hover:bg-warning/10 hover:border-warning/40" 
-												: "border-success/20 hover:bg-success/10 hover:border-success/40"}
-										>
-											{assignment.status === 'published' ? (
-												<>
-													<EyeOff className="h-5 w-5 mr-2 text-warning" />
-													{t.unpublish}
-												</>
-											) : (
-												<>
-													<Eye className="h-5 w-5 mr-2 text-success" />
-													{t.publish}
-												</>
-											)}
-										</Button>
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => toggleOpen(assignment)}
-											title={assignment.isOpen ? t.closeTitle : t.openTitle}
-											className={assignment.isOpen 
-												? "border-2 border-destructive/60 hover:bg-destructive/10 hover:border-destructive text-destructive hover:text-destructive" 
-												: "border-info/20 hover:bg-info/10 hover:border-info/40"}
-										>
-											{assignment.isOpen ? (
-												<>
-													<XCircle className="h-5 w-5 mr-2 fill-destructive text-destructive" />
-													{t.close}
-												</>
-											) : (
-												<>
-													<CheckCircle className="h-5 w-5 mr-2 text-info" />
-													{t.open}
-												</>
-											)}
-										</Button>
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => handleDelete(assignment.id)}
-											title={t.deleteTitle}
-											className="border-destructive/20 hover:bg-destructive/10 hover:border-destructive/40 text-destructive hover:text-destructive"
-										>
-											<Trash2 className="h-5 w-5 mr-2 fill-destructive text-destructive" />
-											{t.delete}
-										</Button>
+									<div className="pt-4 border-t border-border/50">
+										{isTeacherOrAdmin ? (
+											<div className="grid grid-cols-2 gap-3">
+												<Link href={`/assignments/${assignment.id}/edit`} className="w-full">
+													<Button variant="outline" className="w-full h-10 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/60" title="Edit Assignment">
+														<Edit2 className="h-4 w-4 mr-2" />
+														Edit
+													</Button>
+												</Link>
+
+												<Link href={`/assignments/${assignment.id}`} className="w-full">
+													<Button variant="outline" className="w-full h-10 border-neutral-300 text-neutralDark hover:bg-neutral-100 hover:border-neutral-400" title="View Submissions">
+														<FileText className="h-4 w-4 mr-2" />
+														Submissions
+													</Button>
+												</Link>
+
+												<Button
+													variant="outline"
+													onClick={() => togglePublish(assignment)}
+													title={assignment.status === 'published' ? 'Unpublish' : 'Publish'}
+													className={`w-full h-10 ${assignment.status === 'published'
+														? "border-warning/30 text-warning hover:bg-warning/10 hover:border-warning/50"
+														: "border-success/30 text-success hover:bg-success/10 hover:border-success/50"}`}
+												>
+													{assignment.status === 'published' ? (
+														<>
+															<EyeOff className="h-4 w-4 mr-2" />
+															Unpublish
+														</>
+													) : (
+														<>
+															<Eye className="h-4 w-4 mr-2" />
+															Publish
+														</>
+													)}
+												</Button>
+
+												<Button
+													variant="destructive"
+													onClick={() => confirmDelete(assignment.id)}
+													title="Delete Assignment"
+													className="w-full h-10 bg-red-600 hover:bg-red-700 text-white shadow-sm"
+												>
+													<Trash2 className="h-4 w-4 mr-2" />
+													Delete
+												</Button>
+											</div>
+										) : (
+											<Link href={`/assignments/${assignment.id}`} className="w-full">
+												<Button className="w-full h-11 text-base shadow-sm hover:shadow-md transition-all" variant="default">
+													View Details
+													<ArrowRight className="h-5 w-5 ml-2" />
+												</Button>
+											</Link>
+										)}
 									</div>
 								</CardContent>
 							</Card>
 						);
 					})}
+				</div>
+			)}
+
+			{/* Delete Confirmation Modal */}
+			{deleteConfirm && (
+				<div
+					className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+					onClick={(e) => {
+						if (e.target === e.currentTarget) setDeleteConfirm(null);
+					}}
+				>
+					<Card className="max-w-md w-full animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+						<CardHeader>
+							<CardTitle className="text-xl text-neutralDark flex items-center gap-2">
+								<AlertCircle className="h-6 w-6 text-neutralDark" />
+								Confirm Delete
+							</CardTitle>
+							<CardDescription>
+								Are you sure you want to delete this assignment? This action cannot be undone.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="p-4 border border-border rounded-lg bg-white">
+								<p className="text-sm font-semibold text-neutralDark mb-2">
+									Assignment: {deleteConfirm.title}
+								</p>
+
+								{deleteConfirm.submissionCount > 0 && (
+									<div className="space-y-2">
+										<div className="flex items-center gap-2 text-destructive font-bold text-sm">
+											<AlertCircle className="h-4 w-4" />
+											WARNING:
+										</div>
+										<p className="text-sm text-muted-foreground">
+											There are {deleteConfirm.submissionCount} student submissions.
+										</p>
+										<p className="text-sm text-neutralDark">
+											Deleting this assignment will permanently remove all associated student data and submissions.
+										</p>
+									</div>
+								)}
+							</div>
+
+							<div className="flex gap-3 justify-end pt-2">
+								<Button
+									variant="outline"
+									onClick={() => setDeleteConfirm(null)}
+									className="px-6"
+								>
+									Cancel
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={executeDelete}
+									className="px-6 bg-red-600 hover:bg-red-700 text-white"
+								>
+									<Trash2 className="h-4 w-4 mr-2" />
+									Delete
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
 				</div>
 			)}
 		</div>
