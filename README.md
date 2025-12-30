@@ -7,22 +7,20 @@
 
 An AI-powered learning platform designed to make programming education smarter, more interactive, and more accessible for secondary school students.
 
-AI-assisted learning platform for secondary school programming education.
 
-##Development Team
-
+**Development Team**
 | Name | Role | Student ID |
+| :--- | :--- | :--- |
 | Mah Wilson | Team Leader | A23CS0243 |
 | Tan Jian Ming | Scrum Master | A23CS0275 |
-| **Mahmoud Elganzory | Developer 1 | A23CS0291 |
+| Mahmoud Elganzory | Developer 1 | A23CS0291 |
 | Khan Fadi Dawarh | Developer 2 | A23CS4013 |
 | Liow Jia Feng | Developer 3 | A23CS0302 |
 | Mohamed Omar Makhlouf | Tester 1 | A23CS4014 |
 | Fam Qai Zen | Tester 2 | A23CS0223 |
 
 
-##Tech Stack
-
+**Tech Stack**
 - **Frontend**: Next.js 14 (App Router), TailwindCSS , React
 - **Backend**: Next.js API Routes
 - **Database**: Firebase Firestore
