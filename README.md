@@ -1,4 +1,4 @@
-# MindCraft
+## MindCraft
 
 ![Next.js](https://img.shields.io/badge/Next.js-0070f3?style=flat-square&logo=next.js&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-ffca28?style=flat-square&logo=firebase&logoColor=black)
@@ -9,20 +9,16 @@ An AI-powered learning platform designed to make programming education smarter, 
 
 AI-assisted learning platform for secondary school programming education.
 
-Development Team Members:
-Mah Wilson A23CS0243 (Team Leader)
+##Development Team
 
-Tan Jian Ming A23CS0275 (Scrum Master)
-
-Mahmoud Elganzory A23CS0291 (Developer 1)
-
-Khan Fadi Dawarh A23CS4013 (Developer 2)
-
-Liow Jia Feng A23CS0302 (Developer 3)
-
-Mohamed Omar Makhlouf A23CS4014 (Tester 1)
-
-Fam Qai Zen A23CS0223 (Tester 2)
+| Name | Role | Student ID |
+| Mah Wilson | Team Leader | A23CS0243 |
+| Tan Jian Ming | Scrum Master | A23CS0275 |
+| **Mahmoud Elganzory | Developer 1 | A23CS0291 |
+| Khan Fadi Dawarh | Developer 2 | A23CS4013 |
+| Liow Jia Feng | Developer 3 | A23CS0302 |
+| Mohamed Omar Makhlouf | Tester 1 | A23CS4014 |
+| Fam Qai Zen | Tester 2 | A23CS0223 |
 
 
 ##Tech Stack
