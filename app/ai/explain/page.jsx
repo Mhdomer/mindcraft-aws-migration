@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,8 +10,103 @@ import { ArrowLeft, Sparkles, RefreshCw, Lightbulb, BookOpen, Loader2 } from 'lu
 import Link from 'next/link';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 
+// Enhanced markdown to HTML converter
+function markdownToHtml(text) {
+	if (!text) return '';
+	
+	let html = text;
+	
+	// Code blocks (must be first to avoid processing content inside)
+	html = html.replace(/```(\w+)?\n?([\s\S]*?)```/g, (match, lang, code) => {
+		return `<pre class="bg-black/10 dark:bg-white/10 p-3 rounded mb-2 overflow-x-auto text-sm font-mono whitespace-pre"><code>${code.trim()}</code></pre>`;
+	});
+	
+	// Inline code (but not inside code blocks - process after code blocks)
+	html = html.replace(/`([^`\n]+)`/g, '<code class="bg-black/10 dark:bg-white/10 px-1.5 py-0.5 rounded text-sm font-mono text-primary">$1</code>');
+	
+	// Bold text - handle **text** format (non-greedy to handle multiple instances)
+	html = html.replace(/\*\*([^*]+?)\*\*/g, '<strong class="font-semibold text-neutralDark dark:text-white">$1</strong>');
+	// Also handle single asterisk italic (but not if it's part of **)
+	html = html.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '<em class="italic">$1</em>');
+	
+	// Headers - match at start of line (with optional leading whitespace)
+	html = html.replace(/^(\s*)### (.*)$/gim, '<h3 class="text-base font-semibold mb-1 mt-2 first:mt-0 text-neutralDark dark:text-white">$2</h3>');
+	html = html.replace(/^(\s*)## (.*)$/gim, '<h2 class="text-lg font-semibold mb-2 mt-3 first:mt-0 text-neutralDark dark:text-white">$2</h2>');
+	html = html.replace(/^(\s*)# (.*)$/gim, '<h1 class="text-xl font-bold mb-2 mt-3 first:mt-0 text-neutralDark dark:text-white">$2</h1>');
+	
+	// Numbered lists (1., 2., etc.) - must come before bullet lists
+	html = html.replace(/^(\s*)\d+\. (.+)$/gim, '<li class="ml-1">$2</li>');
+	
+	// Bullet lists (* or -)
+	html = html.replace(/^(\s*)[\*\-] (.+)$/gim, '<li class="ml-1">$2</li>');
+	
+	// Wrap consecutive list items in <ul> or <ol>
+	html = html.replace(/(<li[^>]*>.*?<\/li>)(?:\s*<li[^>]*>.*?<\/li>)*/gs, (match) => {
+		// Check if it starts with a number pattern to determine if it's ordered
+		const firstItem = match.match(/<li[^>]*>(.*?)<\/li>/);
+		if (firstItem && /^\d+\./.test(firstItem[1])) {
+			return `<ol class="list-decimal list-inside mb-2 space-y-1 ml-4">${match}</ol>`;
+		}
+		return `<ul class="list-disc list-inside mb-2 space-y-1 ml-4">${match}</ul>`;
+	});
+	
+	// Split into paragraphs (by double newlines), but preserve HTML tags
+	const lines = html.split('\n');
+	const processedLines = [];
+	let currentParagraph = [];
+	
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i].trim();
+		
+		// If line is empty, end current paragraph
+		if (!line) {
+			if (currentParagraph.length > 0) {
+				const paraText = currentParagraph.join(' ');
+				if (!paraText.startsWith('<')) {
+					processedLines.push(`<p class="mb-2 leading-relaxed">${paraText}</p>`);
+				} else {
+					processedLines.push(paraText);
+				}
+				currentParagraph = [];
+			}
+			continue;
+		}
+		
+		// If line is already HTML (starts with <), add it directly
+		if (line.startsWith('<')) {
+			if (currentParagraph.length > 0) {
+				const paraText = currentParagraph.join(' ');
+				if (!paraText.startsWith('<')) {
+					processedLines.push(`<p class="mb-2 leading-relaxed">${paraText}</p>`);
+				} else {
+					processedLines.push(paraText);
+				}
+				currentParagraph = [];
+			}
+			processedLines.push(line);
+			continue;
+		}
+		
+		// Otherwise, add to current paragraph
+		currentParagraph.push(line);
+	}
+	
+	// Handle remaining paragraph
+	if (currentParagraph.length > 0) {
+		const paraText = currentParagraph.join(' ');
+		if (!paraText.startsWith('<')) {
+			processedLines.push(`<p class="mb-2 leading-relaxed">${paraText}</p>`);
+		} else {
+			processedLines.push(paraText);
+		}
+	}
+	
+	return processedLines.join('\n');
+}
+
 export default function ExplainConceptPage() {
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const { language } = useLanguage();
 	const [concept, setConcept] = useState('');
 	const [explanation, setExplanation] = useState(null);
@@ -42,8 +137,9 @@ export default function ExplainConceptPage() {
 		return () => unsubscribe();
 	}, [router]);
 
-	async function handleExplain() {
-		if (!concept.trim() || loading) return;
+	async function runExplain(conceptText, options = { regenerate: false }) {
+		const trimmed = conceptText.trim();
+		if (!trimmed || loading) return;
 
 		setLoading(true);
 		setExplanation(null);
@@ -56,10 +152,10 @@ export default function ExplainConceptPage() {
 				},
 				body: JSON.stringify({
 					action: 'explain_concept',
-					input: concept.trim(),
+					input: trimmed,
 					language: language,
 					options: {
-						regenerate: regenerateCount > 0
+						regenerate: options.regenerate || regenerateCount > 0,
 					}
 				}),
 			});
@@ -81,9 +177,14 @@ export default function ExplainConceptPage() {
 		}
 	}
 
+	async function handleExplain() {
+		if (!concept.trim() || loading) return;
+		await runExplain(concept, { regenerate: false });
+	}
+
 	async function handleRegenerate() {
 		setRegenerateCount(prev => prev + 1);
-		await handleExplain();
+		await runExplain(concept, { regenerate: true });
 	}
 
 	function handleKeyPress(e) {
@@ -93,13 +194,29 @@ export default function ExplainConceptPage() {
 		}
 	}
 
+	// If a topic is provided in the query string (?topic=...), prefill and auto-run
+	useEffect(() => {
+		const topic = searchParams.get('topic');
+		if (topic) {
+			setConcept(topic);
+			// Slight delay to ensure state is set before calling
+			setTimeout(() => {
+				runExplain(topic, { regenerate: false });
+			}, 50);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [searchParams, language]);
+
 	return (
 		<div className="max-w-4xl mx-auto">
 			<div className="mb-6">
 				<Link href="/dashboard/student">
-					<Button variant="ghost" className="mb-4">
-						<ArrowLeft className="h-4 w-4 mr-2" />
-						Back to Dashboard
+					<Button 
+						variant="ghost" 
+						className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-transparent hover:bg-neutralLight/60 hover:border-2 hover:border-primary/50 border-2 border-transparent transition-all duration-300 ease-in-out"
+					>
+						<ArrowLeft className="h-5 w-5" />
+						<span>Back to Dashboard</span>
 					</Button>
 				</Link>
 				<div className="flex items-center gap-3 mb-2">
@@ -197,9 +314,10 @@ export default function ExplainConceptPage() {
 								</div>
 								<div className="prose max-w-none">
 									<div className="bg-neutralLight border border-border rounded-lg p-6">
-										<p className="text-body text-neutralDark whitespace-pre-wrap mb-4">
-											{explanation.explanation}
-										</p>
+										<div 
+											className="text-body text-neutralDark"
+											dangerouslySetInnerHTML={{ __html: markdownToHtml(explanation.explanation || explanation.response || explanation) }}
+										/>
 									</div>
 								</div>
 							</div>

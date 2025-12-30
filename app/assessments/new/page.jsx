@@ -207,8 +207,19 @@ export default function CreateAssessmentPage() {
 	async function handleSubmit(e) {
 		e.preventDefault();
 
-		if (!title.trim()) {
+		// Validate required fields
+		if (!title || !title.trim()) {
 			alert('Assessment title is required');
+			return;
+		}
+
+		if (title.trim().length < 3) {
+			alert('Assessment title must be at least 3 characters');
+			return;
+		}
+
+		if (title.trim().length > 200) {
+			alert('Assessment title must be less than 200 characters');
 			return;
 		}
 
@@ -217,26 +228,36 @@ export default function CreateAssessmentPage() {
 			return;
 		}
 
-		if (questions.length === 0) {
+		if (type !== 'gameLevel' && questions.length === 0) {
 			alert('Please add at least one question');
 			return;
 		}
 
 		// Validate questions
-		for (const q of questions) {
-			if (!q.question.trim()) {
-				alert('All questions must have a question text');
+		for (let i = 0; i < questions.length; i++) {
+			const q = questions[i];
+			if (!q.question || !q.question.trim()) {
+				alert(`Question ${i + 1}: Question text is required`);
 				return;
 			}
 			if (q.type === 'mcq') {
-				if (q.options.length < 2) {
-					alert('MCQ questions must have at least 2 options');
+				if (!q.options || q.options.length < 2) {
+					alert(`Question ${i + 1}: MCQ questions must have at least 2 options`);
 					return;
 				}
-				if (q.options.some(opt => !opt.trim())) {
-					alert('All MCQ options must be filled');
+				const emptyOptions = q.options.filter(opt => !opt || !opt.trim());
+				if (emptyOptions.length > 0) {
+					alert(`Question ${i + 1}: All MCQ options must be filled`);
 					return;
 				}
+				if (q.correctAnswer === null || q.correctAnswer === undefined) {
+					alert(`Question ${i + 1}: Please select a correct answer`);
+					return;
+				}
+			}
+			if (q.points && (isNaN(q.points) || q.points < 0)) {
+				alert(`Question ${i + 1}: Points must be a positive number`);
+				return;
 			}
 		}
 
@@ -340,7 +361,15 @@ export default function CreateAssessmentPage() {
 									onChange={(e) => setTitle(e.target.value)}
 									placeholder="e.g., Python Fundamentals Quiz"
 									required
+									minLength={3}
+									maxLength={200}
 								/>
+								{title && title.trim().length > 0 && title.trim().length < 3 && (
+									<p className="text-xs text-error mt-1">Title must be at least 3 characters</p>
+								)}
+								{title && title.trim().length > 200 && (
+									<p className="text-xs text-error mt-1">Title must be less than 200 characters</p>
+								)}
 							</div>
 
 							<div>

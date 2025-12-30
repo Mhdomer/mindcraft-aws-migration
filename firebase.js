@@ -18,6 +18,7 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics } from 'firebase/analytics';
+import { getAI, GoogleAIBackend } from 'firebase/ai';
 
 const firebaseConfig = {
 	apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -51,10 +52,16 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
+// Initialize Firebase AI (Gemini) - works in both client and server
+export const ai = getAI(app, { backend: new GoogleAIBackend() });
+
 // Analytics (only works in browser, not in API routes)
 if (typeof window !== 'undefined') {
 	getAnalytics(app);
 }
+
+// Export app for use in other modules
+export { app };
 
 // TODO(security): Enforce RBAC via Firestore Security Rules.
 // TODO(env): Ensure .env.local is populated; never commit real keys.

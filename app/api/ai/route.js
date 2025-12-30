@@ -1,18 +1,18 @@
-// AI stub endpoint (deterministic) for Sprint 1–2
-// POST /api/ai/generate-content (consolidated here as /api/ai)
+// AI endpoint using Firebase AI Logic SDK (Gemini)
+// POST /api/ai
 // Request JSON:
 // {
-//   action: "improve_lesson" | "generate_exercises" | "generate_mcq",
+//   action: "improve_lesson" | "generate_exercises" | "generate_mcq" | "coding_help" | "explain_concept",
 //   input: string,
 //   language: "en" | "bm",
 //   options?: { difficulty?: string, numQuestions?: number, includeSampleCode?: boolean },
 //   teacherId?: string
 // }
 //
-// Response: deterministic sample JSON depending on action.
-// TODO(LLM): Replace with Gemini API call; add rate-limiting and auth.
+// Uses Firebase AI Logic SDK to call Gemini models
 
 import { NextResponse } from 'next/server';
+import { generateText, generateWithHistory, generateJSON } from '@/lib/firebase-ai';
 
 function sampleImproveLesson(includeSampleCode = true, language = 'en') {
 	return {
@@ -478,16 +478,103 @@ export async function POST(request) {
 			return NextResponse.json(resp);
 		}
 		
-		// US012-01: Coding Help
+		// US012-01: Coding Help - Using Firebase AI (database-focused)
 		if (action === 'coding_help') {
-			const resp = sampleCodingHelp(input, options.conversationHistory || [], language);
-			return NextResponse.json(resp);
+			try {
+				const history = (options.conversationHistory || []).map(msg => ({
+					role: msg.role === 'user' ? 'user' : 'model',
+					parts: [{ text: msg.content }]
+				}));
+
+				const prompt = `You are an educational coding tutor for secondary school students (age 16-17) learning **database systems** (SQL, relational databases, data modeling, transactions, indexing).
+
+Your responses must be:
+- **Database-focused**: Whenever possible, explain things in terms of databases (tables, rows, columns, queries, schemas, normalization, indexing, transactions, ACID).
+- **Educational**: Focus on teaching concepts step-by-step, not just giving answers.
+- **Short**: Keep responses concise (about 2–4 paragraphs plus bullet points).
+- **Informational & accurate**: Use correct database terminology.
+- **Clear**: Use simple language and avoid heavy jargon.
+
+Respond in ${language === 'bm' ? 'Bahasa Malaysia' : 'English'}.
+
+Student's question (may be about SQL, database design, or general CS/programming concepts):
+${input}
+
+${history.length > 0 ? 'Previous conversation context is provided above. Maintain context and build on previous explanations.' : ''}
+
+When the question is more general programming (loops, functions, arrays, etc.), try to:
+- Connect the explanation back to database work (e.g., how loops help process query results, how functions help build reusable queries, etc.).
+
+Format your response using markdown:
+- Use **bold** for key terms and concepts
+- Use bullet points for lists
+- Use \`code\` for inline code
+- Use \`\`\`sql\n...\n\`\`\` for SQL examples and \`\`\`javascript\`\`\` or similar for other code
+- Keep paragraphs short (2–3 sentences)
+
+Provide:
+1. A brief, accurate explanation (prioritise database concepts when relevant)
+2. A simple SQL or database-related example if appropriate
+3. Key takeaway points relating back to databases/real-world systems.
+
+Be concise, database-oriented, and educational.`;
+
+				const response = await generateWithHistory(prompt, history, {
+					temperature: 0.7,
+					maxTokens: 1000
+				});
+
+				return NextResponse.json({
+					response,
+					suggestions: [
+						language === 'bm' ? 'Tunjukkan contoh kod' : 'Show code example',
+						language === 'bm' ? 'Terangkan langkah demi langkah' : 'Explain step by step',
+						language === 'bm' ? 'Bantu debug ralat' : 'Help debug error'
+					]
+				});
+			} catch (err) {
+				console.error('Coding help error:', err);
+				// Fallback to stub if AI fails
+				const resp = sampleCodingHelp(input, options.conversationHistory || [], language);
+				return NextResponse.json(resp);
+			}
 		}
 		
-		// US012-02: Concept Explanation
+		// US012-02: Concept Explanation - Using Firebase AI (database-first)
 		if (action === 'explain_concept') {
-			const resp = sampleExplainConcept(input, options.regenerate || false, language);
-			return NextResponse.json(resp);
+			try {
+				const prompt = `You are explaining computer science concepts with a **strong focus on database systems** (SQL, relational databases, data modeling, indexing, transactions, ACID, security).
+
+Explain the concept "${input}" in ${language === 'bm' ? 'Bahasa Malaysia' : 'English'} for secondary school students (age 16-17).
+
+Provide:
+1. Clear definition (prioritise the database interpretation if "${input}" is database-related, otherwise briefly explain how it connects back to databases).
+2. Simple explanation with at least one example involving tables, queries, or real database scenarios (if relevant).
+3. Real-world applications in database contexts (e.g., school system, e-commerce, banking, analytics).
+4. Related database and CS concepts to explore next.
+
+Keep it educational, easy to understand, and oriented around databases wherever possible. Use markdown formatting (headings, bullet points, and code blocks) to structure the explanation.`;
+
+				const response = await generateText(prompt, {
+					temperature: 0.8,
+					maxTokens: 1500
+				});
+
+				// Parse response into structured format
+				const explanation = {
+					definition: response.split('\n\n')[0] || response.substring(0, 200),
+					explanation: response,
+					examples: response.match(/[Ee]xample[s]?:?\s*(.+?)(?:\n\n|$)/g) || [],
+					relatedConcepts: []
+				};
+
+				return NextResponse.json(explanation);
+			} catch (err) {
+				console.error('Concept explanation error:', err);
+				// Fallback to stub if AI fails
+				const resp = sampleExplainConcept(input, options.regenerate || false, language);
+				return NextResponse.json(resp);
+			}
 		}
 
 		return NextResponse.json({ error: 'Unsupported action' }, { status: 400 });

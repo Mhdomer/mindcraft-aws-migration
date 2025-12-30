@@ -33,18 +33,34 @@ export default function CourseDetailPage() {
 				// Get user role
 				const userDoc = await getDoc(doc(db, 'user', user.uid));
 				if (userDoc.exists()) {
-					setRole(userDoc.data().role);
-					if (userDoc.data().role === 'student') {
-						// Check enrollment
+					const userRole = userDoc.data().role;
+					setRole(userRole);
+					if (userRole === 'student' && courseId) {
+						// Check enrollment directly from Firestore (more reliable than API)
 						try {
-							const response = await fetch(`/api/courses/${courseId}/enroll?studentId=${user.uid}`);
-							const data = await response.json();
-							setIsEnrolled(data.enrolled || false);
+							const enrollmentId = `${user.uid}_${courseId}`;
+							const enrollmentRef = doc(db, 'enrollment', enrollmentId);
+							const enrollmentDoc = await getDoc(enrollmentRef);
+							const enrolled = enrollmentDoc.exists();
+							setIsEnrolled(enrolled);
+							console.log('Enrollment check:', { enrollmentId, enrolled, courseId, userId: user.uid });
 						} catch (err) {
 							console.error('Error checking enrollment:', err);
+							setIsEnrolled(false);
 						}
+					} else if (userRole === 'teacher' || userRole === 'admin') {
+						// Teachers and admins have access to all courses
+						setIsEnrolled(true);
+					} else {
+						setIsEnrolled(false);
 					}
+				} else {
+					setIsEnrolled(false);
 				}
+			} else {
+				setUserId(null);
+				setRole(null);
+				setIsEnrolled(false);
 			}
 			setEnrollmentLoading(false);
 		});
@@ -197,8 +213,7 @@ export default function CourseDetailPage() {
 			});
 
 			setIsEnrolled(true);
-			// Reload the page to show enrolled status
-			window.location.reload();
+			// State is already updated, no need to reload
 		} catch (err) {
 			console.error('Enrollment error:', err);
 			setError(err.message || 'Failed to enroll. Please try again.');

@@ -6,14 +6,13 @@ import Link from 'next/link';
 import SignOutButton from '@/app/components/SignOutButton';
 import { Button } from './ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { Languages } from 'lucide-react';
 import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 
 export default function Header({ role: initialRole }) {
 	const router = useRouter();
-	const { language, setLanguage } = useLanguage();
+	const { language } = useLanguage();
 	const [currentRole, setCurrentRole] = useState(initialRole);
 
 	// Listen to auth state changes and refresh the page
@@ -62,10 +61,6 @@ export default function Header({ role: initialRole }) {
 		setCurrentRole(initialRole);
 	}, [initialRole]);
 
-	const toggleLanguage = () => {
-		setLanguage(language === 'en' ? 'bm' : 'en');
-	};
-
 	return (
 		<header className="sticky top-0 z-40 bg-white border-b border-border shadow-sm relative w-full">
 			{/* Single Unified Container - spans full width, 3x height */}
@@ -77,20 +72,6 @@ export default function Header({ role: initialRole }) {
 					
 					{/* User Actions - always on the right */}
 					<div className="flex items-center gap-3 flex-shrink-0">
-						{currentRole !== 'guest' && (
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={toggleLanguage}
-								className="flex items-center gap-2"
-								title={language === 'en' ? 'Switch to Bahasa Melayu' : 'Tukar ke English'}
-							>
-								<Languages className="h-4 w-4" />
-								<span className="hidden sm:inline text-caption font-medium">
-									{language === 'en' ? 'EN' : 'BM'}
-								</span>
-							</Button>
-						)}
 						{currentRole === 'guest' ? (
 							<Link href="/login">
 								<Button variant="default" size="sm">

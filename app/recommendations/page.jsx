@@ -195,94 +195,221 @@ export default function RecommendationsPage() {
 				</p>
 			</div>
 
-			{/* Recommendations Grid */}
-			<div className="grid gap-6 md:grid-cols-2">
-				{databaseRecommendations.map((recommendation) => {
-					const isExpanded = expandedId === recommendation.id;
-					
-					return (
-						<Card
-							key={recommendation.id}
-							className={`border-l-4 ${getPriorityColor(recommendation.priority)} transition-all duration-200 hover:shadow-lg cursor-pointer`}
-						>
-							<CardHeader>
-								<div className="flex items-start justify-between gap-3">
-									<div className="flex items-start gap-3 flex-1">
-										<div className="p-2 bg-primary/10 rounded-lg">
-											{recommendation.icon}
+			{/* Recommendations Grid - two independent vertical columns */}
+			<div className="flex flex-col md:flex-row gap-6">
+				{/* Left column (even indices) */}
+				<div className="flex flex-col gap-6 flex-1">
+					{databaseRecommendations.filter((_, index) => index % 2 === 0).map((recommendation) => {
+						const isExpanded = expandedId === recommendation.id;
+
+						return (
+							<Card
+								key={recommendation.id}
+								className={`border-l-4 ${getPriorityColor(recommendation.priority)} transition-all duration-200 hover:shadow-lg`}
+							>
+								<CardHeader>
+									<div className="flex items-start justify-between gap-3">
+										<div className="flex items-start gap-3 flex-1">
+											<div className="p-2 bg-primary/10 rounded-lg">
+												{recommendation.icon}
+											</div>
+											<div className="flex-1">
+												<CardTitle className="text-h3 mb-2">{recommendation.title}</CardTitle>
+												{getPriorityBadge(recommendation.priority)}
+											</div>
 										</div>
-										<div className="flex-1">
-											<CardTitle className="text-h3 mb-2">{recommendation.title}</CardTitle>
-											{getPriorityBadge(recommendation.priority)}
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={() => toggleExpand(recommendation.id)}
+											className="flex-shrink-0"
+										>
+											{isExpanded ? (
+												<ChevronUp className="h-5 w-5" />
+											) : (
+												<ChevronDown className="h-5 w-5" />
+											)}
+										</Button>
+									</div>
+								</CardHeader>
+
+								<CardContent
+									className={`pt-0 overflow-hidden transition-all duration-500 ${
+										isExpanded ? 'max-h-[420px] opacity-100 mt-2' : 'max-h-0 opacity-0'
+									}`}
+								>
+									<div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
+										{/* Why Section */}
+										<div className="p-4 bg-neutralLight rounded-lg border border-border">
+											<h3 className="text-body font-semibold text-neutralDark mb-2 flex items-center gap-2">
+												<Lightbulb className="h-4 w-4 text-primary" />
+												Why This Matters
+											</h3>
+											<p className="text-caption text-muted-foreground leading-relaxed">
+												{recommendation.why}
+											</p>
+										</div>
+
+										{/* Overview Section */}
+										<div className="p-4 bg-neutralLight rounded-lg border border-border">
+											<h3 className="text-body font-semibold text-neutralDark mb-2 flex items-center gap-2">
+												<BookOpen className="h-4 w-4 text-primary" />
+												Overview
+											</h3>
+											<p className="text-caption text-muted-foreground leading-relaxed mb-3">
+												{recommendation.overview}
+											</p>
+										</div>
+
+										{/* Topics Section */}
+										<div className="p-4 bg-neutralLight rounded-lg border border-border">
+											<h3 className="text-body font-semibold text-neutralDark mb-3 flex items-center gap-2">
+												<Target className="h-4 w-4 text-primary" />
+												What You'll Learn
+											</h3>
+											<ul className="space-y-2">
+												{recommendation.topics.map((topic, index) => (
+													<li key={index} className="flex items-start gap-2 text-caption text-muted-foreground">
+														<span className="text-primary mt-1">•</span>
+														<span>{topic}</span>
+													</li>
+												))}
+											</ul>
+										</div>
+
+										{/* Action Buttons */}
+										<div className="grid gap-2 sm:grid-cols-2">
+											<Button
+												onClick={() => router.push(recommendation.actionPath)}
+											>
+												Explore Related Courses
+											</Button>
+											<Button
+												variant="outline"
+												onClick={() =>
+													router.push(
+														`/ai/explain?topic=${encodeURIComponent(
+															`Database topic: ${recommendation.title}`
+														)}`
+													)
+												}
+											>
+												Ask AI to explain this
+											</Button>
 										</div>
 									</div>
-									<Button
-										variant="ghost"
-										size="sm"
-										onClick={() => toggleExpand(recommendation.id)}
-										className="flex-shrink-0"
-									>
-										{isExpanded ? (
-											<ChevronUp className="h-5 w-5" />
-										) : (
-											<ChevronDown className="h-5 w-5" />
-										)}
-									</Button>
-								</div>
-							</CardHeader>
-
-							{isExpanded && (
-								<CardContent className="space-y-4 pt-0">
-									{/* Why Section */}
-									<div className="p-4 bg-neutralLight rounded-lg border border-border">
-										<h3 className="text-body font-semibold text-neutralDark mb-2 flex items-center gap-2">
-											<Lightbulb className="h-4 w-4 text-primary" />
-											Why This Matters
-										</h3>
-										<p className="text-caption text-muted-foreground leading-relaxed">
-											{recommendation.why}
-										</p>
-									</div>
-
-									{/* Overview Section */}
-									<div className="p-4 bg-neutralLight rounded-lg border border-border">
-										<h3 className="text-body font-semibold text-neutralDark mb-2 flex items-center gap-2">
-											<BookOpen className="h-4 w-4 text-primary" />
-											Overview
-										</h3>
-										<p className="text-caption text-muted-foreground leading-relaxed mb-3">
-											{recommendation.overview}
-										</p>
-									</div>
-
-									{/* Topics Section */}
-									<div className="p-4 bg-neutralLight rounded-lg border border-border">
-										<h3 className="text-body font-semibold text-neutralDark mb-3 flex items-center gap-2">
-											<Target className="h-4 w-4 text-primary" />
-											What You'll Learn
-										</h3>
-										<ul className="space-y-2">
-											{recommendation.topics.map((topic, index) => (
-												<li key={index} className="flex items-start gap-2 text-caption text-muted-foreground">
-													<span className="text-primary mt-1">•</span>
-													<span>{topic}</span>
-												</li>
-											))}
-										</ul>
-									</div>
-
-									{/* Action Button */}
-									<Button
-										onClick={() => router.push(recommendation.actionPath)}
-										className="w-full"
-									>
-										Explore Related Courses
-									</Button>
 								</CardContent>
-							)}
-						</Card>
-					);
-				})}
+							</Card>
+						);
+					})}
+				</div>
+
+				{/* Right column (odd indices) */}
+				<div className="flex flex-col gap-6 flex-1">
+					{databaseRecommendations.filter((_, index) => index % 2 === 1).map((recommendation) => {
+						const isExpanded = expandedId === recommendation.id;
+
+						return (
+							<Card
+								key={recommendation.id}
+								className={`border-l-4 ${getPriorityColor(recommendation.priority)} transition-all duration-200 hover:shadow-lg`}
+							>
+								<CardHeader>
+									<div className="flex items-start justify-between gap-3">
+										<div className="flex items-start gap-3 flex-1">
+											<div className="p-2 bg-primary/10 rounded-lg">
+												{recommendation.icon}
+											</div>
+											<div className="flex-1">
+												<CardTitle className="text-h3 mb-2">{recommendation.title}</CardTitle>
+												{getPriorityBadge(recommendation.priority)}
+											</div>
+										</div>
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={() => toggleExpand(recommendation.id)}
+											className="flex-shrink-0"
+										>
+											{isExpanded ? (
+												<ChevronUp className="h-5 w-5" />
+											) : (
+												<ChevronDown className="h-5 w-5" />
+											)}
+										</Button>
+									</div>
+								</CardHeader>
+
+								<CardContent
+									className={`pt-0 overflow-hidden transition-all duration-500 ${
+										isExpanded ? 'max-h-[420px] opacity-100 mt-2' : 'max-h-0 opacity-0'
+									}`}
+								>
+									<div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
+										{/* Why Section */}
+										<div className="p-4 bg-neutralLight rounded-lg border border-border">
+											<h3 className="text-body font-semibold text-neutralDark mb-2 flex items-center gap-2">
+												<Lightbulb className="h-4 w-4 text-primary" />
+												Why This Matters
+											</h3>
+											<p className="text-caption text-muted-foreground leading-relaxed">
+												{recommendation.why}
+											</p>
+										</div>
+
+										{/* Overview Section */}
+										<div className="p-4 bg-neutralLight rounded-lg border border-border">
+											<h3 className="text-body font-semibold text-neutralDark mb-2 flex items-center gap-2">
+												<BookOpen className="h-4 w-4 text-primary" />
+												Overview
+											</h3>
+											<p className="text-caption text-muted-foreground leading-relaxed mb-3">
+												{recommendation.overview}
+											</p>
+										</div>
+
+										{/* Topics Section */}
+										<div className="p-4 bg-neutralLight rounded-lg border border-border">
+											<h3 className="text-body font-semibold text-neutralDark mb-3 flex items-center gap-2">
+												<Target className="h-4 w-4 text-primary" />
+												What You'll Learn
+											</h3>
+											<ul className="space-y-2">
+												{recommendation.topics.map((topic, index) => (
+													<li key={index} className="flex items-start gap-2 text-caption text-muted-foreground">
+														<span className="text-primary mt-1">•</span>
+														<span>{topic}</span>
+													</li>
+												))}
+											</ul>
+										</div>
+
+										{/* Action Buttons */}
+										<div className="grid gap-2 sm:grid-cols-2">
+											<Button
+												onClick={() => router.push(recommendation.actionPath)}
+											>
+												Explore Related Courses
+											</Button>
+											<Button
+												variant="outline"
+												onClick={() =>
+													router.push(
+														`/ai/explain?topic=${encodeURIComponent(
+															`Database topic: ${recommendation.title}`
+														)}`
+													)
+												}
+											>
+												Ask AI to explain this
+											</Button>
+										</div>
+									</div>
+								</CardContent>
+							</Card>
+						);
+					})}
+				</div>
 			</div>
 
 			{/* Info Card */}

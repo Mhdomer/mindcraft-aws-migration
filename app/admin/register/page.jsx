@@ -24,8 +24,41 @@ export default function AdminRegisterPage() {
 		setError('');
 		setLoading(true);
 
-		if (!name || !email || !password) {
-			setError('All fields are required');
+		// Validate required fields
+		if (!name || !name.trim()) {
+			setError('Full name is required');
+			setLoading(false);
+			return;
+		}
+
+		if (name.trim().length < 2) {
+			setError('Full name must be at least 2 characters');
+			setLoading(false);
+			return;
+		}
+
+		if (!email || !email.trim()) {
+			setError('Email is required');
+			setLoading(false);
+			return;
+		}
+
+		// Validate email format
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!emailRegex.test(email.trim())) {
+			setError('Please enter a valid email address');
+			setLoading(false);
+			return;
+		}
+
+		if (!password) {
+			setError('Password is required');
+			setLoading(false);
+			return;
+		}
+
+		if (password.length < 6) {
+			setError('Password must be at least 6 characters');
 			setLoading(false);
 			return;
 		}
@@ -70,35 +103,69 @@ export default function AdminRegisterPage() {
 			<Card>
 				<CardContent className="pt-6">
 					<form onSubmit={onSubmit} className="space-y-4">
-						<Input
-							required
-							placeholder="Full name"
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-						/>
-						<Input
-							required
-							type="email"
-							placeholder="Email"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-						/>
-						<Input
-							required
-							type="password"
-							placeholder="Password (min 6 characters)"
-							value={password}
-							onChange={(e) => setPassword(e.target.value)}
-							minLength={6}
-						/>
-						<select 
-							className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-body ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200"
-							value={role} 
-							onChange={(e) => setRole(e.target.value)}
-						>
-							<option value="teacher">Teacher</option>
-							<option value="student">Student</option>
-						</select>
+						<div className="space-y-2">
+							<label className="text-caption font-medium text-neutralDark">
+								Full Name <span className="text-error">*</span>
+							</label>
+							<Input
+								required
+								placeholder="Enter full name"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+								minLength={2}
+								maxLength={100}
+							/>
+							{name && name.trim().length < 2 && (
+								<p className="text-xs text-error">Name must be at least 2 characters</p>
+							)}
+						</div>
+						<div className="space-y-2">
+							<label className="text-caption font-medium text-neutralDark">
+								Email <span className="text-error">*</span>
+							</label>
+							<Input
+								required
+								type="email"
+								placeholder="Enter email address"
+								value={email}
+								onChange={(e) => setEmail(e.target.value)}
+							/>
+							{email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && (
+								<p className="text-xs text-error">Please enter a valid email address</p>
+							)}
+						</div>
+						<div className="space-y-2">
+							<label className="text-caption font-medium text-neutralDark">
+								Password <span className="text-error">*</span>
+							</label>
+							<Input
+								required
+								type="password"
+								placeholder="Enter password (min 6 characters)"
+								value={password}
+								onChange={(e) => setPassword(e.target.value)}
+								minLength={6}
+							/>
+							{password && password.length < 6 && (
+								<p className="text-xs text-error">Password must be at least 6 characters</p>
+							)}
+							{password && password.length >= 6 && password.length < 8 && (
+								<p className="text-xs text-warning">Consider using 8+ characters for better security</p>
+							)}
+						</div>
+						<div className="space-y-2">
+							<label className="text-caption font-medium text-neutralDark">
+								Role <span className="text-error">*</span>
+							</label>
+							<select
+								className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-body ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200"
+								value={role}
+								onChange={(e) => setRole(e.target.value)}
+							>
+								<option value="teacher">Teacher</option>
+								<option value="student">Student</option>
+							</select>
+						</div>
 						<Button
 							className="w-full"
 							type="submit"

@@ -41,16 +41,34 @@ function getNavItems(role) {
 	} else if (role === 'student') {
 		return [
 			{ href: '/dashboard/student', label: 'Dashboard' },
-			{ href: '/courses', label: 'My Courses' },
-			{ href: '/courses/explore', label: 'Explore Courses' },
-			{ href: '/recommendations', label: 'Recommendations' },
-			{ href: '/profile', label: 'Profile' },
-			{ href: '/assessments', label: 'Assessments' },
-			{ href: '/assessments?type=assignment', label: 'Assignments' },
+			{
+				href: '/courses',
+				label: 'Courses',
+				children: [
+					{ href: '/courses', label: 'My Courses' },
+					{ href: '/courses/explore', label: 'Explore Courses' },
+				],
+			},
+			{
+				href: '/assignments',
+				label: 'Activities',
+				children: [
+					{ href: '/assessments', label: 'Assessments' },
+					{ href: '/assignments', label: 'Assignments' },
+					{ href: '/game-levels', label: 'Game Levels' },
+				],
+			},
 			{ href: '/progress', label: 'Progress' },
 			{ href: '/forum', label: 'Forum' },
-			{ href: '/ai/coding-help', label: 'Coding Help' },
-			{ href: '/ai/explain', label: 'Explain Concept' },
+			{ href: '/ai', label: 'AI Assistant' },
+			{
+				href: '/profile',
+				label: 'Account',
+				children: [
+					{ href: '/profile', label: 'Profile' },
+					{ href: '/settings', label: 'Settings' },
+				],
+			},
 		];
 	}
 	// Guest nav

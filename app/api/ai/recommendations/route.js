@@ -1,18 +1,49 @@
 // API endpoint for learning recommendations (US012-03)
 // POST /api/ai/recommendations
 // Analyzes student performance and provides personalized learning recommendations
+	// Uses caching to avoid regenerating recommendations on every request
 
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { db } from '@/firebase';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 
 // Helper to get user info from cookies
 async function getUserId() {
 	const cookieStore = await cookies();
-	// Session API sets `user_id` – keep backward compat with any older `userId` usage
 	const userId = cookieStore.get('user_id')?.value || cookieStore.get('userId')?.value;
 	return userId || null;
+}
+
+// Generate hash from progress data to detect changes
+function generateProgressHash(performanceData) {
+	const hashData = {
+		enrolledCourses: performanceData.enrolledCourses?.map(c => c.id).sort().join(','),
+		completedLessons: performanceData.completedLessons?.length || 0,
+		assessmentScores: performanceData.assessmentScores?.length || 0,
+		overallProgress: JSON.stringify(performanceData.overallProgress || {})
+	};
+	return JSON.stringify(hashData);
+}
+
+// Check if recommendations need to be regenerated
+async function shouldRegenerateRecommendations(userId, currentProgressHash) {
+	try {
+		const recDoc = await getDoc(doc(db, 'recommendation_cache', userId));
+		if (!recDoc.exists()) {
+			return true; // No cache exists, need to generate
+		}
+		
+		const cached = recDoc.data();
+		// Regenerate if progress hash changed or cache is older than 24 hours
+		const cacheAge = Date.now() - (cached.generatedAt?.toMillis() || 0);
+		const isStale = cacheAge > 24 * 60 * 60 * 1000; // 24 hours
+		
+		return cached.progressHash !== currentProgressHash || isStale;
+	} catch (err) {
+		console.error('Error checking cache:', err);
+		return true; // On error, regenerate
+	}
 }
 
 // Sample recommendation generator (deterministic stub)
@@ -187,30 +218,86 @@ export async function POST(request) {
 	try {
 		const userId = await getUserId();
 		if (!userId) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+			console.error('No userId found in cookies');
+			return NextResponse.json({ error: 'Unauthorized - Please log in' }, { status: 401 });
 		}
 		
-		const body = await request.json();
-		const { language = 'en' } = body;
+		let body;
+		try {
+			body = await request.json();
+		} catch (e) {
+			body = {};
+		}
+		const { language = 'en', forceRegenerate = false } = body;
 		
 		// Fetch student's enrollments
-		const enrollmentsQuery = query(
-			collection(db, 'enrollment'),
-			where('studentId', '==', userId)
-		);
-		const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
-		const enrollments = [];
-		
-		for (const enrollmentDoc of enrollmentsSnapshot.docs) {
-			const enrollmentData = enrollmentDoc.data();
-			const courseDoc = await getDoc(doc(db, 'course', enrollmentData.courseId));
-			if (courseDoc.exists()) {
-				enrollments.push({
-					id: enrollmentData.courseId,
-					title: courseDoc.data().title,
-					progress: enrollmentData.progress || {}
-				});
+		let enrollments = [];
+		try {
+			// Try the new format first (document ID: userId_courseId)
+			const coursesSnapshot = await getDocs(collection(db, 'course'));
+			for (const courseDoc of coursesSnapshot.docs) {
+				try {
+					const enrollmentId = `${userId}_${courseDoc.id}`;
+					const enrollmentDoc = await getDoc(doc(db, 'enrollment', enrollmentId));
+					if (enrollmentDoc.exists()) {
+						enrollments.push({
+							id: courseDoc.id,
+							title: courseDoc.data().title,
+							progress: enrollmentDoc.data().progress || {}
+						});
+					}
+				} catch (err) {
+					// Skip if can't read this enrollment
+					continue;
+				}
 			}
+			
+			// Also try the old format (query by studentId) if no enrollments found
+			if (enrollments.length === 0) {
+				try {
+					const enrollmentsQuery = query(
+						collection(db, 'enrollment'),
+						where('studentId', '==', userId)
+					);
+					const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
+					
+					for (const enrollmentDoc of enrollmentsSnapshot.docs) {
+						const enrollmentData = enrollmentDoc.data();
+						if (enrollmentData.courseId) {
+							try {
+								const courseDoc = await getDoc(doc(db, 'course', enrollmentData.courseId));
+								if (courseDoc.exists()) {
+									enrollments.push({
+										id: enrollmentData.courseId,
+										title: courseDoc.data().title,
+										progress: enrollmentData.progress || {}
+									});
+								}
+							} catch (err) {
+								continue;
+							}
+						}
+					}
+				} catch (queryError) {
+					// If query fails, continue with empty enrollments
+					console.error('Enrollment query failed:', queryError);
+				}
+			}
+		} catch (enrollmentError) {
+			console.error('Error loading enrollments:', enrollmentError);
+			// Continue with empty enrollments array - return empty recommendations
+			return NextResponse.json({
+				recommendations: [],
+				weakAreas: [],
+				strongAreas: [],
+				cached: false,
+				performanceSummary: {
+					enrolledCoursesCount: 0,
+					completedLessonsCount: 0,
+					averageAssessmentScore: null,
+					averageAssignmentGrade: null
+				}
+			});
 		}
 		
 		// Fetch completed lessons from enrollments
@@ -288,14 +375,51 @@ export async function POST(request) {
 			strongAreas
 		};
 		
-		// Generate recommendations
-		const recommendations = generateRecommendations(performanceData, language);
+		// Generate progress hash to detect changes
+		const progressHash = generateProgressHash(performanceData);
+		
+		// Check if we need to regenerate recommendations
+		const needsRegeneration = forceRegenerate || await shouldRegenerateRecommendations(userId, progressHash);
+		
+		let recommendations;
+		if (needsRegeneration) {
+			// Generate new recommendations (using placeholder for now, can add AI later)
+			recommendations = generateRecommendations(performanceData, language);
+			
+			// Cache recommendations in Firestore
+			try {
+				await setDoc(doc(db, 'recommendation_cache', userId), {
+					recommendations,
+					progressHash,
+					generatedAt: serverTimestamp(),
+					language,
+					performanceData: {
+						enrolledCoursesCount: enrollments.length,
+						completedLessonsCount: completedLessons.length,
+						assessmentScoresCount: assessmentScores.length
+					}
+				});
+			} catch (cacheError) {
+				console.error('Error caching recommendations:', cacheError);
+				// Continue even if caching fails
+			}
+		} else {
+			// Use cached recommendations
+			const cachedDoc = await getDoc(doc(db, 'recommendation_cache', userId));
+			if (cachedDoc.exists()) {
+				recommendations = cachedDoc.data().recommendations || [];
+			} else {
+				// Fallback to generating if cache read fails
+				recommendations = generateRecommendations(performanceData, language);
+			}
+		}
 
 		// Expose weak/strong areas so the frontend can show detailed insights
 		return NextResponse.json({
 			recommendations,
 			weakAreas,
 			strongAreas,
+			cached: !needsRegeneration,
 			performanceSummary: {
 				enrolledCoursesCount: enrollments.length,
 				completedLessonsCount: completedLessons.length,
@@ -315,4 +439,3 @@ export async function POST(request) {
 		);
 	}
 }
-

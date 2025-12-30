@@ -135,7 +135,6 @@ export default function AssessmentsPage() {
 					orderBy('createdAt', 'desc')
 				);
 			}
-<<<<<<< HEAD
 
 			let snapshot;
 			try {
@@ -345,7 +344,10 @@ export default function AssessmentsPage() {
 		// Validate file size (10MB limit)
 		const MAX_FILE_SIZE = 10 * 1024 * 1024;
 		if (file.size > MAX_FILE_SIZE) {
-			alert(`File size must be less than ${MAX_FILE_SIZE / 1024 / 1024}MB`);
+			const errorMsg = language === 'bm'
+				? `Saiz fail mesti kurang daripada ${MAX_FILE_SIZE / 1024 / 1024}MB`
+				: `File size must be less than ${MAX_FILE_SIZE / 1024 / 1024}MB`;
+			alert(errorMsg);
 			if (fileInputRefs.current[assessmentId]) fileInputRefs.current[assessmentId].value = '';
 			return;
 		}
@@ -374,7 +376,10 @@ export default function AssessmentsPage() {
 		const isValidExtension = allowedExtensions.includes(fileExtension);
 
 		if (!isValidMimeType && !isValidExtension) {
-			alert('File type not supported. Please upload PDF, DOCX, ZIP, text files, or images.');
+			const errorMsg = language === 'bm'
+				? 'Jenis fail tidak disokong. Sila muat naik PDF, DOCX, ZIP, fail teks, atau imej.'
+				: 'File type not supported. Please upload PDF, DOCX, ZIP, text files, or images.';
+			alert(errorMsg);
 			if (fileInputRefs.current[assessmentId]) fileInputRefs.current[assessmentId].value = '';
 			return;
 		}

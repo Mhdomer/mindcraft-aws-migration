@@ -14,14 +14,19 @@ export default function SignOutButton() {
 			await signOut(auth);
 			
 			// Clear cookies via API
-			await fetch('/api/auth/logout', { method: 'POST' });
+			try {
+				await fetch('/api/auth/logout', { method: 'POST' });
+			} catch (apiErr) {
+				console.warn('Logout API error (non-critical):', apiErr);
+			}
 			
 			// Force full page reload to ensure server sees cleared cookies
-			window.location.href = '/';
+			// Use replace to avoid adding to history and prevent browser from using cached redirects
+			window.location.replace('/');
 		} catch (err) {
 			console.error('Sign out error:', err);
-			// Still redirect even if there's an error
-			window.location.href = '/';
+			// Still redirect even if there's an error - use replace to avoid history issues
+			window.location.replace('/');
 		}
 	}
 

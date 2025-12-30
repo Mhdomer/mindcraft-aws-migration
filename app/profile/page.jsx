@@ -201,13 +201,23 @@ export default function ProfilePage() {
 		setError('');
 		setSuccess('');
 
-		if (!currentPassword || !newPassword || !confirmPassword) {
-			setError('All password fields are required');
+		if (!currentPassword || !currentPassword.trim()) {
+			setError('Current password is required');
+			return;
+		}
+
+		if (!newPassword || !newPassword.trim()) {
+			setError('New password is required');
 			return;
 		}
 
 		if (newPassword.length < 6) {
 			setError('New password must be at least 6 characters');
+			return;
+		}
+
+		if (!confirmPassword || !confirmPassword.trim()) {
+			setError('Please confirm your new password');
 			return;
 		}
 
@@ -337,13 +347,19 @@ export default function ProfilePage() {
 					{/* Name */}
 					<div>
 						<label className="block mb-2 text-sm font-medium text-neutralDark">
-							Full Name
+							Full Name <span className="text-error">*</span>
 						</label>
 						<Input
 							value={name}
 							onChange={(e) => setName(e.target.value)}
 							placeholder="Enter your full name"
+							required
+							minLength={2}
+							maxLength={100}
 						/>
+						{name && name.trim().length < 2 && (
+							<p className="text-xs text-error mt-1">Name must be at least 2 characters</p>
+						)}
 					</div>
 
 					{/* Email (read-only) */}
@@ -405,36 +421,49 @@ export default function ProfilePage() {
 						<div className="space-y-4">
 							<div>
 								<label className="block mb-2 text-sm font-medium text-neutralDark">
-									Current Password
+									Current Password <span className="text-error">*</span>
 								</label>
 								<Input
 									type="password"
 									value={currentPassword}
 									onChange={(e) => setCurrentPassword(e.target.value)}
 									placeholder="Enter current password"
+									required
 								/>
 							</div>
 							<div>
 								<label className="block mb-2 text-sm font-medium text-neutralDark">
-									New Password
+									New Password <span className="text-error">*</span>
 								</label>
 								<Input
 									type="password"
 									value={newPassword}
 									onChange={(e) => setNewPassword(e.target.value)}
 									placeholder="Enter new password (min 6 characters)"
+									required
+									minLength={6}
 								/>
+								{newPassword && newPassword.length < 6 && (
+									<p className="text-xs text-error mt-1">Password must be at least 6 characters</p>
+								)}
+								{newPassword && newPassword.length >= 6 && newPassword.length < 8 && (
+									<p className="text-xs text-warning mt-1">Consider using 8+ characters for better security</p>
+								)}
 							</div>
 							<div>
 								<label className="block mb-2 text-sm font-medium text-neutralDark">
-									Confirm New Password
+									Confirm New Password <span className="text-error">*</span>
 								</label>
 								<Input
 									type="password"
 									value={confirmPassword}
 									onChange={(e) => setConfirmPassword(e.target.value)}
 									placeholder="Confirm new password"
+									required
 								/>
+								{confirmPassword && newPassword && confirmPassword !== newPassword && (
+									<p className="text-xs text-error mt-1">Passwords do not match</p>
+								)}
 							</div>
 							<div className="flex items-center gap-2">
 								<Button

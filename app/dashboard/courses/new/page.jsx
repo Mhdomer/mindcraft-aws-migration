@@ -79,6 +79,25 @@ export default function NewCoursePage() {
 		setError('');
 		setSuccess('');
 
+		// Validate required fields
+		if (!title || !title.trim()) {
+			setError('Course title is required');
+			setSubmitting(false);
+			return;
+		}
+
+		if (title.trim().length < 3) {
+			setError('Course title must be at least 3 characters');
+			setSubmitting(false);
+			return;
+		}
+
+		if (title.trim().length > 200) {
+			setError('Course title must be less than 200 characters');
+			setSubmitting(false);
+			return;
+		}
+
 		// Check if user is authenticated
 		const user = auth.currentUser;
 		if (!user) {
@@ -216,14 +235,24 @@ export default function NewCoursePage() {
 				<CardContent className="pt-6">
 					<form onSubmit={onSubmit} className="space-y-6">
 						<label className="block">
-							<span className="block text-body font-medium text-neutralDark mb-2">{t.titleLabel}</span>
+							<span className="block text-body font-medium text-neutralDark mb-2">
+								{t.titleLabel} <span className="text-error">*</span>
+							</span>
 							<Input
 								required
 								type="text"
 								value={title}
 								onChange={(e) => setTitle(e.target.value)}
 								placeholder={t.titlePlaceholder}
+								minLength={3}
+								maxLength={200}
 							/>
+							{title && title.trim().length > 0 && title.trim().length < 3 && (
+								<p className="text-xs text-error mt-1">Title must be at least 3 characters</p>
+							)}
+							{title && title.trim().length > 200 && (
+								<p className="text-xs text-error mt-1">Title must be less than 200 characters</p>
+							)}
 						</label>
 
 						<label className="block">

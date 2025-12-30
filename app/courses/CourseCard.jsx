@@ -138,7 +138,7 @@ export default function CourseCard({ course, currentUserId, currentRole }) {
 			</CardHeader>
 			<CardContent className="space-y-4">
 				<div className="flex items-center gap-2 text-caption text-muted-foreground">
-					<User className="h-4 w-4" />
+					<User className="h-4 w-4 text-neutralDark" />
 					<span>By: {course.authorName || 'Unknown'}</span>
 				</div>
 

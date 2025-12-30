@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/firebase';
@@ -15,12 +15,81 @@ export default function LoginPage() {
 	const [password, setPassword] = useState('');
 	const [error, setError] = useState('');
 	const [loading, setLoading] = useState(false);
+	const [checkingAuth, setCheckingAuth] = useState(true);
 	const router = useRouter();
+
+	// Check if user is already authenticated and redirect
+	useEffect(() => {
+		const unsubscribe = onAuthStateChanged(auth, async (user) => {
+			if (user) {
+				// User is already logged in, redirect to their dashboard
+				try {
+					const userDocRef = doc(db, 'user', user.uid);
+					const userDoc = await getDoc(userDocRef);
+
+					let role = 'student';
+					if (userDoc.exists()) {
+						role = userDoc.data().role || 'student';
+					}
+
+					// Set session cookies
+					await fetch('/api/auth/session', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							uid: user.uid,
+							email: user.email,
+							role: role,
+						}),
+					});
+
+					// Redirect based on role
+					let redirectPath;
+					if (role === 'admin') {
+						redirectPath = '/dashboard/admin';
+					} else if (role === 'teacher') {
+						redirectPath = '/dashboard/teacher';
+					} else if (role === 'student') {
+						redirectPath = '/dashboard/student';
+					} else {
+						redirectPath = '/dashboard';
+					}
+
+					router.push(redirectPath);
+				} catch (err) {
+					console.error('Error checking auth state:', err);
+				}
+			}
+			setCheckingAuth(false);
+		});
+
+		return () => unsubscribe();
+	}, [router]);
 
 	async function onSubmit(e) {
 		e.preventDefault();
 		setError('');
 		setLoading(true);
+
+		// Validate email format
+		if (!email || !email.trim()) {
+			setError('Email is required');
+			setLoading(false);
+			return;
+		}
+
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!emailRegex.test(email.trim())) {
+			setError('Please enter a valid email address');
+			setLoading(false);
+			return;
+		}
+
+		if (!password) {
+			setError('Password is required');
+			setLoading(false);
+			return;
+		}
 
 		try {
 			// Step 1: Sign in with Firebase Auth
@@ -53,10 +122,7 @@ export default function LoginPage() {
 				}),
 			});
 
-			// Step 4: Refresh to update server components (sidebar/header)
-			router.refresh();
-
-			// Step 5: Redirect based on role
+			// Step 4: Redirect based on role
 			let redirectPath;
 			if (role === 'admin') {
 				redirectPath = '/dashboard/admin';
@@ -68,12 +134,8 @@ export default function LoginPage() {
 				redirectPath = '/dashboard';
 			}
 			
-			// Redirect and then reload to ensure UI updates
-			router.push(redirectPath);
-			// Small delay to ensure navigation completes before reload
-			setTimeout(() => {
-				window.location.reload();
-			}, 100);
+			// Use window.location.href for a full page navigation to ensure cookies are read
+			window.location.href = redirectPath;
 		} catch (err) {
 			// Firebase Auth errors
 			if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
@@ -88,6 +150,19 @@ export default function LoginPage() {
 		}
 	}
 
+	// Show loading while checking auth state
+	if (checkingAuth) {
+		return (
+			<div className="min-h-[calc(100vh-8rem)] flex items-center justify-center py-12">
+				<Card className="max-w-md w-full">
+					<CardContent className="pt-6">
+						<p className="text-body text-muted-foreground text-center">Checking authentication...</p>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
+
 	return (
 		<div className="min-h-[calc(100vh-8rem)] flex items-center justify-center py-12">
 			<Card className="max-w-md w-full">
@@ -98,7 +173,9 @@ export default function LoginPage() {
 				<CardContent>
 					<form onSubmit={onSubmit} className="space-y-6">
 						<div className="space-y-2">
-							<label className="text-caption font-medium text-neutralDark">Email</label>
+							<label className="text-caption font-medium text-neutralDark">
+								Email <span className="text-error">*</span>
+							</label>
 							<Input
 								type="email"
 								placeholder="Enter your email"
@@ -107,9 +184,14 @@ export default function LoginPage() {
 								required
 								className="w-full"
 							/>
+							{email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && (
+								<p className="text-xs text-error">Please enter a valid email address</p>
+							)}
 						</div>
 						<div className="space-y-2">
-							<label className="text-caption font-medium text-neutralDark">Password</label>
+							<label className="text-caption font-medium text-neutralDark">
+								Password <span className="text-error">*</span>
+							</label>
 							<Input
 								type="password"
 								placeholder="Enter your password"
