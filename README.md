@@ -1,5 +1,12 @@
 # MindCraft
 
+![Next.js](https://img.shields.io/badge/Next.js-0070f3?style=flat-square&logo=next.js&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-ffca28?style=flat-square&logo=firebase&logoColor=black)
+![TailwindCSS](https://img.shields.io/badge/TailwindCSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-4fb325?style=flat-square)
+
+An AI-powered learning platform designed to make programming education smarter, more interactive, and more accessible for secondary school students.
+
 AI-assisted learning platform for secondary school programming education.
 
 Development Team Members:
