@@ -754,63 +754,55 @@ Lesson 1: Introduction to Normalization
 Lesson Title: Introduction to Normalization
 Lesson Order: 1
 Lesson Content:
-<h2>What is Normalization?</h2>
-<p>Normalization is the process of organizing data in a database to reduce redundancy and improve data integrity. Think of it as organizing your files into folders - it makes everything easier to find and maintain.</p>
+## What is Normalization?
+Normalization is the process of organizing data in a database to reduce redundancy and improve data integrity. Think of it as organizing your files into folders - it makes everything easier to find and maintain.
 
-<h3>Why Normalize?</h3>
-<ul>
-<li><strong>Eliminates data redundancy</strong> - No more repeating the same information</li>
-<li><strong>Prevents data inconsistencies</strong> - One source of truth for each piece of data</li>
-<li><strong>Reduces storage space</strong> - More efficient database</li>
-<li><strong>Makes updates easier</strong> - Update once, changes everywhere</li>
-<li><strong>Improves data integrity</strong> - Less chance of errors</li>
-</ul>
+### Why Normalize?
+- **Eliminates data redundancy** - No more repeating the same information.
+- **Prevents data inconsistencies** - One source of truth for each piece of data.
+- **Reduces storage space** - More efficient database.
+- **Makes updates easier** - Update once, changes everywhere.
+- **Improves data integrity** - Less chance of errors.
 
-<h3>Example: Before Normalization</h3>
-<p>Imagine a students table with redundant teacher information:</p>
-<table border="1" style="border-collapse: collapse; width: 100%; margin: 20px 0;">
-<tr><th>student_id</th><th>name</th><th>course_name</th><th>teacher_name</th><th>teacher_email</th></tr>
-<tr><td>1</td><td>Ali</td><td>Database</td><td>Dr. Smith</td><td>smith@edu.com</td></tr>
-<tr><td>2</td><td>Sarah</td><td>Database</td><td>Dr. Smith</td><td>smith@edu.com</td></tr>
-<tr><td>3</td><td>Ahmad</td><td>Database</td><td>Dr. Smith</td><td>smith@edu.com</td></tr>
-</table>
-<p><strong>Problem:</strong> Teacher information is repeated for every student! If Dr. Smith changes email, we need to update 3 rows.</p>
+### Example: Before Normalization
+Imagine a students table with redundant teacher information:
 
-<h3>After Normalization</h3>
-<p>Split into separate tables:</p>
-<p><strong>Students Table:</strong></p>
-<table border="1" style="border-collapse: collapse; width: 100%; margin: 10px 0;">
-<tr><th>student_id</th><th>name</th><th>course_id</th></tr>
-<tr><td>1</td><td>Ali</td><td>1</td></tr>
-<tr><td>2</td><td>Sarah</td><td>1</td></tr>
-<tr><td>3</td><td>Ahmad</td><td>1</td></tr>
-</table>
+| student_id | name  | course_name | teacher_name | teacher_email  |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | Ali | Database | Dr. Smith | smith@edu.com |
+| 2 | Sarah | Database | Dr. Smith | smith@edu.com |
+| 3 | Ahmad | Database | Dr. Smith | smith@edu.com |
 
-<p><strong>Courses Table:</strong></p>
-<table border="1" style="border-collapse: collapse; width: 100%; margin: 10px 0;">
-<tr><th>course_id</th><th>course_name</th><th>teacher_id</th></tr>
-<tr><td>1</td><td>Database</td><td>101</td></tr>
-</table>
+**Problem:** Teacher information is repeated for every student! If Dr. Smith changes email, we need to update 3 rows.
 
-<p><strong>Teachers Table:</strong></p>
-<table border="1" style="border-collapse: collapse; width: 100%; margin: 10px 0;">
-<tr><th>teacher_id</th><th>teacher_name</th><th>teacher_email</th></tr>
-<tr><td>101</td><td>Dr. Smith</td><td>smith@edu.com</td></tr>
-</table>
+### After Normalization
+Split into separate tables:
 
-<p><strong>Benefit:</strong> Now if Dr. Smith changes email, we only update 1 row!</p>
+**Students Table:**
+| student_id | name | course_id |
+| :--- | :--- | :--- |
+| 1 | Ali | 1 |
+| 2 | Sarah | 1 |
+| 3 | Ahmad | 1 |
 
-<h3>Normal Forms</h3>
-<p>Database normalization follows a series of rules called "normal forms":</p>
-<ul>
-<li><strong>First Normal Form (1NF)</strong> - Basic structure</li>
-<li><strong>Second Normal Form (2NF)</strong> - Remove partial dependencies</li>
-<li><strong>Third Normal Form (3NF)</strong> - Remove transitive dependencies</li>
-<li><strong>Boyce-Codd Normal Form (BCNF)</strong> - Advanced 3NF</li>
-<li><strong>Fourth Normal Form (4NF)</strong> - Handle multi-valued dependencies</li>
-<li><strong>Fifth Normal Form (5NF)</strong> - Handle join dependencies</li>
-</ul>
-<p>We'll explore these in detail in the next lessons!</p>
+**Courses Table:**
+| course_id | course_name | teacher_id |
+| :--- | :--- | :--- |
+| 1 | Database | 101 |
+
+**Teachers Table:**
+| teacher_id | teacher_name | teacher_email |
+| :--- | :--- | :--- |
+| 101 | Dr. Smith | smith@edu.com |
+
+**Benefit:** Now if Dr. Smith changes email, we only update 1 row!
+
+### Normal Forms
+Database normalization follows a series of rules called "normal forms":
+- **First Normal Form (1NF)** - Basic structure.
+- **Second Normal Form (2NF)** - Remove partial dependencies.
+- **Third Normal Form (3NF)** - Remove transitive dependencies.
+- **Boyce-Codd Normal Form (BCNF)** - Advanced 3NF.
 
 ---
 
@@ -960,8 +952,13 @@ Lesson 1: Foreign Keys and Referential Integrity
 Lesson Title: Foreign Keys and Referential Integrity
 Lesson Order: 1
 Lesson Content:
-<h2>What are Foreign Keys?</h2>
-<p>A foreign key is a column that references the primary key of another table, establishing a relationship between tables. Think of it as a "link" that connects related data across tables.</p>
+## What are Foreign Keys?
+A foreign key is a column that references the primary key of another table, establishing a "link" between related data.
+
+### Referential Integrity Rules
+- **No Invalid Links:** You cannot insert a foreign key that doesn't exist in the parent table.
+- **CASCADE Options:** - `ON DELETE CASCADE`: If parent is deleted, child is deleted.
+    - `ON DELETE SET NULL`: If parent is deleted, child link becomes empty.
 
 <h3>Example</h3>
 <pre><code>CREATE TABLE students (
@@ -971,15 +968,6 @@ Lesson Content:
   FOREIGN KEY (course_id) REFERENCES courses(course_id)
 );</code></pre>
 <p>Here, <code>course_id</code> in the students table is a foreign key that references <code>course_id</code> in the courses table.</p>
-
-<h2>Referential Integrity</h2>
-<p>Referential integrity ensures that relationships between tables remain consistent and valid.</p>
-
-<h3>Rules of Referential Integrity</h3>
-<ul>
-<li>You <strong>cannot insert</strong> a foreign key value that doesn't exist in the referenced table</li>
-<li>You <strong>cannot delete</strong> a referenced row if other rows depend on it (unless using CASCADE)</li>
-</ul>
 
 <h3>CASCADE Options</h3>
 <p>When you delete a parent record, what happens to child records? You can control this with CASCADE options:</p>
