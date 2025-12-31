@@ -7,7 +7,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Calendar, Clock, Edit2, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Edit2, AlertCircle, CheckCircle, XCircle, Save } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
 
@@ -21,7 +21,7 @@ export default function AssignmentDetailPage({ params }) {
     // Unwrap params using React.use() as recommended for Next.js 15+ or handle async params
     // However, in client components for typical Next.js 13/14 usage params is passed as prop
     // We will assume standard behavior but handle potentional async nature if needed in future
-    const { id } = React.use(params);
+    const { id } = params;
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -234,6 +234,26 @@ export default function AssignmentDetailPage({ params }) {
                             dangerouslySetInnerHTML={{ __html: assignment.description }}
                         />
                     </div>
+
+                    {/* Student Action Section */}
+                    {!isTeacherOrAdmin && (
+                        <div className="pt-8 border-t flex justify-center">
+                            {assignment.isOpen || assignment.allowLateSubmissions ? (
+                                <Link href={`/assignments/${assignment.id}/submit`}>
+                                    <Button size="lg" className="px-12 h-14 text-lg font-bold shadow-lg hover:shadow-xl transition-all">
+                                        <Save className="h-5 w-5 mr-2" />
+                                        Submit Your Assignment
+                                    </Button>
+                                </Link>
+                            ) : (
+                                <div className="p-4 bg-muted rounded-lg text-center w-full max-w-md border border-border">
+                                    <p className="font-semibold text-muted-foreground italic">
+                                        Submissions are currently closed for this assignment.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>
