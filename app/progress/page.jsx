@@ -6,7 +6,7 @@ import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { BookOpen, CheckCircle2, Clock, Award, FileText, ClipboardCheck, TrendingUp, Calendar } from 'lucide-react';
+import { BookOpen, CheckCircle2, Clock, Award, FileText, ClipboardCheck, TrendingUp, Calendar, AlertTriangle, Target, Lightbulb, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { BarChart, LineChart } from '@tremor/react';
@@ -17,6 +17,7 @@ export default function ProgressPage() {
 	const [currentUserId, setCurrentUserId] = useState(null);
 	const [userRole, setUserRole] = useState(null);
 	const [courseProgress, setCourseProgress] = useState([]);
+	const [riskIndicators, setRiskIndicators] = useState({});
 
 	useEffect(() => {
 		const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -232,6 +233,121 @@ export default function ProgressPage() {
 			});
 
 			setCourseProgress(progressData);
+
+			// Calculate risk indicators for each course
+			const riskData = {};
+			const now = new Date();
+			const defaultRiskConfig = {
+				minAvgScore: 60,
+				maxMissedDeadlines: 2,
+				maxDaysInactive: 7,
+			};
+
+			for (const course of progressData) {
+				const avgScore = course.avgAssessmentScore || 0;
+				const completionRate = course.totalLessons > 0 
+					? (course.completedLessons / course.totalLessons) * 100 
+					: 0;
+				
+				// Calculate days since last activity (use enrollment date as fallback)
+				const lastActivity = course.enrolledAt?.toDate 
+					? course.enrolledAt.toDate() 
+					: new Date(course.enrolledAt || 0);
+				const daysSinceActivity = Math.floor((now - lastActivity) / (1000 * 60 * 60 * 24));
+
+				// Count missed deadlines (simplified - check if assignments/assessments are past due)
+				let missedDeadlines = 0;
+				// This would require loading assignment/assessment deadlines, simplified for now
+
+				// Calculate risk level
+				const highScoreRisk = avgScore < (defaultRiskConfig.minAvgScore - 10);
+				const mediumScoreRisk = avgScore < defaultRiskConfig.minAvgScore && avgScore > 0;
+				const highEngagementRisk = daysSinceActivity > (defaultRiskConfig.maxDaysInactive * 2);
+				const mediumEngagementRisk = daysSinceActivity > defaultRiskConfig.maxDaysInactive;
+				const lowCompletionRisk = completionRate < 50 && course.totalLessons > 0;
+
+				let riskLevel = 'low';
+				const riskReasons = [];
+				const recommendations = [];
+
+				if (highScoreRisk || highEngagementRisk) {
+					riskLevel = 'high';
+				} else if (mediumScoreRisk || mediumEngagementRisk || lowCompletionRisk || missedDeadlines > 0) {
+					riskLevel = 'medium';
+				}
+
+				if (highScoreRisk || mediumScoreRisk) {
+					riskReasons.push(
+						language === 'bm' 
+							? `Skor purata penilaian di bawah ${defaultRiskConfig.minAvgScore}%`
+							: `Average assessment score below ${defaultRiskConfig.minAvgScore}%`
+					);
+					recommendations.push(
+						language === 'bm'
+							? 'Kaji semula bahan pembelajaran dan latih soalan penilaian'
+							: 'Review learning materials and practice assessment questions'
+					);
+				}
+
+				if (lowCompletionRisk) {
+					riskReasons.push(
+						language === 'bm'
+							? `Kadar penyiapan rendah (${Math.round(completionRate)}%)`
+							: `Low completion rate (${Math.round(completionRate)}%)`
+					);
+					recommendations.push(
+						language === 'bm'
+							? 'Selesaikan lebih banyak pelajaran untuk meningkatkan kemajuan'
+							: 'Complete more lessons to improve your progress'
+					);
+				}
+
+				if (mediumEngagementRisk || highEngagementRisk) {
+					riskReasons.push(
+						language === 'bm'
+							? `Tidak aktif selama ${daysSinceActivity} hari`
+							: `Inactive for ${daysSinceActivity} days`
+					);
+					recommendations.push(
+						language === 'bm'
+							? 'Aktifkan semula pembelajaran dengan melengkapkan pelajaran baru'
+							: 'Re-engage with learning by completing new lessons'
+					);
+				}
+
+				if (missedDeadlines > 0) {
+					riskReasons.push(
+						language === 'bm'
+							? `Terlepas ${missedDeadlines} tarikh akhir`
+							: `Missed ${missedDeadlines} deadline${missedDeadlines > 1 ? 's' : ''}`
+					);
+					recommendations.push(
+						language === 'bm'
+							? 'Semak tugasan yang tertunggak dan hantar secepat mungkin'
+							: 'Check for pending assignments and submit them as soon as possible'
+					);
+				}
+
+				if (riskLevel === 'low' && course.totalLessons > 0) {
+					recommendations.push(
+						language === 'bm'
+							? 'Teruskan usaha yang baik! Pastikan anda mengekalkan momentum pembelajaran'
+							: 'Keep up the good work! Make sure to maintain your learning momentum'
+					);
+				}
+
+				riskData[course.courseId] = {
+					riskLevel,
+					riskReasons,
+					recommendations,
+					avgScore,
+					completionRate,
+					daysSinceActivity,
+					missedDeadlines,
+				};
+			}
+
+			setRiskIndicators(riskData);
 		} catch (err) {
 			console.error('Error loading progress:', err);
 		} finally {
@@ -360,6 +476,125 @@ export default function ProgressPage() {
 							</div>
 						</CardContent>
 					</Card>
+				</div>
+			)}
+
+			{/* Risk Indicators Section */}
+			{courseProgress.length > 0 && Object.keys(riskIndicators).length === 0 && !loading && (
+				<Card className="border-info bg-info/5">
+					<CardContent className="py-6 text-center">
+						<Info className="h-8 w-8 text-info mx-auto mb-2" />
+						<p className="text-body text-muted-foreground">
+							{language === 'bm' 
+								? 'Data tidak mencukupi untuk menilai risiko pembelajaran. Selesaikan lebih banyak pelajaran dan penilaian untuk melihat penunjuk risiko anda.'
+								: 'Insufficient data to assess learning risk. Complete more lessons and assessments to see your risk indicators.'}
+						</p>
+					</CardContent>
+				</Card>
+			)}
+			{Object.keys(riskIndicators).length > 0 && (
+				<div className="space-y-4">
+					<h2 className="text-h2 text-neutralDark flex items-center gap-2">
+						<AlertTriangle className="h-6 w-6 text-warning" />
+						{language === 'bm' ? 'Penunjuk Risiko Pembelajaran' : 'Learning Risk Indicators'}
+					</h2>
+					<div className="grid gap-4 md:grid-cols-2">
+						{Object.entries(riskIndicators).map(([courseId, risk]) => {
+							const course = courseProgress.find(c => c.courseId === courseId);
+							if (!course) return null;
+
+							return (
+								<Card 
+									key={courseId}
+									className={`border-2 ${
+										risk.riskLevel === 'high'
+											? 'border-red-300 bg-red-50'
+											: risk.riskLevel === 'medium'
+											? 'border-yellow-300 bg-yellow-50'
+											: 'border-green-300 bg-green-50'
+									}`}
+								>
+									<CardHeader>
+										<div className="flex items-center justify-between">
+											<CardTitle className="text-h4">{course.courseTitle}</CardTitle>
+											<span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+												risk.riskLevel === 'high'
+													? 'bg-red-100 text-red-800'
+													: risk.riskLevel === 'medium'
+													? 'bg-yellow-100 text-yellow-800'
+													: 'bg-green-100 text-green-800'
+											}`}>
+												{risk.riskLevel === 'high'
+													? (language === 'bm' ? 'Risiko Tinggi' : 'High Risk')
+													: risk.riskLevel === 'medium'
+													? (language === 'bm' ? 'Risiko Sederhana' : 'Medium Risk')
+													: (language === 'bm' ? 'Risiko Rendah' : 'Low Risk')}
+											</span>
+										</div>
+									</CardHeader>
+									<CardContent className="space-y-4">
+										{/* Risk Factors */}
+										{risk.riskReasons.length > 0 && (
+											<div>
+												<h3 className="text-sm font-semibold text-neutralDark mb-2 flex items-center gap-2">
+													<AlertTriangle className="h-4 w-4 text-warning" />
+													{language === 'bm' ? 'Faktor Risiko' : 'Risk Factors'}
+												</h3>
+												<ul className="space-y-1">
+													{risk.riskReasons.map((reason, idx) => (
+														<li key={idx} className="text-sm text-neutralDark flex items-start gap-2">
+															<span className="text-warning mt-1">•</span>
+															<span>{reason}</span>
+														</li>
+													))}
+												</ul>
+											</div>
+										)}
+
+										{/* Recommendations */}
+										{risk.recommendations.length > 0 && (
+											<div>
+												<h3 className="text-sm font-semibold text-neutralDark mb-2 flex items-center gap-2">
+													<Lightbulb className="h-4 w-4 text-primary" />
+													{language === 'bm' ? 'Cadangan Peningkatan' : 'Improvement Recommendations'}
+												</h3>
+												<ul className="space-y-1">
+													{risk.recommendations.map((rec, idx) => (
+														<li key={idx} className="text-sm text-neutralDark flex items-start gap-2">
+															<span className="text-primary mt-1">•</span>
+															<span>{rec}</span>
+														</li>
+													))}
+												</ul>
+											</div>
+										)}
+
+										{/* Key Metrics */}
+										<div className="grid grid-cols-3 gap-2 pt-2 border-t">
+											<div className="text-center">
+												<p className="text-xs text-muted-foreground">
+													{language === 'bm' ? 'Skor Purata' : 'Avg Score'}
+												</p>
+												<p className="text-sm font-bold">{Math.round(risk.avgScore)}%</p>
+											</div>
+											<div className="text-center">
+												<p className="text-xs text-muted-foreground">
+													{language === 'bm' ? 'Penyiapan' : 'Completion'}
+												</p>
+												<p className="text-sm font-bold">{Math.round(risk.completionRate)}%</p>
+											</div>
+											<div className="text-center">
+												<p className="text-xs text-muted-foreground">
+													{language === 'bm' ? 'Hari Tidak Aktif' : 'Days Inactive'}
+												</p>
+												<p className="text-sm font-bold">{risk.daysSinceActivity}</p>
+											</div>
+										</div>
+									</CardContent>
+								</Card>
+							);
+						})}
+					</div>
 				</div>
 			)}
 

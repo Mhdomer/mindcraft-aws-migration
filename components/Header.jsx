@@ -6,6 +6,7 @@ import Link from 'next/link';
 import SignOutButton from '@/app/components/SignOutButton';
 import { Button } from './ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
+import NotificationBell from './NotificationBell';
 import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -80,6 +81,7 @@ export default function Header({ role: initialRole }) {
 							</Link>
 						) : (
 							<>
+								<NotificationBell />
 								<span className="hidden sm:inline-flex items-center px-3 py-1 rounded-lg text-caption font-medium bg-neutralLight text-neutralDark capitalize whitespace-nowrap">
 									{currentRole}
 								</span>

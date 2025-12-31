@@ -16,6 +16,10 @@ pnpm-debug.log*
 .env.local
 .env*.local
 
+# Firebase Admin SDK service account keys (secrets - never commit!)
+firebase-admin-key.json
+*-firebase-adminsdk-*.json
+
 # OS/Editor
 .DS_Store
 Thumbs.db
