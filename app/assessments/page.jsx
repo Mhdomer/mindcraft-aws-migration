@@ -719,14 +719,14 @@ export default function AssessmentsPage() {
 																}`}>
 																<div className="flex items-center justify-between mb-3">
 																	<div className="flex items-center gap-2">
-																		<div className={`p-1.5 rounded-lg ${passed ? 'bg-success/20' : 'bg-destructive/20'}`}>
+																		<div className={`p-1 rounded-lg ${passed ? 'bg-success/20' : 'bg-destructive/20'}`}>
 																			{passed ? (
-																				<CheckCircle className="h-4 w-4 text-success" />
+																				<CheckCircle className="h-3.5 w-3.5" />
 																			) : (
-																				<XCircle className="h-4 w-4 text-destructive" />
+																				<XCircle className="h-3.5 w-3.5" />
 																			)}
 																		</div>
-																		<span className={`text-sm font-bold tracking-tight ${passed ? 'text-success' : 'text-destructive'}`}>
+																		<span className={`text-xs font-bold tracking-tight ${passed ? 'text-success' : 'text-destructive'}`}>
 																			{passed
 																				? (language === 'bm' ? 'LULUS' : 'PASS')
 																				: (language === 'bm' ? 'GAGAL' : 'FAIL')
@@ -759,8 +759,8 @@ export default function AssessmentsPage() {
 																	variant="secondary"
 																	size="sm"
 																	className={`w-full mt-3 h-8 text-xs font-semibold flex items-center justify-center gap-2 transition-all duration-200 border shadow-sm ${passed
-																			? 'bg-white hover:bg-success/5 border-success/20 text-success'
-																			: 'bg-white hover:bg-destructive/5 border-destructive/20 text-destructive'
+																		? 'bg-white hover:bg-success/5 border-success/20 text-success'
+																		: 'bg-white hover:bg-destructive/5 border-destructive/20 text-destructive'
 																		}`}
 																	onClick={() => setSelectedResult(submission)}
 																>
