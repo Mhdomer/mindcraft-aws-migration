@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { ClipboardCheck, FileText, Code, Clock, Calendar, Upload, ArrowRight, Edit2, Trash2, Eye, EyeOff, CheckCircle, XCircle, AlertCircle, Plus, Users, File, X, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLanguage } from '@/app/contexts/LanguageContext';
+import ResultDetailsModal from './ResultDetailsModal';
 
 export default function AssessmentsPage() {
 	const [assessments, setAssessments] = useState([]);
@@ -25,6 +26,7 @@ export default function AssessmentsPage() {
 	const [submitConfirm, setSubmitConfirm] = useState(null); // { assessmentId, title } for submit confirmation
 	const [submitSuccess, setSubmitSuccess] = useState(null); // { message, isUpdate } for success message
 	const [submitError, setSubmitError] = useState(null); // { message } for error message
+	const [selectedResult, setSelectedResult] = useState(null); // Submission data for the modal
 	const fileInputRefs = useRef({}); // Map of assessmentId -> file input ref
 	const router = useRouter();
 	const { language } = useLanguage();
@@ -86,7 +88,7 @@ export default function AssessmentsPage() {
 		try {
 			let assessmentsQuery;
 			let enrolledCourseIds = [];
-			
+
 			if (userRole === 'student') {
 				// First, get all courses the student is enrolled in
 				if (!currentUserId) {
@@ -105,7 +107,7 @@ export default function AssessmentsPage() {
 						const data = doc.data();
 						return data.courseId;
 					}).filter(Boolean); // Remove any undefined/null values
-					
+
 					console.log('loadAssessments: Enrolled course IDs:', enrolledCourseIds);
 				} catch (enrollmentErr) {
 					console.error('Error loading enrollments:', enrollmentErr);
@@ -723,6 +725,7 @@ export default function AssessmentsPage() {
 															<ArrowRight className="h-5 w-5 ml-2" />
 														</Button>
 													</Link>
+
 												</div>
 											)
 										) : (
@@ -1017,6 +1020,13 @@ export default function AssessmentsPage() {
 					</Card>
 				</div>
 			)}
+
+			{/* Result Details Modal */}
+			<ResultDetailsModal
+				isOpen={!!selectedResult}
+				onClose={() => setSelectedResult(null)}
+				submission={selectedResult}
+			/>
 		</div>
 	);
 }

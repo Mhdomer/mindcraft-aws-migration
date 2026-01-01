@@ -192,6 +192,15 @@ export default function TakeAssessmentPage() {
 	}
 
 	function handleAnswerChange(questionIndex, value) {
+		const question = assessment?.questions?.[questionIndex];
+
+		if (question?.type === 'text' && question?.expectedType === 'number') {
+			// Allow empty string, but validate number if not empty
+			if (value !== '' && isNaN(value)) {
+				return; // Block non-numeric input if strictly enforced, or handle as needed
+			}
+		}
+
 		setAnswers(prev => ({
 			...prev,
 			[questionIndex]: value,
@@ -206,11 +215,16 @@ export default function TakeAssessmentPage() {
 	}
 
 	async function handleSubmit(isAutoSubmit = false) {
+		setError(''); // Clear previous errors
 		if (!isAutoSubmit) {
 			// Validate all questions are answered
 			if (assessment.questions) {
 				for (let i = 0; i < assessment.questions.length; i++) {
-					if (answers[i] === null || answers[i] === undefined || answers[i] === '') {
+					const question = assessment.questions[i];
+					const studentAnswer = answers[i];
+
+					// Check if answered
+					if (studentAnswer === null || studentAnswer === undefined || studentAnswer === '') {
 						setConfirmSubmitModal({
 							title: language === 'bm' ? 'Hantar penilaian?' : 'Submit assessment?',
 							message: language === 'bm'
@@ -218,6 +232,28 @@ export default function TakeAssessmentPage() {
 								: 'You have unanswered questions. Submit anyway?',
 						});
 						return;
+					}
+
+					// Strict type validation
+					if (question.type === 'text') {
+						if (question.expectedType === 'number') {
+							const isNumeric = !isNaN(studentAnswer) && !isNaN(parseFloat(studentAnswer));
+							if (!isNumeric) {
+								setError(language === 'bm'
+									? `Sila baca soalan semula. Jawapan untuk Soalan ${i + 1} mestilah nombor.`
+									: `Please read the question again. The answer for Question ${i + 1} must be a number.`);
+								return;
+							}
+						} else if (question.expectedType === 'string') {
+							// If it's purely a number but we expect a string, prompt to re-read
+							const isPurelyNumeric = !isNaN(studentAnswer) && !isNaN(parseFloat(studentAnswer));
+							if (isPurelyNumeric) {
+								setError(language === 'bm'
+									? `Sila baca soalan semula. Jawapan untuk Soalan ${i + 1} mestilah teks.`
+									: `Please read the question again. The answer for Question ${i + 1} must be text (string).`);
+								return;
+							}
+						}
 					}
 				}
 			}
@@ -244,20 +280,45 @@ export default function TakeAssessmentPage() {
 				assessment.questions.forEach((question, idx) => {
 					totalPoints += question.points || 1;
 					const studentAnswer = answers[idx];
+					let isCorrect = false;
 
 					if (question.type === 'mcq') {
-						if (studentAnswer === question.correctAnswer) {
-							score += question.points || 1;
+						isCorrect = studentAnswer === question.correctAnswer;
+					} else if (question.type === 'text') {
+						if (question.expectedType === 'number') {
+							const studentNum = parseFloat(studentAnswer);
+							const correctNum = parseFloat(question.correctAnswer);
+							isCorrect = !isNaN(studentNum) && studentNum === correctNum;
+						} else {
+							// String comparison: case-insensitive and trimmed
+							const studentStr = String(studentAnswer || '').trim().toLowerCase();
+							const correctStr = String(question.correctAnswer || '').trim().toLowerCase();
+							isCorrect = studentStr === correctStr;
 						}
 					}
 
-					gradedAnswers[idx] = {
+					if (isCorrect) {
+						score += question.points || 1;
+					}
+
+					const gradedAnswer = {
 						question: question.question,
 						studentAnswer: studentAnswer,
 						correctAnswer: question.correctAnswer,
 						points: question.points || 1,
-						earned: question.type === 'mcq' && studentAnswer === question.correctAnswer ? question.points || 1 : 0,
+						earned: isCorrect ? question.points || 1 : 0,
+						isCorrect: isCorrect,
+						type: question.type,
 					};
+
+					if (question.expectedType) {
+						gradedAnswer.expectedType = question.expectedType;
+					}
+					if (question.options) {
+						gradedAnswer.options = question.options;
+					}
+
+					gradedAnswers[idx] = gradedAnswer;
 				});
 			}
 
@@ -280,7 +341,8 @@ export default function TakeAssessmentPage() {
 
 			// Calculate percentage and pass/fail status
 			const percentage = totalPoints > 0 ? (score / totalPoints) * 100 : 0;
-			const passed = percentage > 40;
+			const passingPercentage = assessment.config?.passingPercentage !== undefined ? assessment.config.passingPercentage : 40;
+			const passed = percentage >= passingPercentage;
 
 			setResultModal({
 				title: language === 'bm' ? 'Penilaian telah dihantar' : 'Assessment submitted',
@@ -292,6 +354,7 @@ export default function TakeAssessmentPage() {
 				totalPoints,
 				percentage,
 				passed,
+				passingPercentage,
 			});
 		} catch (err) {
 			console.error('Error submitting assessment:', err);
@@ -432,9 +495,12 @@ export default function TakeAssessmentPage() {
 										</div>
 									) : (
 										<Input
+											type={question.expectedType === 'number' ? 'number' : 'text'}
 											value={answers[index] || ''}
 											onChange={(e) => handleAnswerChange(index, e.target.value)}
-											placeholder="Enter your answer here..."
+											placeholder={question.expectedType === 'number'
+												? (language === 'bm' ? 'Masukkan nombor...' : 'Enter a number...')
+												: (language === 'bm' ? 'Masukkan jawapan anda...' : 'Enter your answer here...')}
 											className="w-full"
 										/>
 									)}
@@ -581,8 +647,8 @@ export default function TakeAssessmentPage() {
 									{!resultModal.passed && (
 										<p className="text-xs text-muted-foreground mt-2">
 											{language === 'bm'
-												? 'Anda perlu mendapat lebih daripada 40% untuk lulus.'
-												: 'You need to score more than 40% to pass.'
+												? `Anda perlu mendapat sekurang-kurangnya ${resultModal.passingPercentage}% untuk lulus.`
+												: `You need to score at least ${resultModal.passingPercentage}% to pass.`
 											}
 										</p>
 									)}

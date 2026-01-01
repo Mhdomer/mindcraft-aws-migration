@@ -12,9 +12,9 @@ export default function RichTextEditor({ value, onChange, placeholder = 'Start t
 		toolbar: [
 			[{ 'header': [1, 2, 3, false] }],
 			['bold', 'italic', 'underline', 'strike'],
-			[{ 'list': 'ordered'}, { 'list': 'bullet' }],
+			[{ 'list': 'ordered' }, { 'list': 'bullet' }],
 			[{ 'color': [] }, { 'background': [] }],
-			['link', 'code-block'],
+			['link', 'image', 'code-block'],
 			['clean']
 		],
 	}), []);
@@ -24,7 +24,7 @@ export default function RichTextEditor({ value, onChange, placeholder = 'Start t
 		'bold', 'italic', 'underline', 'strike',
 		'list', 'bullet',
 		'color', 'background',
-		'link',
+		'link', 'image',
 		'code-block'
 	];
 
