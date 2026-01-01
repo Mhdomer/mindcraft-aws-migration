@@ -91,6 +91,7 @@ export default function CreateAssessmentPage() {
 		const newQuestion = {
 			id: Date.now().toString(),
 			type: 'mcq',
+			expectedType: 'string',
 			question: '',
 			options: ['', '', '', ''],
 			correctAnswer: 0,
@@ -255,6 +256,14 @@ export default function CreateAssessmentPage() {
 					return;
 				}
 			}
+			if (q.type === 'text') {
+				if (q.expectedType === 'number') {
+					if (isNaN(parseFloat(q.correctAnswer))) {
+						alert(`Question ${i + 1}: Correct answer must be a number`);
+						return;
+					}
+				}
+			}
 			if (q.points && (isNaN(q.points) || q.points < 0)) {
 				alert(`Question ${i + 1}: Points must be a positive number`);
 				return;
@@ -274,13 +283,24 @@ export default function CreateAssessmentPage() {
 				courseId,
 				courseTitle,
 				type,
-				questions: questions.map(q => ({
-					type: q.type,
-					question: q.question.trim(),
-					options: q.type === 'mcq' ? q.options.map(opt => opt.trim()) : undefined,
-					correctAnswer: q.type === 'mcq' ? q.correctAnswer : q.correctAnswer || '',
-					points: q.points || 1,
-				})),
+				questions: questions.map(q => {
+					const questionData = {
+						type: q.type,
+						question: q.question.trim(),
+						correctAnswer: q.type === 'mcq' ? q.correctAnswer : q.correctAnswer || '',
+						points: q.points || 1,
+					};
+
+					if (q.type === 'text') {
+						questionData.expectedType = q.expectedType || 'string';
+					}
+
+					if (q.type === 'mcq') {
+						questionData.options = q.options.map(opt => opt.trim());
+					}
+
+					return questionData;
+				}),
 				published,
 				config: {
 					startDate: config.startDate ? new Date(config.startDate) : null,
@@ -559,15 +579,31 @@ export default function CreateAssessmentPage() {
 												</p>
 											</div>
 										) : (
-											<div>
-												<label className="block text-sm font-medium mb-2">
-													Correct Answer (for reference)
-												</label>
-												<Input
-													value={question.correctAnswer || ''}
-													onChange={(e) => updateQuestion(question.id, 'correctAnswer', e.target.value)}
-													placeholder="Enter the expected answer..."
-												/>
+											<div className="space-y-4">
+												<div>
+													<label className="block text-sm font-medium mb-2">
+														Expected Answer Type
+													</label>
+													<select
+														value={question.expectedType || 'string'}
+														onChange={(e) => updateQuestion(question.id, 'expectedType', e.target.value)}
+														className="w-full px-3 py-2 border border-border rounded-md bg-white"
+													>
+														<option value="string">String (Text)</option>
+														<option value="number">Number</option>
+													</select>
+												</div>
+												<div>
+													<label className="block text-sm font-medium mb-2">
+														Correct Answer (for reference)
+													</label>
+													<Input
+														type={question.expectedType === 'number' ? 'number' : 'text'}
+														value={question.correctAnswer || ''}
+														onChange={(e) => updateQuestion(question.id, 'correctAnswer', e.target.value)}
+														placeholder={question.expectedType === 'number' ? "Enter the expected numeric answer..." : "Enter the expected text answer..."}
+													/>
+												</div>
 											</div>
 										)}
 
