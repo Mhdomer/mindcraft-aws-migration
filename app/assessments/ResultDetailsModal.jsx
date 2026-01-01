@@ -6,25 +6,34 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, X } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 
-export default function ResultDetailsModal({ isOpen, onClose, submission }) {
+export default function ResultDetailsModal({ isOpen, onClose, submission, passingPercentage = 40 }) {
     const { language } = useLanguage();
     if (!isOpen || !submission) return null;
 
     const { answers, score, totalPoints } = submission;
+    const percentage = totalPoints > 0 ? (score / totalPoints) * 100 : 0;
+    const passed = percentage >= passingPercentage;
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
             <Card className="max-w-2xl w-full my-8 animate-in fade-in zoom-in duration-200">
                 <CardHeader className="border-b sticky top-0 bg-white z-10 flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle className="text-xl">
-                            {language === 'bm' ? 'Keputusan Penilaian' : 'Assessment Results'}
-                        </CardTitle>
+                    <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                            <CardTitle className="text-xl">
+                                {language === 'bm' ? 'Keputusan Penilaian' : 'Assessment Results'}
+                            </CardTitle>
+                            <div className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${passed
+                                ? 'bg-success/10 text-success border-success/30'
+                                : 'bg-destructive/10 text-destructive border-destructive/30'}`}>
+                                {passed ? (language === 'bm' ? 'LULUS' : 'PASS') : (language === 'bm' ? 'GAGAL' : 'FAIL')}
+                            </div>
+                        </div>
                         <p className="text-sm text-muted-foreground">
-                            {language === 'bm' ? 'Markah' : 'Score'}: {score} / {totalPoints} ({((score / totalPoints) * 100).toFixed(1)}%)
+                            {language === 'bm' ? 'Markah' : 'Score'}: {score} / {totalPoints} ({percentage.toFixed(1)}%)
                         </p>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
+                    <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full ml-4">
                         <X className="h-5 w-5" />
                     </Button>
                 </CardHeader>
