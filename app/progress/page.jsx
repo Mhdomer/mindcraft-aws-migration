@@ -14,6 +14,27 @@ import Link from 'next/link';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { BarChart, LineChart } from '@tremor/react';
 
+const ACHIEVEMENT_DEFINITIONS = {
+	'first-step': {
+		title: { en: 'First Step', bm: 'Langkah Pertama' },
+		description: { en: 'Enrolled in first course', bm: 'Mendaftar dalam kursus pertama' },
+		icon: BookOpen,
+		color: 'text-blue-500 bg-blue-100',
+	},
+	'high-flyer': {
+		title: { en: 'High Flyer', bm: 'Pencapai Tinggi' },
+		description: { en: 'Achieved > 80% score in a course', bm: 'Mencapai skor > 80% dalam kursus' },
+		icon: Award,
+		color: 'text-amber-500 bg-amber-100',
+	},
+	'dedicated': {
+		title: { en: 'Dedicated Learner', bm: 'Pelajar Berdedikasi' },
+		description: { en: 'Completed 5+ lessons', bm: 'Menyiapkan 5+ pelajaran' },
+		icon: CheckCircle2,
+		color: 'text-emerald-500 bg-emerald-100',
+	},
+};
+
 export default function ProgressPage() {
 	const { language } = useLanguage();
 	const [loading, setLoading] = useState(true);
@@ -286,10 +307,6 @@ export default function ProgressPage() {
 			if (progressData.length > 0) {
 				newAchievements.push({
 					id: 'first-step',
-					title: language === 'bm' ? 'Langkah Pertama' : 'First Step',
-					description: language === 'bm' ? 'Mendaftar dalam kursus pertama' : 'Enrolled in first course',
-					icon: BookOpen,
-					color: 'text-blue-500 bg-blue-100',
 					date: progressData[progressData.length - 1].enrolledAt // Oldest enrollment
 				});
 			}
@@ -299,10 +316,6 @@ export default function ProgressPage() {
 			if (highScoringCourse) {
 				newAchievements.push({
 					id: 'high-flyer',
-					title: language === 'bm' ? 'Pencapai Tinggi' : 'High Flyer',
-					description: language === 'bm' ? 'Mencapai skor > 80% dalam kursus' : 'Achieved > 80% score in a course',
-					icon: Award,
-					color: 'text-amber-500 bg-amber-100',
 					date: new Date() // Current achievement
 				});
 			}
@@ -312,10 +325,6 @@ export default function ProgressPage() {
 			if (totalCompletedLessons >= 5) {
 				newAchievements.push({
 					id: 'dedicated',
-					title: language === 'bm' ? 'Pelajar Berdedikasi' : 'Dedicated Learner',
-					description: language === 'bm' ? 'Menyiapkan 5+ pelajaran' : 'Completed 5+ lessons',
-					icon: CheckCircle2,
-					color: 'text-emerald-500 bg-emerald-100',
 					date: new Date()
 				});
 			}
@@ -732,27 +741,36 @@ export default function ProgressPage() {
 								<div className="h-px bg-neutral-200 flex-1" />
 							</div>
 							<div className="grid gap-4 md:grid-cols-3">
-								{achievements.map((badge) => (
-									<Card key={badge.id} className="border-none shadow-sm hover:shadow-md transition-shadow bg-white overflow-hidden relative">
-										<div className={`absolute top-0 right-0 p-3 opacity-10 transform translate-x-2 -translate-y-2 ${badge.color.replace('text-', 'bg-').replace('bg-', 'text-')}`}>
-											<badge.icon className="w-16 h-16" />
-										</div>
-										<CardContent className="p-5 relative z-10 flex items-start gap-4">
-											<div className={`p-3 rounded-xl ${badge.color} bg-opacity-20`}>
-												<badge.icon className={`h-6 w-6 ${badge.color.split(' ')[0]}`} />
+								{achievements.map((achievement) => {
+									const definition = ACHIEVEMENT_DEFINITIONS[achievement.id];
+									if (!definition) return null;
+
+									const Icon = definition.icon;
+									const title = definition.title[language] || definition.title['en'];
+									const description = definition.description[language] || definition.description['en'];
+
+									return (
+										<Card key={achievement.id} className="border-none shadow-sm hover:shadow-md transition-shadow bg-white overflow-hidden relative">
+											<div className={`absolute top-0 right-0 p-3 opacity-10 transform translate-x-2 -translate-y-2 ${definition.color.replace('text-', 'bg-').replace('bg-', 'text-')}`}>
+												<Icon className="w-16 h-16" />
 											</div>
-											<div>
-												<h3 className="font-bold text-neutralDark">{badge.title}</h3>
-												<p className="text-xs text-muted-foreground mt-1 mb-2">{badge.description}</p>
-												{badge.date && (
-													<span className="text-[10px] bg-neutral-100 px-2 py-0.5 rounded-full text-neutral-500">
-														{badge.date instanceof Date ? badge.date.toLocaleDateString() : 'Earned'}
-													</span>
-												)}
-											</div>
-										</CardContent>
-									</Card>
-								))}
+											<CardContent className="p-5 relative z-10 flex items-start gap-4">
+												<div className={`p-3 rounded-xl ${definition.color} bg-opacity-20`}>
+													<Icon className={`h-6 w-6 ${definition.color.split(' ')[0]}`} />
+												</div>
+												<div>
+													<h3 className="font-bold text-neutralDark">{title}</h3>
+													<p className="text-xs text-muted-foreground mt-1 mb-2">{description}</p>
+													{achievement.date && (
+														<span className="text-[10px] bg-neutral-100 px-2 py-0.5 rounded-full text-neutral-500">
+															{formatDate(achievement.date)}
+														</span>
+													)}
+												</div>
+											</CardContent>
+										</Card>
+									);
+								})}
 							</div>
 						</div>
 					)}
