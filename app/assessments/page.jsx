@@ -713,36 +713,58 @@ export default function AssessmentsPage() {
 														const passed = percentage >= passingPercentage;
 
 														return (
-															<div className={`p-2 rounded-lg border-2 ${passed
-																? 'bg-success/10 border-success/30'
-																: 'bg-destructive/10 border-destructive/30'
+															<div className={`relative overflow-hidden p-3 rounded-xl border-2 transition-all duration-300 ${passed
+																? 'bg-gradient-to-br from-success/10 via-success/5 to-white border-success/30 shadow-sm shadow-success/10'
+																: 'bg-gradient-to-br from-destructive/10 via-destructive/5 to-white border-destructive/30 shadow-sm shadow-destructive/10'
 																}`}>
-																<div className="flex items-center justify-between">
+																<div className="flex items-center justify-between mb-3">
 																	<div className="flex items-center gap-2">
-																		{passed ? (
-																			<CheckCircle className="h-4 w-4 text-success" />
-																		) : (
-																			<XCircle className="h-4 w-4 text-destructive" />
-																		)}
-																		<span className={`text-sm font-semibold ${passed ? 'text-success' : 'text-destructive'
-																			}`}>
+																		<div className={`p-1.5 rounded-lg ${passed ? 'bg-success/20' : 'bg-destructive/20'}`}>
+																			{passed ? (
+																				<CheckCircle className="h-4 w-4 text-success" />
+																			) : (
+																				<XCircle className="h-4 w-4 text-destructive" />
+																			)}
+																		</div>
+																		<span className={`text-sm font-bold tracking-tight ${passed ? 'text-success' : 'text-destructive'}`}>
 																			{passed
 																				? (language === 'bm' ? 'LULUS' : 'PASS')
 																				: (language === 'bm' ? 'GAGAL' : 'FAIL')
 																			}
 																		</span>
 																	</div>
-																	<span className="text-sm text-muted-foreground">
-																		{submission.score}/{submission.totalPoints} ({percentage.toFixed(1)}%)
+																	<div className="text-right">
+																		<p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">
+																			{language === 'bm' ? 'Skor' : 'Score'}
+																		</p>
+																		<p className={`text-sm font-bold ${passed ? 'text-success' : 'text-destructive'}`}>
+																			{submission.score}/{submission.totalPoints}
+																		</p>
+																	</div>
+																</div>
+
+																<div className="flex items-center gap-2">
+																	<div className="flex-1 h-1.5 bg-black/5 rounded-full overflow-hidden">
+																		<div
+																			className={`h-full transition-all duration-500 rounded-full ${passed ? 'bg-success' : 'bg-destructive'}`}
+																			style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
+																		/>
+																	</div>
+																	<span className="text-[10px] font-bold text-muted-foreground w-8 text-right">
+																		{percentage.toFixed(0)}%
 																	</span>
 																</div>
+
 																<Button
-																	variant="ghost"
+																	variant="secondary"
 																	size="sm"
-																	className="w-full mt-2 h-7 text-xs flex items-center justify-center gap-1 hover:bg-white/20"
+																	className={`w-full mt-3 h-8 text-xs font-semibold flex items-center justify-center gap-2 transition-all duration-200 border shadow-sm ${passed
+																			? 'bg-white hover:bg-success/5 border-success/20 text-success'
+																			: 'bg-white hover:bg-destructive/5 border-destructive/20 text-destructive'
+																		}`}
 																	onClick={() => setSelectedResult(submission)}
 																>
-																	<Eye className="h-3 w-3" />
+																	<Eye className="h-3.5 w-3.5" />
 																	{language === 'bm' ? 'Lihat Keputusan' : 'View Results'}
 																</Button>
 															</div>
