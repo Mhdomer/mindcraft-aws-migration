@@ -127,15 +127,6 @@ export default function EditAssignmentPage() {
 
 	function handleAllowLateSubmissionsChange(checked) {
 		setAllowLateSubmissions(checked);
-		// When toggled off, close submissions and set to draft (take offline)
-		if (!checked) {
-			setIsOpen(false);
-			setStatus('draft');
-		} else {
-			// When toggled on, open submissions and ensure it's published
-			setIsOpen(true);
-			setStatus('published');
-		}
 	}
 
 	async function handleSubmit(e) {

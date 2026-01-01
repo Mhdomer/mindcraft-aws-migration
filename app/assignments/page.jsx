@@ -46,28 +46,51 @@ export default function AssignmentsPage() {
 	async function loadAssignments() {
 		setLoading(true);
 		try {
-			let assignmentsQuery;
+			let loadedAssignments = [];
 
 			if (userRole === 'student') {
-				// Students only see published assignments
-				assignmentsQuery = query(
-					collection(db, 'assignment'),
-					where('status', '==', 'published'),
-					orderBy('createdAt', 'desc')
+				// 1. Get student's enrolled course IDs
+				const enrollmentsQuery = query(
+					collection(db, 'enrollment'),
+					where('studentId', '==', currentUserId)
 				);
+				const enrollmentSnapshot = await getDocs(enrollmentsQuery);
+				const enrolledCourseIds = enrollmentSnapshot.docs.map(doc => doc.data().courseId);
+
+				if (enrolledCourseIds.length > 0) {
+					// 2. Fetch published assignments for those courses
+					// Using multiple queries if more than 10 courses, but usually it's few
+					const assignmentsQuery = query(
+						collection(db, 'assignment'),
+						where('status', '==', 'published'),
+						where('courseId', 'in', enrolledCourseIds)
+					);
+
+					const snapshot = await getDocs(assignmentsQuery);
+					loadedAssignments = snapshot.docs.map(doc => ({
+						id: doc.id,
+						...doc.data(),
+					}));
+
+					// Sort by createdAt in memory to avoid needing a complex composite index immediately
+					loadedAssignments.sort((a, b) => {
+						const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+						const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+						return dateB - dateA;
+					});
+				}
 			} else {
 				// Teachers and admins see all assignments
-				assignmentsQuery = query(
+				const assignmentsQuery = query(
 					collection(db, 'assignment'),
 					orderBy('createdAt', 'desc')
 				);
+				const snapshot = await getDocs(assignmentsQuery);
+				loadedAssignments = snapshot.docs.map(doc => ({
+					id: doc.id,
+					...doc.data(),
+				}));
 			}
-
-			const snapshot = await getDocs(assignmentsQuery);
-			const loadedAssignments = snapshot.docs.map(doc => ({
-				id: doc.id,
-				...doc.data(),
-			}));
 
 			setAssignments(loadedAssignments);
 		} catch (err) {
