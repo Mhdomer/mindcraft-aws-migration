@@ -713,54 +713,47 @@ export default function AssessmentsPage() {
 														const passed = percentage >= passingPercentage;
 
 														return (
-															<div className={`relative overflow-hidden p-3 rounded-xl border-2 transition-all duration-300 ${passed
-																? 'bg-gradient-to-br from-success/10 via-success/5 to-white border-success/30 shadow-sm shadow-success/10'
-																: 'bg-gradient-to-br from-destructive/10 via-destructive/5 to-white border-destructive/30 shadow-sm shadow-destructive/10'
+															<div className={`relative overflow-hidden p-2.5 rounded-xl border transition-all duration-300 ${passed
+																? 'bg-gradient-to-br from-success/5 to-white border-success/20 shadow-sm'
+																: 'bg-gradient-to-br from-destructive/5 to-white border-destructive/20 shadow-sm'
 																}`}>
-																<div className="flex items-center justify-between mb-3">
-																	<div className="flex items-center gap-2">
-																		<div className={`p-1 rounded-lg ${passed ? 'bg-success/20' : 'bg-destructive/20'}`}>
+																<div className="flex items-center justify-between mb-2">
+																	<div className="flex items-center gap-1.5">
+																		<div className={`p-1 rounded-md ${passed ? 'bg-success/10' : 'bg-destructive/10'}`}>
 																			{passed ? (
-																				<CheckCircle className="h-3.5 w-3.5" />
+																				<CheckCircle className="h-3 w-3 text-success" />
 																			) : (
-																				<XCircle className="h-3.5 w-3.5" />
+																				<XCircle className="h-3 w-3 text-destructive" />
 																			)}
 																		</div>
-																		<span className={`text-xs font-bold tracking-tight ${passed ? 'text-success' : 'text-destructive'}`}>
+																		<span className={`text-[10px] font-bold tracking-tight uppercase ${passed ? 'text-success' : 'text-destructive'}`}>
 																			{passed
 																				? (language === 'bm' ? 'LULUS' : 'PASS')
 																				: (language === 'bm' ? 'GAGAL' : 'FAIL')
 																			}
 																		</span>
 																	</div>
-																	<div className="text-right">
-																		<p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">
-																			{language === 'bm' ? 'Skor' : 'Score'}
-																		</p>
-																		<p className={`text-sm font-bold ${passed ? 'text-success' : 'text-destructive'}`}>
+																	<div className="flex items-baseline gap-1">
+																		<span className={`text-xs font-bold ${passed ? 'text-success' : 'text-destructive'}`}>
 																			{submission.score}/{submission.totalPoints}
-																		</p>
+																		</span>
+																		<span className="text-[10px] text-muted-foreground font-medium">({percentage.toFixed(0)}%)</span>
 																	</div>
 																</div>
 
-																<div className="flex items-center gap-2">
-																	<div className="flex-1 h-1.5 bg-black/5 rounded-full overflow-hidden">
-																		<div
-																			className={`h-full transition-all duration-500 rounded-full ${passed ? 'bg-success' : 'bg-destructive'}`}
-																			style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
-																		/>
-																	</div>
-																	<span className="text-[10px] font-bold text-muted-foreground w-8 text-right">
-																		{percentage.toFixed(0)}%
-																	</span>
+																<div className="w-full h-1 bg-black/5 rounded-full overflow-hidden mb-2">
+																	<div
+																		className={`h-full transition-all duration-500 rounded-full ${passed ? 'bg-success' : 'bg-destructive'}`}
+																		style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
+																	/>
 																</div>
 
 																<Button
-																	variant="secondary"
+																	variant="ghost"
 																	size="sm"
-																	className={`w-full mt-3 h-8 text-xs font-semibold flex items-center justify-center gap-2 transition-all duration-200 border shadow-sm ${passed
-																		? 'bg-white hover:bg-success/5 border-success/20 text-success'
-																		: 'bg-white hover:bg-destructive/5 border-destructive/20 text-destructive'
+																	className={`w-full h-7 text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all duration-200 border rounded-lg ${passed
+																		? 'hover:bg-success/5 border-success/10 text-success'
+																		: 'hover:bg-destructive/5 border-destructive/10 text-destructive'
 																		}`}
 																	onClick={() => setSelectedResult(submission)}
 																>
