@@ -567,12 +567,12 @@ export default function AssessmentsPage() {
 	return (
 		<div className="space-y-8">
 			{/* Page Header */}
-			<div className="flex justify-between items-center">
-				<div>
-					<h1 className="text-h1 text-neutralDark mb-2">
+			<div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-2 border-b border-border/40">
+				<div className="space-y-2">
+					<h1 className="text-4xl font-extrabold tracking-tight text-neutralDark bg-gradient-to-r from-neutralDark to-neutral-600 bg-clip-text">
 						{language === 'bm' ? 'Penilaian' : 'Assessments'}
 					</h1>
-					<p className="text-body text-muted-foreground">
+					<p className="text-lg text-muted-foreground max-w-2xl">
 						{userRole === 'student'
 							? (language === 'bm' ? 'Lihat dan hantar tugasan anda' : 'View and submit your assignments')
 							: (language === 'bm' ? 'Urus penilaian dan lihat penghantaran' : 'Manage assessments and view submissions')}
@@ -580,8 +580,8 @@ export default function AssessmentsPage() {
 				</div>
 				{userRole !== 'student' && (
 					<Link href="/assessments/new">
-						<Button>
-							<Plus className="h-4 w-4 mr-2" />
+						<Button size="lg" className="shadow-lg hover:shadow-primary/20 hover:scale-105 transition-all duration-300">
+							<Plus className="h-5 w-5 mr-2" />
 							{language === 'bm' ? 'Cipta Penilaian' : 'Create Assessment'}
 						</Button>
 					</Link>
@@ -590,43 +590,46 @@ export default function AssessmentsPage() {
 
 			{/* Assessments List */}
 			{assessments.length === 0 ? (
-				<Card>
-					<CardContent className="py-12 text-center">
-						<ClipboardCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-						<p className="text-body text-muted-foreground">
+				<Card className="bg-white/50 backdrop-blur-sm border-dashed border-2">
+					<CardContent className="py-16 text-center">
+						<div className="bg-primary/5 p-4 rounded-full w-fit mx-auto mb-4">
+							<ClipboardCheck className="h-8 w-8 text-primary/50" />
+						</div>
+						<p className="text-lg text-muted-foreground font-medium">
 							{language === 'bm' ? 'Tiada penilaian tersedia lagi.' : 'No assessments available yet.'}
 						</p>
 					</CardContent>
 				</Card>
 			) : (
-				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+				<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
 					{assessments.map((assessment) => {
 						const deadlinePassed = assessment.config?.endDate ? isDeadlinePassed(assessment.config.endDate) : false;
 
 						return (
-							<Card key={assessment.id} className="card-hover">
-								<CardHeader className="bg-gradient-to-br from-primary/5 via-primary/3 to-white border-b-2 border-primary/20 pb-4">
+							<Card key={assessment.id} className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-border/50 bg-white/50 backdrop-blur-sm rounded-2xl">
+								<div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+								<CardHeader className="relative border-b border-primary/5 p-6 space-y-4">
 									<div className="flex items-start justify-between">
 										<div className="flex-1">
-											<CardTitle className="text-h3 mb-3 text-neutralDark font-semibold">{assessment.title}</CardTitle>
+											<CardTitle className="text-2xl font-bold text-neutralDark leading-tight group-hover:text-primary transition-colors">{assessment.title}</CardTitle>
 											<div className="flex flex-wrap gap-2">
 												{assessment.published ? (
-													<span className="text-xs bg-success/10 text-success px-2.5 py-1.5 rounded-md font-medium border border-success/20">
+													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/10 text-success border border-success/20">
 														{language === 'bm' ? 'Diterbitkan' : 'Published'}
 													</span>
 												) : (
-													<span className="text-xs bg-warning/10 text-warning px-2.5 py-1.5 rounded-md font-medium border border-warning/20">
+													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning/10 text-warning border border-warning/20">
 														{language === 'bm' ? 'Draf' : 'Draft'}
 													</span>
 												)}
-												<span className="text-xs bg-info/10 text-info px-2.5 py-1.5 rounded-md font-medium border border-info/20 capitalize">
+												<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-info/10 text-info border border-info/20 capitalize">
 													{language === 'bm'
 														? (assessment.type === 'quiz' ? 'kuiz' : assessment.type === 'assignment' ? 'tugasan' : assessment.type === 'coding' ? 'pengaturcaraan' : assessment.type || 'kuiz')
 														: (assessment.type || 'quiz')}
 												</span>
 												{deadlinePassed && (
-													<span className="text-xs bg-destructive/10 text-destructive px-2.5 py-1.5 rounded-md font-medium border border-destructive/20 flex items-center gap-1.5">
-														<AlertCircle className="h-3.5 w-3.5" />
+													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20 gap-1.5">
+														<AlertCircle className="h-3 w-3" />
 														{language === 'bm' ? 'Lewat' : 'Past Due'}
 													</span>
 												)}
@@ -634,9 +637,9 @@ export default function AssessmentsPage() {
 										</div>
 									</div>
 								</CardHeader>
-								<CardContent className="space-y-4">
+								<CardContent className="relative z-10 space-y-4">
 									{assessment.description && (
-										<p className="text-body text-muted-foreground line-clamp-2">
+										<p className="text-muted-foreground line-clamp-2 text-sm leading-relaxed">
 											{stripHtml(assessment.description)}
 										</p>
 									)}
@@ -650,23 +653,29 @@ export default function AssessmentsPage() {
 									)}
 
 									{assessment.config && (
-										<div className="space-y-2 text-sm">
+										<div className="grid grid-cols-2 gap-4 text-sm">
 											{assessment.config.startDate && (
 												<div className="flex items-center gap-2 text-muted-foreground">
-													<Calendar className="h-5 w-5" />
-													<span>
-														{language === 'bm' ? 'Mula: ' : 'Starts: '}
-														{formatDate(assessment.config.startDate)}
-													</span>
+													<Calendar className="h-4 w-4" />
+													<div className="flex flex-col">
+														<span className="text-[10px] uppercase font-bold tracking-wider opacity-70">
+															{language === 'bm' ? 'Mula' : 'Starts'}
+														</span>
+														<span>{formatDate(assessment.config.startDate)}</span>
+													</div>
 												</div>
 											)}
 											{assessment.config.endDate && (
 												<div className="flex items-center gap-2">
-													<Clock className={`h-5 w-5 ${deadlinePassed ? 'text-destructive' : 'text-muted-foreground'}`} />
-													<span className={deadlinePassed ? 'text-destructive font-medium' : 'text-muted-foreground'}>
-														{language === 'bm' ? 'Tarikh akhir: ' : 'Due: '}
-														{formatDate(assessment.config.endDate)}
-													</span>
+													<Clock className={`h-4 w-4 ${deadlinePassed ? 'text-destructive' : 'text-muted-foreground'}`} />
+													<div className="flex flex-col">
+														<span className={`text-[10px] uppercase font-bold tracking-wider opacity-70 ${deadlinePassed ? 'text-destructive' : 'text-muted-foreground'}`}>
+															{language === 'bm' ? 'Tamat' : 'Ends'}
+														</span>
+														<span className={deadlinePassed ? 'text-destructive font-medium' : 'text-muted-foreground'}>
+															{formatDate(assessment.config.endDate)}
+														</span>
+													</div>
 												</div>
 											)}
 										</div>
@@ -685,15 +694,15 @@ export default function AssessmentsPage() {
 														</div>
 													)}
 													<Link href={`/assessments/${assessment.id}/submit`} className="block w-full">
-														<Button variant="default" className="w-full">
+														<Button className="w-full h-11 text-base shadow-md group-hover:shadow-lg transition-all" variant="default">
 															{submissions[assessment.id] ? (
 																<>
-																	<Eye className="h-4 w-4 mr-2" />
+																	<Eye className="h-5 w-5 mr-2" />
 																	{language === 'bm' ? 'Lihat / Kemas Kini' : 'View / Update'}
 																</>
 															) : (
 																<>
-																	<Upload className="h-4 w-4 mr-2" />
+																	<Upload className="h-5 w-5 mr-2" />
 																	{language === 'bm' ? 'Hantar Tugasan' : 'Submit Assignment'}
 																</>
 															)}
@@ -713,37 +722,29 @@ export default function AssessmentsPage() {
 														const passed = percentage >= passingPercentage;
 
 														return (
-															<div className={`relative overflow-hidden p-2.5 rounded-xl border transition-all duration-300 ${passed
-																? 'bg-gradient-to-br from-success/5 to-white border-success/20 shadow-sm'
-																: 'bg-gradient-to-br from-destructive/5 to-white border-destructive/20 shadow-sm'
+															<div className={`relative overflow-hidden p-4 rounded-xl border-2 transition-all duration-300 ${passed
+																? 'bg-success/5 border-success/20'
+																: 'bg-destructive/5 border-destructive/20'
 																}`}>
-																<div className="flex items-center justify-between mb-2">
-																	<div className="flex items-center gap-1.5">
-																		<div className={`p-1 rounded-md ${passed ? 'bg-success/10' : 'bg-destructive/10'}`}>
-																			{passed ? (
-																				<CheckCircle className="h-3 w-3 text-success" />
-																			) : (
-																				<XCircle className="h-3 w-3 text-destructive" />
-																			)}
-																		</div>
-																		<span className={`text-[10px] font-bold tracking-tight uppercase ${passed ? 'text-success' : 'text-destructive'}`}>
+																<div className="flex items-center justify-between mb-3">
+																	<div className="flex items-center gap-2">
+																		<span className={`text-xs font-black tracking-wider uppercase px-2 py-1 rounded-md ${passed ? 'bg-success text-white' : 'bg-destructive text-white'}`}>
 																			{passed
 																				? (language === 'bm' ? 'LULUS' : 'PASS')
 																				: (language === 'bm' ? 'GAGAL' : 'FAIL')
 																			}
 																		</span>
 																	</div>
-																	<div className="flex items-baseline gap-1">
-																		<span className={`text-xs font-bold ${passed ? 'text-success' : 'text-destructive'}`}>
-																			{submission.score}/{submission.totalPoints}
+																	<div className="text-right">
+																		<span className={`text-2xl font-black ${passed ? 'text-success' : 'text-destructive'}`}>
+																			{percentage.toFixed(0)}%
 																		</span>
-																		<span className="text-[10px] text-muted-foreground font-medium">({percentage.toFixed(0)}%)</span>
 																	</div>
 																</div>
 
-																<div className="w-full h-1 bg-black/5 rounded-full overflow-hidden mb-2">
+																<div className="w-full h-2 bg-black/5 rounded-full overflow-hidden mb-4">
 																	<div
-																		className={`h-full transition-all duration-500 rounded-full ${passed ? 'bg-success' : 'bg-destructive'}`}
+																		className={`h-full transition-all duration-1000 ease-out rounded-full ${passed ? 'bg-success' : 'bg-destructive'}`}
 																		style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
 																	/>
 																</div>
@@ -765,9 +766,9 @@ export default function AssessmentsPage() {
 													})()}
 													<Link
 														href={`/assessments/${assessment.id}/take`}
-														className="flex-1 min-w-[100px]"
+														className="block w-full"
 													>
-														<Button variant="default" className="w-full" title={language === 'bm' ? 'Ambil Penilaian' : 'Take Assessment'}>
+														<Button className="w-full h-11 text-base shadow-md group-hover:shadow-lg transition-all" variant="default">
 															{language === 'bm' ? 'Ambil Penilaian' : 'Take Assessment'}
 															<ArrowRight className="h-5 w-5 ml-2" />
 														</Button>
@@ -778,51 +779,50 @@ export default function AssessmentsPage() {
 										) : (
 											<>
 
-												<Link href={`/assessments/${assessment.id}/edit`} className="flex-1 min-w-[100px]">
-													<Button variant="outline" className="w-full border-primary/20 hover:bg-primary/10 hover:border-primary/40" size="sm" title={language === 'bm' ? 'Edit Penilaian' : 'Edit Assessment'}>
-														<Edit2 className="h-5 w-5 mr-2 text-primary" />
-														{language === 'bm' ? 'Edit' : 'Edit'}
+												<div className="grid grid-cols-2 gap-3">
+													<Link href={`/assessments/${assessment.id}/edit`} className="w-full">
+														<Button variant="outline" className="w-full h-10 border-primary/20 hover:bg-primary/5 hover:border-primary/50 text-primary">
+															<Edit2 className="h-4 w-4 mr-2" />
+															{language === 'bm' ? 'Edit' : 'Edit'}
+														</Button>
+													</Link>
+													<Link href={`/assessments/${assessment.id}/submissions`} className="w-full">
+														<Button variant="outline" className="w-full h-10 border-info/20 hover:bg-info/5 hover:border-info/50 text-info">
+															<FileText className="h-4 w-4 mr-2" />
+															{language === 'bm' ? 'Penghantaran' : 'Submissions'}
+														</Button>
+													</Link>
+													<Button
+														variant="outline"
+														onClick={() => togglePublish(assessment)}
+														title={assessment.published
+															? (language === 'bm' ? 'Nyahterbit' : 'Unpublish')
+															: (language === 'bm' ? 'Terbitkan' : 'Publish')}
+														className={`w-full h-10 ${assessment.published
+															? "border-warning/20 text-warning hover:bg-warning/5 hover:border-warning/50"
+															: "border-success/20 text-success hover:bg-success/5 hover:border-success/50"}`}
+													>
+														{assessment.published ? (
+															<>
+																<EyeOff className="h-4 w-4 mr-2" />
+																{language === 'bm' ? 'Nyahterbit' : 'Unpublish'}
+															</>
+														) : (
+															<>
+																<Eye className="h-4 w-4 mr-2" />
+																{language === 'bm' ? 'Terbitkan' : 'Publish'}
+															</>
+														)}
 													</Button>
-												</Link>
-												<Link href={`/assessments/${assessment.id}/submissions`} className="flex-1 min-w-[100px]">
-													<Button variant="outline" className="w-full border-info/20 hover:bg-info/10 hover:border-info/40" size="sm" title={language === 'bm' ? 'Lihat Penghantaran' : 'View Submissions'}>
-														<FileText className="h-5 w-5 mr-2 text-info" />
-														{language === 'bm' ? 'Penghantaran' : 'Submissions'}
+													<Button
+														variant="outline"
+														onClick={() => confirmDelete(assessment.id)}
+														className="w-full h-10 border-destructive/20 text-destructive hover:bg-destructive/5 hover:border-destructive/50"
+													>
+														<Trash2 className="h-4 w-4 mr-2" />
+														{language === 'bm' ? 'Padam' : 'Delete'}
 													</Button>
-												</Link>
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => togglePublish(assessment)}
-													title={assessment.published
-														? (language === 'bm' ? 'Nyahterbit' : 'Unpublish')
-														: (language === 'bm' ? 'Terbitkan' : 'Publish')}
-													className={assessment.published
-														? "border-warning/20 hover:bg-warning/10 hover:border-warning/40"
-														: "border-success/20 hover:bg-success/10 hover:border-success/40"}
-												>
-													{assessment.published ? (
-														<>
-															<EyeOff className="h-5 w-5 mr-2 text-warning" />
-															{language === 'bm' ? 'Nyahterbit' : 'Unpublish'}
-														</>
-													) : (
-														<>
-															<Eye className="h-5 w-5 mr-2 text-success" />
-															{language === 'bm' ? 'Terbitkan' : 'Publish'}
-														</>
-													)}
-												</Button>
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => confirmDelete(assessment.id)}
-													title={language === 'bm' ? 'Padam Penilaian' : 'Delete Assessment'}
-													className="border-destructive/20 hover:bg-destructive/10 hover:border-destructive/40 text-destructive hover:text-destructive"
-												>
-													<Trash2 className="h-5 w-5 mr-2 fill-destructive text-destructive" />
-													{language === 'bm' ? 'Padam' : 'Delete'}
-												</Button>
+												</div>
 											</>
 										)}
 									</div>

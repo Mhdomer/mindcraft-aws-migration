@@ -213,17 +213,17 @@ export default function AssignmentsPage() {
 	return (
 		<div className="space-y-8">
 			{/* Page Header */}
-			<div className="flex justify-between items-center">
-				<div>
-					<h1 className="text-h1 text-neutralDark mb-2">Assignments</h1>
-					<p className="text-body text-muted-foreground">
+			<div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-2 border-b border-border/40">
+				<div className="space-y-2">
+					<h1 className="text-4xl font-extrabold tracking-tight text-neutralDark bg-gradient-to-r from-neutralDark to-neutral-600 bg-clip-text">Assignments</h1>
+					<p className="text-lg text-muted-foreground max-w-2xl">
 						{isTeacherOrAdmin ? 'Create and manage assignments for your courses' : 'View and complete your assignments'}
 					</p>
 				</div>
 				{isTeacherOrAdmin && (
 					<Link href="/assignments/new">
-						<Button>
-							<Plus className="h-4 w-4 mr-2" />
+						<Button size="lg" className="shadow-lg hover:shadow-primary/20 hover:scale-105 transition-all duration-300">
+							<Plus className="h-5 w-5 mr-2" />
 							Create Assignment
 						</Button>
 					</Link>
@@ -232,54 +232,57 @@ export default function AssignmentsPage() {
 
 			{/* Assignments List */}
 			{assignments.length === 0 ? (
-				<Card>
-					<CardContent className="py-12 text-center">
-						<FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-						<p className="text-body text-muted-foreground mb-4">
+				<Card className="bg-white/50 backdrop-blur-sm border-dashed border-2">
+					<CardContent className="py-16 text-center">
+						<div className="bg-primary/5 p-4 rounded-full w-fit mx-auto mb-4">
+							<FileText className="h-8 w-8 text-primary/50" />
+						</div>
+						<p className="text-lg text-muted-foreground font-medium mb-6">
 							{isTeacherOrAdmin ? 'No assignments created yet.' : 'No active assignments found.'}
 						</p>
 						{isTeacherOrAdmin && (
 							<Link href="/assignments/new">
-								<Button>Create Your First Assignment</Button>
+								<Button size="lg" className="shadow-lg hover:shadow-xl transition-all">Create First Assignment</Button>
 							</Link>
 						)}
 					</CardContent>
 				</Card>
 			) : (
-				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+				<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
 					{assignments.map((assignment) => {
 						const deadlinePassed = isDeadlinePassed(assignment.deadline);
 
 						return (
-							<Card key={assignment.id} className="card-hover">
-								<CardHeader className="bg-gradient-to-br from-primary/5 via-primary/3 to-white border-b-2 border-primary/20 pb-4">
+							<Card key={assignment.id} className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-border/50 bg-white/50 backdrop-blur-sm rounded-2xl">
+								<div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+								<CardHeader className="relative border-b border-primary/5 p-6 space-y-4">
 									<div className="flex items-start justify-between">
 										<div className="flex-1">
-											<CardTitle className="text-h3 mb-3 text-neutralDark font-semibold">{assignment.title}</CardTitle>
+											<CardTitle className="text-2xl font-bold text-neutralDark leading-tight group-hover:text-primary transition-colors">{assignment.title}</CardTitle>
 											<div className="flex flex-wrap gap-2">
 												{assignment.status === 'published' ? (
-													<span className="text-xs bg-success/10 text-success px-2.5 py-1.5 rounded-md font-medium border border-success/20">
+													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/10 text-success border border-success/20">
 														Published
 													</span>
 												) : (
-													<span className="text-xs bg-warning/10 text-warning px-2.5 py-1.5 rounded-md font-medium border border-warning/20">
+													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning/10 text-warning border border-warning/20">
 														Draft
 													</span>
 												)}
 												{assignment.isOpen ? (
-													<span className="text-xs bg-info/10 text-info px-2.5 py-1.5 rounded-md font-medium border border-info/20 flex items-center gap-1.5">
-														<CheckCircle className="h-3.5 w-3.5" />
+													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-info/10 text-info border border-info/20 gap-1.5">
+														<CheckCircle className="h-3 w-3" />
 														Open
 													</span>
 												) : (
-													<span className="text-xs bg-muted/50 text-muted-foreground px-2.5 py-1.5 rounded-md font-medium border border-border flex items-center gap-1.5">
-														<XCircle className="h-3.5 w-3.5" />
+													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border gap-1.5">
+														<XCircle className="h-3 w-3" />
 														Closed
 													</span>
 												)}
 												{deadlinePassed && (
-													<span className="text-xs bg-destructive/10 text-destructive px-2.5 py-1.5 rounded-md font-medium border border-destructive/20 flex items-center gap-1.5">
-														<AlertCircle className="h-3.5 w-3.5" />
+													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20 gap-1.5">
+														<AlertCircle className="h-3 w-3" />
 														Past Due
 													</span>
 												)}
@@ -287,9 +290,9 @@ export default function AssignmentsPage() {
 										</div>
 									</div>
 								</CardHeader>
-								<CardContent className="space-y-4">
+								<CardContent className="relative z-10 space-y-4">
 									{assignment.description && (
-										<p className="text-body text-muted-foreground line-clamp-2">
+										<p className="text-muted-foreground line-clamp-2 text-sm leading-relaxed">
 											{stripHtml(assignment.description)}
 										</p>
 									)}
@@ -301,11 +304,16 @@ export default function AssignmentsPage() {
 									)}
 
 									{assignment.deadline && (
-										<div className="flex items-center gap-2 text-sm">
-											<Calendar className={`h-5 w-5 ${deadlinePassed ? 'text-destructive' : 'text-muted-foreground'}`} />
-											<span className={deadlinePassed ? 'text-destructive font-medium' : 'text-muted-foreground'}>
-												Due: {formatDate(assignment.deadline)}
-											</span>
+										<div className="flex items-center gap-2 text-sm bg-muted/30 p-2 rounded-lg border border-border/50">
+											<Calendar className={`h-4 w-4 ${deadlinePassed ? 'text-destructive' : 'text-muted-foreground'}`} />
+											<div className="flex gap-1.5 items-baseline">
+												<span className={`text-[10px] uppercase font-bold tracking-wider opacity-70 ${deadlinePassed ? 'text-destructive' : 'text-muted-foreground'}`}>
+													Due
+												</span>
+												<span className={deadlinePassed ? 'text-destructive font-medium' : 'text-muted-foreground'}>
+													{formatDate(assignment.deadline)}
+												</span>
+											</div>
 										</div>
 									)}
 
@@ -313,14 +321,14 @@ export default function AssignmentsPage() {
 										{isTeacherOrAdmin ? (
 											<div className="grid grid-cols-2 gap-3">
 												<Link href={`/assignments/${assignment.id}/edit`} className="w-full">
-													<Button variant="outline" className="w-full h-10 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/60" title="Edit Assignment">
+													<Button variant="outline" className="w-full h-10 border-primary/20 hover:bg-primary/5 hover:border-primary/50 text-primary">
 														<Edit2 className="h-4 w-4 mr-2" />
 														Edit
 													</Button>
 												</Link>
 
 												<Link href={`/assignments/${assignment.id}`} className="w-full">
-													<Button variant="outline" className="w-full h-10 border-neutral-300 text-neutralDark hover:bg-neutral-100 hover:border-neutral-400" title="View Submissions">
+													<Button variant="outline" className="w-full h-10 border-neutral-300 hover:bg-neutral-100">
 														<FileText className="h-4 w-4 mr-2" />
 														Submissions
 													</Button>
@@ -331,8 +339,8 @@ export default function AssignmentsPage() {
 													onClick={() => togglePublish(assignment)}
 													title={assignment.status === 'published' ? 'Unpublish' : 'Publish'}
 													className={`w-full h-10 ${assignment.status === 'published'
-														? "border-warning/30 text-warning hover:bg-warning/10 hover:border-warning/50"
-														: "border-success/30 text-success hover:bg-success/10 hover:border-success/50"}`}
+														? "border-warning/20 text-warning hover:bg-warning/5 hover:border-warning/50"
+														: "border-success/20 text-success hover:bg-success/5 hover:border-success/50"}`}
 												>
 													{assignment.status === 'published' ? (
 														<>
@@ -348,18 +356,17 @@ export default function AssignmentsPage() {
 												</Button>
 
 												<Button
-													variant="destructive"
+													variant="outline"
 													onClick={() => confirmDelete(assignment.id)}
-													title="Delete Assignment"
-													className="w-full h-10 bg-red-600 hover:bg-red-700 text-white shadow-sm"
+													className="w-full h-10 border-destructive/20 text-destructive hover:bg-destructive/5 hover:border-destructive/50"
 												>
 													<Trash2 className="h-4 w-4 mr-2" />
 													Delete
 												</Button>
 											</div>
 										) : (
-											<Link href={`/assignments/${assignment.id}`} className="w-full">
-												<Button className="w-full h-11 text-base shadow-sm hover:shadow-md transition-all" variant="default">
+											<Link href={`/assignments/${assignment.id}`} className="block w-full">
+												<Button className="w-full h-11 text-base shadow-md group-hover:shadow-lg transition-all" variant="default">
 													View Details
 													<ArrowRight className="h-5 w-5 ml-2" />
 												</Button>
