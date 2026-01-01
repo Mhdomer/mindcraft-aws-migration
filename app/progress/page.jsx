@@ -572,7 +572,7 @@ export default function ProgressPage() {
 						<Dialog open={showReportModal} onOpenChange={setShowReportModal}>
 							<DialogTrigger asChild>
 								<Button variant="outline" className="gap-2 print:hidden">
-									<Printer className="h-4 w-4" />
+									<Printer className="h-5 w-5" />
 									{language === 'bm' ? 'Laporan' : 'Export'}
 								</Button>
 							</DialogTrigger>
@@ -655,7 +655,7 @@ export default function ProgressPage() {
 								}, 500);
 							}}
 						>
-							<Printer className="h-4 w-4" />
+							<Printer className="h-5 w-5" />
 							{language === 'bm' ? 'Laporan' : 'Export'}
 						</Button>
 					)}
@@ -855,7 +855,7 @@ export default function ProgressPage() {
 
 
 					{/* Conditional: Course Performance */}
-					{(currentView === 'performance' || reportConfig.includePerformance) && (
+					{(currentView === 'performance' || (currentView === 'hub' && reportConfig.includePerformance)) && (
 						<div className={currentView !== 'performance' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
 							<Card className="shadow-sm border-neutral-200">
 								<CardHeader>
@@ -894,7 +894,7 @@ export default function ProgressPage() {
 
 					{/* Conditional: Course Progress */}
 					{/* Conditional: Course Progress */}
-					{(currentView === 'progress' || reportConfig.includeProgress) && (
+					{(currentView === 'progress' || (currentView === 'hub' && reportConfig.includeProgress)) && (
 						<div className={currentView !== 'progress' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
 							<Card className="shadow-sm border-neutral-200">
 								<CardHeader>
@@ -935,7 +935,7 @@ export default function ProgressPage() {
 					*/}
 
 					{/* Score Trend */}
-					{(currentView === 'trend' || reportConfig.includeTrend) && scoreTrend.length > 0 && (
+					{(currentView === 'trend' || (currentView === 'hub' && reportConfig.includeTrend)) && scoreTrend.length > 0 && (
 						<div className={currentView !== 'trend' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
 							<Card className="shadow-sm border-neutral-200">
 								<CardHeader>
@@ -964,7 +964,7 @@ export default function ProgressPage() {
 			)}
 
 			{/* US011-01: Strong Topics Section */}
-			{(currentView === 'strong' || reportConfig.includeStrong) && strongTopics.length > 0 && (
+			{(currentView === 'strong' || (currentView === 'hub' && reportConfig.includeStrong)) && strongTopics.length > 0 && (
 				<div className={currentView !== 'strong' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
 					<div className={`mt-8 mb-4`}>
 						<h2 className="text-h2 text-neutralDark flex items-center gap-2 mb-4">
@@ -1014,7 +1014,7 @@ export default function ProgressPage() {
 					</CardContent>
 				</Card>
 			)}
-			{(currentView === 'risk' || reportConfig.includeRisk) && Object.keys(riskIndicators).length > 0 && (
+			{(currentView === 'risk' || (currentView === 'hub' && reportConfig.includeRisk)) && Object.keys(riskIndicators).length > 0 && (
 				<div className={currentView !== 'risk' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
 					<div className={`space-y-4`}>
 						<h2 className="text-h2 text-neutralDark flex items-center gap-2 mt-8 mb-4">
@@ -1104,7 +1104,7 @@ export default function ProgressPage() {
 			)}
 
 			{/* Course Progress List */}
-			{(currentView === 'details' || reportConfig.includeDetails) && (
+			{(currentView === 'details' || (currentView === 'hub' && reportConfig.includeDetails)) && (
 				courseProgress.length === 0 ? (
 					<Card className="border-dashed border-2">
 						<CardContent className="py-12 text-center">

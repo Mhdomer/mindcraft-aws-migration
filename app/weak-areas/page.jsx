@@ -243,7 +243,7 @@ export default function WeakAreasPage() {
 						className="gap-2 print:hidden"
 						onClick={() => window.print()}
 					>
-						<Printer className="h-4 w-4" />
+						<Printer className="h-5 w-5" />
 						Export
 					</Button>
 				</div>
