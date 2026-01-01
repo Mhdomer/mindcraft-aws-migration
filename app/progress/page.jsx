@@ -546,7 +546,7 @@ export default function ProgressPage() {
 	return (
 		<div className="space-y-8">
 			{/* Header */}
-			<div className="flex items-start justify-between gap-4">
+			<div className="flex items-start justify-between gap-4 print:hidden">
 				<div>
 					<h1 className="text-h1 text-neutralDark mb-2">
 						{language === 'bm' ? 'Kemajuan Saya' : 'My Progress'}
@@ -564,7 +564,7 @@ export default function ProgressPage() {
 							onClick={() => setCurrentView('hub')}
 							className="gap-2 print:hidden"
 						>
-							<ArrowLeft className="h-4 w-4" />
+							<ArrowLeft className="h-5 w-5" />
 							{language === 'bm' ? 'Kembali ke Papan Pemuka' : 'Back to Dashboard'}
 						</Button>
 					)}
@@ -586,54 +586,29 @@ export default function ProgressPage() {
 									</DialogDescription>
 								</DialogHeader>
 								<div className="grid gap-4 py-4">
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="performance"
-											checked={reportConfig.includePerformance}
-											onCheckedChange={(checked) => setReportConfig({ ...reportConfig, includePerformance: checked })}
-										/>
-										<Label htmlFor="performance">{language === 'bm' ? 'Prestasi Kursus' : 'Course Performance'}</Label>
-									</div>
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="progress"
-											checked={reportConfig.includeProgress}
-											onCheckedChange={(checked) => setReportConfig({ ...reportConfig, includeProgress: checked })}
-										/>
-										<Label htmlFor="progress">{language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress'}</Label>
-									</div>
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="trend"
-											checked={reportConfig.includeTrend}
-											onCheckedChange={(checked) => setReportConfig({ ...reportConfig, includeTrend: checked })}
-										/>
-										<Label htmlFor="trend">{language === 'bm' ? 'Trend Penilaian' : 'Score Trend'}</Label>
-									</div>
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="strong"
-											checked={reportConfig.includeStrong}
-											onCheckedChange={(checked) => setReportConfig({ ...reportConfig, includeStrong: checked })}
-										/>
-										<Label htmlFor="strong">{language === 'bm' ? 'Topik Kuat' : 'Strong Topics'}</Label>
-									</div>
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="risk"
-											checked={reportConfig.includeRisk}
-											onCheckedChange={(checked) => setReportConfig({ ...reportConfig, includeRisk: checked })}
-										/>
-										<Label htmlFor="risk">{language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators'}</Label>
-									</div>
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="details"
-											checked={reportConfig.includeDetails}
-											onCheckedChange={(checked) => setReportConfig({ ...reportConfig, includeDetails: checked })}
-										/>
-										<Label htmlFor="details">{language === 'bm' ? 'Butiran Kursus' : 'Course Details'}</Label>
-									</div>
+									{[
+										{ id: 'includeDetails', label: language === 'bm' ? 'Butiran Kursus' : 'Course Details' },
+										{ id: 'includePerformance', label: language === 'bm' ? 'Prestasi Kursus' : 'Course Performance' },
+										{ id: 'includeProgress', label: language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress' },
+										{ id: 'includeRisk', label: language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators' },
+										{ id: 'includeTrend', label: language === 'bm' ? 'Trend Penilaian' : 'Score Trend' },
+										{ id: 'includeStrong', label: language === 'bm' ? 'Topik Kuat' : 'Strong Topics' },
+									].map((item) => (
+										<div
+											key={item.id}
+											className="flex items-center space-x-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors"
+											onClick={() => setReportConfig({ ...reportConfig, [item.id]: !reportConfig[item.id] })}
+										>
+											<Checkbox
+												id={item.id}
+												checked={reportConfig[item.id]}
+												className="pointer-events-none h-6 w-6"
+											/>
+											<Label htmlFor={item.id} className="cursor-pointer flex-1">
+												{item.label}
+											</Label>
+										</div>
+									))}
 								</div>
 								<DialogFooter>
 									<Button onClick={handlePrint} className="gap-2">
@@ -682,7 +657,7 @@ export default function ProgressPage() {
 			{/* Summary Cards */}
 			{/* Summary Cards */}
 			{courseProgress.length > 0 && (
-				<div className={currentView !== 'hub' && !isPrinting ? 'print:hidden' : 'mb-16'}>
+				<div className={currentView !== 'hub' && !isPrinting ? 'print:hidden' : 'mb-16 print:hidden'}>
 					{currentView === 'hub' && (
 						<div className="grid gap-6 md:grid-cols-3">
 							<Card className="border-none shadow-md bg-gradient-to-br from-blue-500 to-blue-600 text-white overflow-hidden relative">
@@ -748,7 +723,7 @@ export default function ProgressPage() {
 
 					{/* US011-05: Achievements Section */}
 					{currentView === 'hub' && achievements.length > 0 && (
-						<div className="my-16">
+						<div className="my-16 print:hidden">
 							<div className="flex items-center gap-4 mb-4">
 								<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
 									{language === 'bm' ? 'Pencapaian Saya' : 'My Achievements'}
@@ -785,7 +760,7 @@ export default function ProgressPage() {
 
 					{/* US011-05: Dashboard Hub Grid */}
 					{currentView === 'hub' && (
-						<div className="mt-16">
+						<div className="mt-16 print:hidden">
 							<div className="flex items-center gap-4 mb-6">
 								<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
 									{language === 'bm' ? 'Papan Pemuka Kemajuan' : 'Progress Dashboard'}
@@ -794,14 +769,14 @@ export default function ProgressPage() {
 								<div className="h-px bg-neutral-200 flex-1" />
 							</div>
 							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-500">
-								<Link href="/weak-areas" className="col-span-1">
-									<DashboardBlock
-										title={language === 'bm' ? 'Bidang Lemah' : 'Weak Learning Areas'}
-										description={language === 'bm' ? 'Kenal pasti dan perbaiki topik yang sukar' : 'Identify and improve upon challenging topics'}
-										icon={TrendingDown}
-										colorClass="text-error"
-									/>
-								</Link>
+
+								<DashboardBlock
+									title={language === 'bm' ? 'Butiran Kursus' : 'Course Details'}
+									description={language === 'bm' ? 'Lihat senarai lengkap kursus dan tugasan' : 'View detailed breakdowns of all your enrolled courses'}
+									icon={FileText}
+									colorClass="text-neutral-500"
+									onClick={() => setCurrentView('details')}
+								/>
 								<DashboardBlock
 									title={language === 'bm' ? 'Prestasi Kursus' : 'Course Performance'}
 									description={language === 'bm' ? 'Analisis skor penilaian merentas semua kursus' : 'Analyze assessment scores across all courses'}
@@ -817,6 +792,13 @@ export default function ProgressPage() {
 									onClick={() => setCurrentView('progress')}
 								/>
 								<DashboardBlock
+									title={language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators'}
+									description={language === 'bm' ? 'Amaran awal untuk memastikan anda di landasan' : 'Early warnings to keep you on track'}
+									icon={AlertTriangle}
+									colorClass="text-orange-500"
+									onClick={() => setCurrentView('risk')}
+								/>
+								<DashboardBlock
 									title={language === 'bm' ? 'Trend Penilaian' : 'Score Trend'}
 									description={language === 'bm' ? 'Lihat peningkatan skor dari semasa ke semasa' : 'View your score improvements over time'}
 									icon={TrendingUp}
@@ -830,20 +812,14 @@ export default function ProgressPage() {
 									colorClass="text-amber-500"
 									onClick={() => setCurrentView('strong')}
 								/>
-								<DashboardBlock
-									title={language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators'}
-									description={language === 'bm' ? 'Amaran awal untuk memastikan anda di landasan' : 'Early warnings to keep you on track'}
-									icon={AlertTriangle}
-									colorClass="text-orange-500"
-									onClick={() => setCurrentView('risk')}
-								/>
-								<DashboardBlock
-									title={language === 'bm' ? 'Butiran Kursus' : 'Course Details'}
-									description={language === 'bm' ? 'Lihat senarai lengkap kursus dan tugasan' : 'View detailed breakdowns of all your enrolled courses'}
-									icon={FileText}
-									colorClass="text-neutral-500"
-									onClick={() => setCurrentView('details')}
-								/>
+								<Link href="/weak-areas" className="col-span-1">
+									<DashboardBlock
+										title={language === 'bm' ? 'Bidang Lemah' : 'Weak Learning Areas'}
+										description={language === 'bm' ? 'Kenal pasti dan perbaiki topik yang sukar' : 'Identify and improve upon challenging topics'}
+										icon={TrendingDown}
+										colorClass="text-error"
+									/>
+								</Link>
 							</div>
 						</div>
 					)}

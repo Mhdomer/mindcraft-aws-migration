@@ -233,7 +233,7 @@ export default function WeakAreasPage() {
 				<div className="flex flex-col gap-2 shrink-0">
 					<Link href="/progress" className="print:hidden">
 						<Button variant="outline" size="sm" className="w-full gap-2 justify-start">
-							<ArrowLeft className="h-4 w-4" />
+							<ArrowLeft className="h-5 w-5" />
 							Back to Dashboard
 						</Button>
 					</Link>
