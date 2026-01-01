@@ -22,7 +22,11 @@ import {
 	X,
 	Lightbulb,
 	AlertCircle,
-	FileWarning
+	FileWarning,
+	CheckCircle2,
+	ClipboardCheck,
+	LayoutDashboard,
+	Printer
 } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { BarChart, LineChart, AreaChart } from '@tremor/react';
@@ -1071,10 +1075,10 @@ export default function AnalyticsPage() {
 			{/* Header */}
 			<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight text-neutral-900 mb-2">
+					<h1 className="text-h1 text-neutralDark mb-2">
 						{language === 'bm' ? 'Prestasi Kelas' : 'Class Performance'}
 					</h1>
-					<p className="text-muted-foreground text-lg">
+					<p className="text-body text-muted-foreground">
 						{language === 'bm'
 							? 'Lihat kemajuan dan prestasi pelajar dalam kursus anda'
 							: 'View student progress and performance in your courses'}
@@ -1084,11 +1088,11 @@ export default function AnalyticsPage() {
 					<div className="relative self-start md:self-auto">
 						<Button
 							onClick={() => setShowExportMenu(!showExportMenu)}
-							variant="default"
-							className="gap-2 shadow-sm hover:shadow transition-all"
+							variant="outline"
+							className="gap-2 print:hidden"
 						>
-							<Download className="h-4 w-4" />
-							{language === 'bm' ? 'Eksport' : 'Export'}
+							<Printer className="h-5 w-5" />
+							{language === 'bm' ? 'Laporan' : 'Export'}
 						</Button>
 
 						{showExportMenu && (
@@ -1168,53 +1172,64 @@ export default function AnalyticsPage() {
 					{/* Overall Stats */}
 					{/* Overall Stats */}
 					<div className="grid gap-6 md:grid-cols-3">
-						<Card className="hover:shadow-md transition-shadow border-neutral-200">
-							<CardContent className="p-6">
+						<Card className="border-none shadow-md bg-gradient-to-br from-blue-500 to-blue-600 text-white overflow-hidden relative">
+							<div className="absolute top-0 right-0 p-3 opacity-10 transform translate-x-1 -translate-y-1">
+								<Users className="w-16 h-16" />
+							</div>
+							<CardContent className="p-5 relative z-10">
 								<div className="flex items-center justify-between">
-									<div className="space-y-1">
-										<p className="text-sm font-medium text-muted-foreground">
+									<div>
+										<p className="text-blue-100 font-medium text-xs">
 											{language === 'bm' ? 'Jumlah Pelajar' : 'Total Students'}
 										</p>
-										<p className="text-3xl font-bold text-neutral-900">
+										<p className="text-2xl font-bold mt-1">
 											{analyticsData.overallStats.totalStudents}
 										</p>
 									</div>
-									<div className="h-14 w-14 rounded-2xl bg-violet-50 flex items-center justify-center text-violet-600">
-										<Users className="h-7 w-7" />
+									<div className="bg-white/20 p-2 rounded-xl backdrop-blur-sm">
+										<Users className="h-5 w-5 text-white" />
 									</div>
 								</div>
 							</CardContent>
 						</Card>
-						<Card className="hover:shadow-md transition-shadow border-neutral-200">
-							<CardContent className="p-6">
+
+						<Card className="border-none shadow-md bg-gradient-to-br from-emerald-500 to-emerald-600 text-white overflow-hidden relative">
+							<div className="absolute top-0 right-0 p-3 opacity-10 transform translate-x-1 -translate-y-1">
+								<CheckCircle2 className="w-16 h-16" />
+							</div>
+							<CardContent className="p-5 relative z-10">
 								<div className="flex items-center justify-between">
-									<div className="space-y-1">
-										<p className="text-sm font-medium text-muted-foreground">
-											{language === 'bm' ? 'Kadar Penyiapan Purata' : 'Average Completion Rate'}
+									<div>
+										<p className="text-emerald-100 font-medium text-xs">
+											{language === 'bm' ? 'Kadar Penyiapan Purata' : 'Avg Completion Rate'}
 										</p>
-										<p className="text-3xl font-bold text-neutral-900">
+										<p className="text-2xl font-bold mt-1">
 											{analyticsData.overallStats.avgCompletionRate}%
 										</p>
 									</div>
-									<div className="h-14 w-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-										<Target className="h-7 w-7" />
+									<div className="bg-white/20 p-2 rounded-xl backdrop-blur-sm">
+										<Target className="h-5 w-5 text-white" />
 									</div>
 								</div>
 							</CardContent>
 						</Card>
-						<Card className="hover:shadow-md transition-shadow border-neutral-200">
-							<CardContent className="p-6">
+
+						<Card className="border-none shadow-md bg-gradient-to-br from-violet-500 to-violet-600 text-white overflow-hidden relative">
+							<div className="absolute top-0 right-0 p-3 opacity-10 transform translate-x-1 -translate-y-1">
+								<ClipboardCheck className="w-16 h-16" />
+							</div>
+							<CardContent className="p-5 relative z-10">
 								<div className="flex items-center justify-between">
-									<div className="space-y-1">
-										<p className="text-sm font-medium text-muted-foreground">
+									<div>
+										<p className="text-violet-100 font-medium text-xs">
 											{language === 'bm' ? 'Skor Purata' : 'Average Score'}
 										</p>
-										<p className="text-3xl font-bold text-neutral-900">
+										<p className="text-2xl font-bold mt-1">
 											{analyticsData.overallStats.avgScore}%
 										</p>
 									</div>
-									<div className="h-14 w-14 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600">
-										<BarChart3 className="h-7 w-7" />
+									<div className="bg-white/20 p-2 rounded-xl backdrop-blur-sm">
+										<BarChart3 className="h-5 w-5 text-white" />
 									</div>
 								</div>
 							</CardContent>
@@ -1223,431 +1238,446 @@ export default function AnalyticsPage() {
 
 					{/* Class Risk Overview (anonymized indicators) */}
 					{analyticsData.riskSummary && (
-						<Card>
-							<CardHeader>
-								<CardTitle>
+						<div className="space-y-6">
+							<div className="flex items-center gap-4">
+								<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
 									{language === 'bm' ? 'Ringkasan Risiko Kelas' : 'Class Risk Overview'}
-								</CardTitle>
-								<CardDescription>
-									{language === 'bm'
-										? 'Ringkasan pelajar berisiko tanpa mendedahkan identiti'
-										: 'Summary of at-risk learners without revealing identities'}
-								</CardDescription>
-							</CardHeader>
-							<CardContent>
-								<div className="grid gap-4 md:grid-cols-4">
-									<div className="flex items-center gap-4 p-4 rounded-xl bg-red-50 border border-red-100">
-										<div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
-											<AlertCircle className="h-5 w-5" />
+									<AlertCircle className="h-6 w-6 text-red-500" />
+								</h2>
+								<div className="h-px bg-neutral-200 flex-1" />
+							</div>
+							<Card className="border-none shadow-sm">
+								<CardHeader>
+									<CardDescription>
+										{language === 'bm'
+											? 'Ringkasan pelajar berisiko tanpa mendedahkan identiti'
+											: 'Summary of at-risk learners without revealing identities'}
+									</CardDescription>
+								</CardHeader>
+								<CardContent>
+									<div className="grid gap-4 md:grid-cols-4">
+										<div className="flex items-center gap-4 p-4 rounded-xl bg-red-50 border border-red-100">
+											<div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+												<AlertCircle className="h-5 w-5" />
+											</div>
+											<div>
+												<p className="text-xs font-medium text-red-600 uppercase tracking-wide">
+													{language === 'bm' ? 'Pelajar Risiko Tinggi' : 'High-Risk Students'}
+												</p>
+												<p className="text-2xl font-bold text-red-700">
+													{analyticsData.riskSummary.highRiskCount}
+												</p>
+											</div>
 										</div>
-										<div>
-											<p className="text-xs font-medium text-red-600 uppercase tracking-wide">
-												{language === 'bm' ? 'Pelajar Risiko Tinggi' : 'High-Risk Students'}
-											</p>
-											<p className="text-2xl font-bold text-red-700">
-												{analyticsData.riskSummary.highRiskCount}
-											</p>
+										<div className="flex items-center gap-4 p-4 rounded-xl bg-orange-50 border border-orange-100">
+											<div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600">
+												<AlertTriangle className="h-5 w-5" />
+											</div>
+											<div>
+												<p className="text-xs font-medium text-orange-600 uppercase tracking-wide">
+													{language === 'bm' ? 'Pelajar Risiko Sederhana' : 'Medium-Risk Students'}
+												</p>
+												<p className="text-2xl font-bold text-orange-700">
+													{analyticsData.riskSummary.mediumRiskCount}
+												</p>
+											</div>
+										</div>
+										<div className="flex items-center gap-4 p-4 rounded-xl bg-neutral-50 border border-neutral-100">
+											<div className="h-10 w-10 rounded-full bg-neutral-200 flex items-center justify-center text-neutral-600">
+												<FileWarning className="h-5 w-5" />
+											</div>
+											<div>
+												<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+													{language === 'bm' ? 'Purata Tarikh Akhir Terlepas' : 'Average Missed Deadlines'}
+												</p>
+												<p className="text-2xl font-bold text-neutral-900">
+													{analyticsData.riskSummary.avgMissedDeadlines}
+												</p>
+											</div>
+										</div>
+										<div className="flex items-center gap-4 p-4 rounded-xl bg-neutral-50 border border-neutral-100">
+											<div className="h-10 w-10 rounded-full bg-neutral-200 flex items-center justify-center text-neutral-600">
+												<Clock className="h-5 w-5" />
+											</div>
+											<div>
+												<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+													{language === 'bm' ? 'Purata Hari Tanpa Aktiviti' : 'Average Days Inactive'}
+												</p>
+												<p className="text-2xl font-bold text-neutral-900">
+													{analyticsData.riskSummary.avgDaysInactive}
+												</p>
+											</div>
 										</div>
 									</div>
-									<div className="flex items-center gap-4 p-4 rounded-xl bg-orange-50 border border-orange-100">
-										<div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600">
-											<AlertTriangle className="h-5 w-5" />
-										</div>
-										<div>
-											<p className="text-xs font-medium text-orange-600 uppercase tracking-wide">
-												{language === 'bm' ? 'Pelajar Risiko Sederhana' : 'Medium-Risk Students'}
-											</p>
-											<p className="text-2xl font-bold text-orange-700">
-												{analyticsData.riskSummary.mediumRiskCount}
-											</p>
-										</div>
-									</div>
-									<div className="flex items-center gap-4 p-4 rounded-xl bg-neutral-50 border border-neutral-100">
-										<div className="h-10 w-10 rounded-full bg-neutral-200 flex items-center justify-center text-neutral-600">
-											<FileWarning className="h-5 w-5" />
-										</div>
-										<div>
-											<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-												{language === 'bm' ? 'Purata Tarikh Akhir Terlepas' : 'Average Missed Deadlines'}
-											</p>
-											<p className="text-2xl font-bold text-neutral-900">
-												{analyticsData.riskSummary.avgMissedDeadlines}
-											</p>
-										</div>
-									</div>
-									<div className="flex items-center gap-4 p-4 rounded-xl bg-neutral-50 border border-neutral-100">
-										<div className="h-10 w-10 rounded-full bg-neutral-200 flex items-center justify-center text-neutral-600">
-											<Clock className="h-5 w-5" />
-										</div>
-										<div>
-											<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-												{language === 'bm' ? 'Purata Hari Tanpa Aktiviti' : 'Average Days Inactive'}
-											</p>
-											<p className="text-2xl font-bold text-neutral-900">
-												{analyticsData.riskSummary.avgDaysInactive}
-											</p>
-										</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
+								</CardContent>
+							</Card>
+						</div>
 					)}
 
 					{/* Completion Rate Trend */}
 					{/* Completion Rate Trend */}
-					<Card className="shadow-sm hover:shadow-md transition-shadow duration-300 border-neutral-200 overflow-hidden">
-						<CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent border-b border-neutral-100">
-							<div className="flex items-center gap-3">
-								<div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-									<Activity className="h-5 w-5" />
-								</div>
-								<div>
-									<CardTitle className="text-xl font-bold text-neutral-800">
-										{language === 'bm' ? 'Kadar Penyiapan Kelas' : 'Class Completion Rate'}
-									</CardTitle>
-									<CardDescription className="text-emerald-700/80 font-medium">
-										{language === 'bm'
-											? 'Trend kadar penyiapan selama 7 minggu terakhir'
-											: 'Completion rate trend over the last 7 weeks'}
-									</CardDescription>
-								</div>
-							</div>
-						</CardHeader>
-						<CardContent className="pl-0 pt-6 pr-6">
-							<ResponsiveContainer width="100%" height={320}>
-								<RechartsAreaChart data={analyticsData.completionRates}>
-									<defs>
-										<linearGradient id="colorCompletion" x1="0" y1="0" x2="0" y2="1">
-											<stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
-											<stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-										</linearGradient>
-									</defs>
-									<CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f5" />
-									<XAxis
-										dataKey="week"
-										interval={0}
-										tick={{ fontSize: 12, fill: '#6b7280' }}
-										axisLine={false}
-										tickLine={false}
-										padding={{ left: 20, right: 20 }}
-									/>
-									<YAxis
-										tickFormatter={(value) => `${value}%`}
-										tick={{ fontSize: 12, fill: '#6b7280' }}
-										axisLine={false}
-										tickLine={false}
-										width={40}
-									/>
-									<Tooltip
-										formatter={(value) => [`${value}%`, 'Completion Rate']}
-										contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-										cursor={{ stroke: '#10b981', strokeWidth: 1 }}
-									/>
-									<Area
-										type="natural"
-										dataKey="Completion Rate"
-										stroke="#10b981"
-										strokeWidth={3}
-										fillOpacity={1}
-										fill="url(#colorCompletion)"
-										animationDuration={1500}
-									/>
-								</RechartsAreaChart>
-							</ResponsiveContainer>
-						</CardContent>
-					</Card>
+					<div className="mt-8">
+						<div className="flex items-center gap-4 mb-6">
+							<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
+								{language === 'bm' ? 'Kadar Penyiapan Kelas' : 'Class Completion Rate'}
+								<Activity className="h-6 w-6 text-emerald-500" />
+							</h2>
+							<div className="h-px bg-neutral-200 flex-1" />
+						</div>
+						<Card className="shadow-sm hover:shadow-md transition-shadow duration-300 border-neutral-200 overflow-hidden">
+							<CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent border-b border-neutral-100">
+								<CardDescription className="text-emerald-700/80 font-medium">
+									{language === 'bm'
+										? 'Trend kadar penyiapan selama 7 minggu terakhir'
+										: 'Completion rate trend over the last 7 weeks'}
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="pl-0 pt-6 pr-6">
+								<ResponsiveContainer width="100%" height={320}>
+									<RechartsAreaChart data={analyticsData.completionRates}>
+										<defs>
+											<linearGradient id="colorCompletion" x1="0" y1="0" x2="0" y2="1">
+												<stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+												<stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+											</linearGradient>
+										</defs>
+										<CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f5" />
+										<XAxis
+											dataKey="week"
+											interval={0}
+											tick={{ fontSize: 12, fill: '#6b7280' }}
+											axisLine={false}
+											tickLine={false}
+											padding={{ left: 20, right: 20 }}
+										/>
+										<YAxis
+											tickFormatter={(value) => `${value}%`}
+											tick={{ fontSize: 12, fill: '#6b7280' }}
+											axisLine={false}
+											tickLine={false}
+											width={40}
+										/>
+										<Tooltip
+											formatter={(value) => [`${value}%`, 'Completion Rate']}
+											contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+											cursor={{ stroke: '#10b981', strokeWidth: 1 }}
+										/>
+										<Area
+											type="natural"
+											dataKey="Completion Rate"
+											stroke="#10b981"
+											strokeWidth={3}
+											fillOpacity={1}
+											fill="url(#colorCompletion)"
+											animationDuration={1500}
+										/>
+									</RechartsAreaChart>
+								</ResponsiveContainer>
+							</CardContent>
+						</Card>
+					</div>
 
 					{/* Average Score Trend */}
 					{/* Average Score Trend */}
-					<Card className="shadow-sm hover:shadow-md transition-shadow duration-300 border-neutral-200 overflow-hidden">
-						<CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent border-b border-neutral-100">
-							<div className="flex items-center gap-3">
-								<div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-									<Target className="h-5 w-5" />
-								</div>
-								<div>
-									<CardTitle className="text-xl font-bold text-neutral-800">
-										{language === 'bm' ? 'Trend Skor Purata' : 'Average Score Trend'}
-									</CardTitle>
-									<CardDescription className="text-emerald-700/80 font-medium">
-										{language === 'bm'
-											? 'Trend skor purata selama 7 minggu terakhir'
-											: 'Average score trend over the last 7 weeks'}
-									</CardDescription>
-								</div>
-							</div>
-						</CardHeader>
-						<CardContent className="pl-0 pt-6 pr-6">
-							<ResponsiveContainer width="100%" height={320}>
-								<RechartsAreaChart data={analyticsData.scoreTrends}>
-									<defs>
-										<linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-											<stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
-											<stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-										</linearGradient>
-									</defs>
-									<CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f5" />
-									<XAxis
-										dataKey="week"
-										interval={0}
-										tick={{ fontSize: 12, fill: '#6b7280' }}
-										axisLine={false}
-										tickLine={false}
-										padding={{ left: 20, right: 20 }}
-									/>
-									<YAxis
-										tickFormatter={(value) => `${value}%`}
-										tick={{ fontSize: 12, fill: '#6b7280' }}
-										axisLine={false}
-										tickLine={false}
-										width={40}
-									/>
-									<Tooltip
-										formatter={(value) => [`${value}%`, 'Average Score']}
-										contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-										cursor={{ stroke: '#10b981', strokeWidth: 1 }}
-									/>
-									<Area
-										type="natural"
-										dataKey="Average Score"
-										stroke="#10b981"
-										strokeWidth={3}
-										fillOpacity={1}
-										fill="url(#colorScore)"
-										animationDuration={1500}
-									/>
-								</RechartsAreaChart>
-							</ResponsiveContainer>
-						</CardContent>
-					</Card>
+					<div className="mt-8">
+						<div className="flex items-center gap-4 mb-6">
+							<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
+								{language === 'bm' ? 'Trend Skor Purata' : 'Average Score Trend'}
+								<Target className="h-6 w-6 text-emerald-500" />
+							</h2>
+							<div className="h-px bg-neutral-200 flex-1" />
+						</div>
+						<Card className="shadow-sm hover:shadow-md transition-shadow duration-300 border-neutral-200 overflow-hidden">
+							<CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent border-b border-neutral-100">
+								<CardDescription className="text-emerald-700/80 font-medium">
+									{language === 'bm'
+										? 'Trend skor purata selama 7 minggu terakhir'
+										: 'Average score trend over the last 7 weeks'}
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="pl-0 pt-6 pr-6">
+								<ResponsiveContainer width="100%" height={320}>
+									<RechartsAreaChart data={analyticsData.scoreTrends}>
+										<defs>
+											<linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+												<stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+												<stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+											</linearGradient>
+										</defs>
+										<CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f5" />
+										<XAxis
+											dataKey="week"
+											interval={0}
+											tick={{ fontSize: 12, fill: '#6b7280' }}
+											axisLine={false}
+											tickLine={false}
+											padding={{ left: 20, right: 20 }}
+										/>
+										<YAxis
+											tickFormatter={(value) => `${value}%`}
+											tick={{ fontSize: 12, fill: '#6b7280' }}
+											axisLine={false}
+											tickLine={false}
+											width={40}
+										/>
+										<Tooltip
+											formatter={(value) => [`${value}%`, 'Average Score']}
+											contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+											cursor={{ stroke: '#10b981', strokeWidth: 1 }}
+										/>
+										<Area
+											type="natural"
+											dataKey="Average Score"
+											stroke="#10b981"
+											strokeWidth={3}
+											fillOpacity={1}
+											fill="url(#colorScore)"
+											animationDuration={1500}
+										/>
+									</RechartsAreaChart>
+								</ResponsiveContainer>
+							</CardContent>
+						</Card>
+					</div>
 
 					{/* At-Risk Students */}
-					<Card>
-						<CardHeader>
-							<CardTitle className="flex items-center gap-2">
-								<AlertTriangle className="h-5 w-5 text-warning" />
+					<div className="mt-8">
+						<div className="flex items-center gap-4 mb-6">
+							<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
 								{language === 'bm' ? 'Pelajar Berisiko' : 'At-Risk Students'}
-							</CardTitle>
-							<CardDescription>
-								{language === 'bm'
-									? 'Pelajar yang memerlukan perhatian (skor rendah, aktiviti rendah)'
-									: 'Students who need attention (low scores, low activity)'}
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							{analyticsData.atRiskStudents.length === 0 ? (
-								<p className="text-body text-muted-foreground text-center py-8">
+								<AlertTriangle className="h-6 w-6 text-warning" />
+							</h2>
+							<div className="h-px bg-neutral-200 flex-1" />
+						</div>
+						<Card className="border-none shadow-sm">
+							<CardHeader>
+								<CardDescription>
 									{language === 'bm'
-										? 'Tiada pelajar berisiko pada masa ini.'
-										: 'No at-risk students at this time.'}
-								</p>
-							) : (
-								<div className="space-y-4">
-									{analyticsData.atRiskStudents.map((student, idx) => (
-										<div
-											key={idx}
-											className={`group relative overflow-hidden p-5 border rounded-xl cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${student.riskLevel === 'high'
-												? 'border-red-100 bg-white hover:border-red-300'
-												: 'border-yellow-100 bg-white hover:border-yellow-300'
-												}`}
-											onClick={() => {
-												setSelectedStudent(student);
-												setShowStudentDetail(true);
-											}}
-										>
-											{/* Status indicator bar */}
-											<div className={`absolute left-0 top-0 bottom-0 w-1 ${student.riskLevel === 'high' ? 'bg-red-500' : 'bg-yellow-500'
-												}`}></div>
+										? 'Pelajar yang memerlukan perhatian (skor rendah, aktiviti rendah)'
+										: 'Students who need attention (low scores, low activity)'}
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								{analyticsData.atRiskStudents.length === 0 ? (
+									<p className="text-body text-muted-foreground text-center py-8">
+										{language === 'bm'
+											? 'Tiada pelajar berisiko pada masa ini.'
+											: 'No at-risk students at this time.'}
+									</p>
+								) : (
+									<div className="space-y-4">
+										{analyticsData.atRiskStudents.map((student, idx) => (
+											<div
+												key={idx}
+												className={`group relative overflow-hidden p-5 border rounded-xl cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${student.riskLevel === 'high'
+													? 'border-red-100 bg-white hover:border-red-300'
+													: 'border-yellow-100 bg-white hover:border-yellow-300'
+													}`}
+												onClick={() => {
+													setSelectedStudent(student);
+													setShowStudentDetail(true);
+												}}
+											>
+												{/* Status indicator bar */}
+												<div className={`absolute left-0 top-0 bottom-0 w-1 ${student.riskLevel === 'high' ? 'bg-red-500' : 'bg-yellow-500'
+													}`}></div>
 
-											<div className="flex items-center justify-between mb-4 pl-2">
-												<div className="flex items-center gap-3">
-													<div className={`h-10 w-10 rounded-full flex items-center justify-center ${student.riskLevel === 'high'
-														? 'bg-red-50 text-red-600'
-														: 'bg-yellow-50 text-yellow-600'
+												<div className="flex items-center justify-between mb-4 pl-2">
+													<div className="flex items-center gap-3">
+														<div className={`h-10 w-10 rounded-full flex items-center justify-center ${student.riskLevel === 'high'
+															? 'bg-red-50 text-red-600'
+															: 'bg-yellow-50 text-yellow-600'
+															}`}>
+															<span className="font-bold text-sm">{student.studentName.charAt(0)}</span>
+														</div>
+														<div>
+															<h4 className="font-semibold text-neutral-900">{student.studentName}</h4>
+															<p className="text-xs text-muted-foreground">{student.email}</p>
+														</div>
+													</div>
+													<span className={`px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${student.riskLevel === 'high'
+														? 'bg-red-100 text-red-700 ring-1 ring-red-200'
+														: 'bg-yellow-100 text-yellow-700 ring-1 ring-yellow-200'
 														}`}>
-														<span className="font-bold text-sm">{student.studentName.charAt(0)}</span>
+														{student.riskLevel === 'high'
+															? (language === 'bm' ? 'Risiko Tinggi' : 'High Risk')
+															: (language === 'bm' ? 'Risiko Sederhana' : 'Medium Risk')}
+													</span>
+												</div>
+												<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm pl-2">
+													<div className="bg-neutral-50 p-2 rounded-lg">
+														<p className="flex items-center gap-1.5 text-muted-foreground text-xs mb-1">
+															<BarChart3 className="h-3.5 w-3.5 text-blue-500" />
+															{language === 'bm' ? 'Skor Purata' : 'Average Score'}
+														</p>
+														<p className="font-bold text-neutral-800 text-lg">{Math.round(student.avgScore)}%</p>
 													</div>
-													<div>
-														<h4 className="font-semibold text-neutral-900">{student.studentName}</h4>
-														<p className="text-xs text-muted-foreground">{student.email}</p>
+													<div className="bg-neutral-50 p-2 rounded-lg">
+														<p className="flex items-center gap-1.5 text-muted-foreground text-xs mb-1">
+															<Target className="h-3.5 w-3.5 text-green-500" />
+															{language === 'bm' ? 'Kadar Penyiapan' : 'Completion'}
+														</p>
+														<p className="font-bold text-neutral-800 text-lg">{Math.round(student.completionRate)}%</p>
+													</div>
+													<div className="bg-neutral-50 p-2 rounded-lg">
+														<p className="flex items-center gap-1.5 text-muted-foreground text-xs mb-1">
+															<FileText className="h-3.5 w-3.5 text-orange-500" />
+															{language === 'bm' ? 'Tarikh Akhir Terlepas' : 'Missed Deadlines'}
+														</p>
+														<p className="font-bold text-neutral-800 text-lg">{student.missedDeadlines || 0}</p>
+													</div>
+													<div className="bg-neutral-50 p-2 rounded-lg">
+														<p className="flex items-center gap-1.5 text-muted-foreground text-xs mb-1">
+															<Clock className="h-3.5 w-3.5 text-purple-500" />
+															{language === 'bm' ? 'Hari Tanpa Aktiviti' : 'Days Inactive'}
+														</p>
+														<p className="font-bold text-neutral-800 text-lg">{student.daysSinceActivity}</p>
 													</div>
 												</div>
-												<span className={`px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${student.riskLevel === 'high'
-													? 'bg-red-100 text-red-700 ring-1 ring-red-200'
-													: 'bg-yellow-100 text-yellow-700 ring-1 ring-yellow-200'
-													}`}>
-													{student.riskLevel === 'high'
-														? (language === 'bm' ? 'Risiko Tinggi' : 'High Risk')
-														: (language === 'bm' ? 'Risiko Sederhana' : 'Medium Risk')}
-												</span>
-											</div>
-											<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm pl-2">
-												<div className="bg-neutral-50 p-2 rounded-lg">
-													<p className="flex items-center gap-1.5 text-muted-foreground text-xs mb-1">
-														<BarChart3 className="h-3.5 w-3.5 text-blue-500" />
-														{language === 'bm' ? 'Skor Purata' : 'Average Score'}
-													</p>
-													<p className="font-bold text-neutral-800 text-lg">{Math.round(student.avgScore)}%</p>
-												</div>
-												<div className="bg-neutral-50 p-2 rounded-lg">
-													<p className="flex items-center gap-1.5 text-muted-foreground text-xs mb-1">
-														<Target className="h-3.5 w-3.5 text-green-500" />
-														{language === 'bm' ? 'Kadar Penyiapan' : 'Completion'}
-													</p>
-													<p className="font-bold text-neutral-800 text-lg">{Math.round(student.completionRate)}%</p>
-												</div>
-												<div className="bg-neutral-50 p-2 rounded-lg">
-													<p className="flex items-center gap-1.5 text-muted-foreground text-xs mb-1">
-														<FileText className="h-3.5 w-3.5 text-orange-500" />
-														{language === 'bm' ? 'Tarikh Akhir Terlepas' : 'Missed Deadlines'}
-													</p>
-													<p className="font-bold text-neutral-800 text-lg">{student.missedDeadlines || 0}</p>
-												</div>
-												<div className="bg-neutral-50 p-2 rounded-lg">
-													<p className="flex items-center gap-1.5 text-muted-foreground text-xs mb-1">
-														<Clock className="h-3.5 w-3.5 text-purple-500" />
-														{language === 'bm' ? 'Hari Tanpa Aktiviti' : 'Days Inactive'}
-													</p>
-													<p className="font-bold text-neutral-800 text-lg">{student.daysSinceActivity}</p>
+												{student.riskReasons && student.riskReasons.length > 0 && (
+													<div className="mt-4 pl-2 bg-red-50/50 p-3 rounded-lg border border-red-100">
+														<p className="text-xs font-semibold text-red-900 mb-2">
+															{language === 'bm' ? 'Faktor Risiko Utama:' : 'Key Risk Factors:'}
+														</p>
+														<ul className="text-xs text-red-700/80 space-y-1 list-disc list-inside">
+															{student.riskReasons.slice(0, 2).map((reason, index) => (
+																<li key={index}>{reason}</li>
+															))}
+															{student.riskReasons.length > 2 && (
+																<li className="list-none text-red-500 italic pl-1">
+																	+{student.riskReasons.length - 2} {language === 'bm' ? 'lagi' : 'more'}...
+																</li>
+															)}
+														</ul>
+													</div>
+												)}
+												<div className="mt-4 flex gap-2 pl-2 opacity-0 group-hover:opacity-100 transition-opacity">
+													<Button
+														size="sm"
+														onClick={(e) => {
+															e.stopPropagation();
+															setNotificationStudent(student);
+															setNotificationGuidance('');
+															setShowNotificationModal(true);
+														}}
+														className="w-full flex items-center justify-center gap-2 bg-neutral-900 text-white hover:bg-neutral-800 shadow-sm"
+													>
+														<Send className="h-3.5 w-3.5" />
+														{language === 'bm' ? 'Hantar Notifikasi' : 'Notify Student'}
+													</Button>
 												</div>
 											</div>
-											{student.riskReasons && student.riskReasons.length > 0 && (
-												<div className="mt-4 pl-2 bg-red-50/50 p-3 rounded-lg border border-red-100">
-													<p className="text-xs font-semibold text-red-900 mb-2">
-														{language === 'bm' ? 'Faktor Risiko Utama:' : 'Key Risk Factors:'}
-													</p>
-													<ul className="text-xs text-red-700/80 space-y-1 list-disc list-inside">
-														{student.riskReasons.slice(0, 2).map((reason, index) => (
-															<li key={index}>{reason}</li>
-														))}
-														{student.riskReasons.length > 2 && (
-															<li className="list-none text-red-500 italic pl-1">
-																+{student.riskReasons.length - 2} {language === 'bm' ? 'lagi' : 'more'}...
-															</li>
-														)}
-													</ul>
-												</div>
-											)}
-											<div className="mt-4 flex gap-2 pl-2 opacity-0 group-hover:opacity-100 transition-opacity">
-												<Button
-													size="sm"
-													onClick={(e) => {
-														e.stopPropagation();
-														setNotificationStudent(student);
-														setNotificationGuidance('');
-														setShowNotificationModal(true);
-													}}
-													className="w-full flex items-center justify-center gap-2 bg-neutral-900 text-white hover:bg-neutral-800 shadow-sm"
-												>
-													<Send className="h-3.5 w-3.5" />
-													{language === 'bm' ? 'Hantar Notifikasi' : 'Notify Student'}
-												</Button>
-											</div>
-										</div>
-									))}
-								</div>
-							)}
-						</CardContent>
-					</Card>
+										))}
+									</div>
+								)}
+							</CardContent>
+						</Card>
+					</div>
 
 					{/* Topic Heatmap */}
-					<Card>
-						<CardHeader>
-							<CardTitle>
+					<div className="mt-8">
+						<div className="flex items-center gap-4 mb-6">
+							<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
 								{language === 'bm' ? 'Peta Haba Topik' : 'Topic Heatmap'}
-							</CardTitle>
-							<CardDescription>
-								{language === 'bm'
-									? 'Topik yang pelajar bergelut (berdasarkan kadar penyiapan dan skor)'
-									: 'Topics students struggle with (based on completion rate and scores)'}
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							{analyticsData.topicHeatmap.length === 0 ? (
-								<p className="text-body text-muted-foreground text-center py-8">
+								<LayoutDashboard className="h-6 w-6 text-primary" />
+							</h2>
+							<div className="h-px bg-neutral-200 flex-1" />
+						</div>
+						<Card className="border-none shadow-sm">
+							<CardHeader>
+								<CardDescription>
 									{language === 'bm'
-										? 'Tiada data topik tersedia.'
-										: 'No topic data available.'}
-								</p>
-							) : (
-								<div className="space-y-4">
-									{analyticsData.topicHeatmap.map((topic, idx) => (
-										<div
-											key={idx}
-											className={`p-5 border rounded-xl hover:shadow-md transition-all duration-300 ${topic.struggleLevel === 'high'
-												? 'border-red-200 bg-red-50/30'
-												: topic.struggleLevel === 'medium'
-													? 'border-yellow-200 bg-yellow-50/30'
-													: 'border-green-200 bg-green-50/30'
-												}`}
-										>
-											<div className="flex items-center justify-between mb-4">
-												<div className="flex items-center gap-3">
-													<div className={`w-2 h-2 rounded-full ${topic.struggleLevel === 'high'
-														? 'bg-red-500'
-														: topic.struggleLevel === 'medium'
-															? 'bg-yellow-500'
-															: 'bg-green-500'
-														}`}></div>
-													<h4 className="font-bold text-neutral-800">{topic.topic}</h4>
-												</div>
-												<span className={`px-3 py-1 rounded-full text-xs font-semibold ${topic.struggleLevel === 'high'
-													? 'bg-red-100 text-red-700'
+										? 'Topik yang pelajar bergelut (berdasarkan kadar penyiapan dan skor)'
+										: 'Topics students struggle with (based on completion rate and scores)'}
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								{analyticsData.topicHeatmap.length === 0 ? (
+									<p className="text-body text-muted-foreground text-center py-8">
+										{language === 'bm'
+											? 'Tiada data topik tersedia.'
+											: 'No topic data available.'}
+									</p>
+								) : (
+									<div className="space-y-4">
+										{analyticsData.topicHeatmap.map((topic, idx) => (
+											<div
+												key={idx}
+												className={`p-5 border rounded-xl hover:shadow-md transition-all duration-300 ${topic.struggleLevel === 'high'
+													? 'border-red-200 bg-red-50/30'
 													: topic.struggleLevel === 'medium'
-														? 'bg-yellow-100 text-yellow-700'
-														: 'bg-green-100 text-green-700'
-													}`}>
-													{topic.struggleLevel === 'high'
-														? (language === 'bm' ? 'Sukar' : 'Struggling')
+														? 'border-yellow-200 bg-yellow-50/30'
+														: 'border-green-200 bg-green-50/30'
+													}`}
+											>
+												<div className="flex items-center justify-between mb-4">
+													<div className="flex items-center gap-3">
+														<div className={`w-2 h-2 rounded-full ${topic.struggleLevel === 'high'
+															? 'bg-red-500'
+															: topic.struggleLevel === 'medium'
+																? 'bg-yellow-500'
+																: 'bg-green-500'
+															}`}></div>
+														<h4 className="font-bold text-neutral-800">{topic.topic}</h4>
+													</div>
+													<span className={`px-3 py-1 rounded-full text-xs font-semibold ${topic.struggleLevel === 'high'
+														? 'bg-red-100 text-red-700'
 														: topic.struggleLevel === 'medium'
-															? (language === 'bm' ? 'Sederhana' : 'Moderate')
-															: (language === 'bm' ? 'Baik' : 'Good')}
-												</span>
-											</div>
-											<div className="grid grid-cols-3 gap-6 text-sm">
-												<div className="space-y-1">
-													<p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-														{language === 'bm' ? 'Kadar Penyiapan' : 'Completion'}
-													</p>
-													<div className="flex items-end gap-2">
-														<span className="text-xl font-bold text-neutral-900">{topic.completionRate}%</span>
-														<div className="w-full bg-neutral-200 rounded-full h-1.5 mb-1.5">
-															<div
-																className="bg-neutral-800 h-1.5 rounded-full"
-																style={{ width: `${topic.completionRate}%` }}
-															></div>
+															? 'bg-yellow-100 text-yellow-700'
+															: 'bg-green-100 text-green-700'
+														}`}>
+														{topic.struggleLevel === 'high'
+															? (language === 'bm' ? 'Sukar' : 'Struggling')
+															: topic.struggleLevel === 'medium'
+																? (language === 'bm' ? 'Sederhana' : 'Moderate')
+																: (language === 'bm' ? 'Baik' : 'Good')}
+													</span>
+												</div>
+												<div className="grid grid-cols-3 gap-6 text-sm">
+													<div className="space-y-1">
+														<p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+															{language === 'bm' ? 'Kadar Penyiapan' : 'Completion'}
+														</p>
+														<div className="flex items-end gap-2">
+															<span className="text-xl font-bold text-neutral-900">{topic.completionRate}%</span>
+															<div className="w-full bg-neutral-200 rounded-full h-1.5 mb-1.5">
+																<div
+																	className="bg-neutral-800 h-1.5 rounded-full"
+																	style={{ width: `${topic.completionRate}%` }}
+																></div>
+															</div>
 														</div>
 													</div>
-												</div>
-												<div className="space-y-1">
-													<p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-														{language === 'bm' ? 'Skor Purata' : 'Average Score'}
-													</p>
-													<div className="flex items-end gap-2">
-														<span className="text-xl font-bold text-neutral-900">{topic.avgScore}%</span>
-														<div className="w-full bg-neutral-200 rounded-full h-1.5 mb-1.5">
-															<div
-																className={`h-1.5 rounded-full ${topic.avgScore < 60 ? 'bg-red-500' : 'bg-green-500'}`}
-																style={{ width: `${topic.avgScore}%` }}
-															></div>
+													<div className="space-y-1">
+														<p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+															{language === 'bm' ? 'Skor Purata' : 'Average Score'}
+														</p>
+														<div className="flex items-end gap-2">
+															<span className="text-xl font-bold text-neutral-900">{topic.avgScore}%</span>
+															<div className="w-full bg-neutral-200 rounded-full h-1.5 mb-1.5">
+																<div
+																	className={`h-1.5 rounded-full ${topic.avgScore < 60 ? 'bg-red-500' : 'bg-green-500'}`}
+																	style={{ width: `${topic.avgScore}%` }}
+																></div>
+															</div>
 														</div>
 													</div>
-												</div>
-												<div className="text-right space-y-1">
-													<p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-														{language === 'bm' ? 'Selesai' : 'Completed'}
-													</p>
-													<p className="text-xl font-bold text-neutral-900">
-														{topic.studentsCompleted} <span className="text-sm font-normal text-muted-foreground">/ {topic.totalStudents}</span>
-													</p>
+													<div className="text-right space-y-1">
+														<p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+															{language === 'bm' ? 'Selesai' : 'Completed'}
+														</p>
+														<p className="text-xl font-bold text-neutral-900">
+															{topic.studentsCompleted} <span className="text-sm font-normal text-muted-foreground">/ {topic.totalStudents}</span>
+														</p>
+													</div>
 												</div>
 											</div>
-										</div>
-									))}
-								</div>
-							)}
-						</CardContent>
-					</Card>
+										))}
+									</div>
+								)}
+							</CardContent>
+						</Card>
+					</div>
 				</>
 			)
 			}

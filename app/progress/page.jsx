@@ -14,6 +14,27 @@ import Link from 'next/link';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { BarChart, LineChart } from '@tremor/react';
 
+const ACHIEVEMENT_DEFINITIONS = {
+	'first-step': {
+		title: { en: 'First Step', bm: 'Langkah Pertama' },
+		description: { en: 'Enrolled in first course', bm: 'Mendaftar dalam kursus pertama' },
+		icon: BookOpen,
+		color: 'text-blue-500 bg-blue-100',
+	},
+	'high-flyer': {
+		title: { en: 'High Flyer', bm: 'Pencapai Tinggi' },
+		description: { en: 'Achieved > 80% score in a course', bm: 'Mencapai skor > 80% dalam kursus' },
+		icon: Award,
+		color: 'text-amber-500 bg-amber-100',
+	},
+	'dedicated': {
+		title: { en: 'Dedicated Learner', bm: 'Pelajar Berdedikasi' },
+		description: { en: 'Completed 5+ lessons', bm: 'Menyiapkan 5+ pelajaran' },
+		icon: CheckCircle2,
+		color: 'text-emerald-500 bg-emerald-100',
+	},
+};
+
 export default function ProgressPage() {
 	const { language } = useLanguage();
 	const [loading, setLoading] = useState(true);
@@ -286,10 +307,6 @@ export default function ProgressPage() {
 			if (progressData.length > 0) {
 				newAchievements.push({
 					id: 'first-step',
-					title: language === 'bm' ? 'Langkah Pertama' : 'First Step',
-					description: language === 'bm' ? 'Mendaftar dalam kursus pertama' : 'Enrolled in first course',
-					icon: BookOpen,
-					color: 'text-blue-500 bg-blue-100',
 					date: progressData[progressData.length - 1].enrolledAt // Oldest enrollment
 				});
 			}
@@ -299,10 +316,6 @@ export default function ProgressPage() {
 			if (highScoringCourse) {
 				newAchievements.push({
 					id: 'high-flyer',
-					title: language === 'bm' ? 'Pencapai Tinggi' : 'High Flyer',
-					description: language === 'bm' ? 'Mencapai skor > 80% dalam kursus' : 'Achieved > 80% score in a course',
-					icon: Award,
-					color: 'text-amber-500 bg-amber-100',
 					date: new Date() // Current achievement
 				});
 			}
@@ -312,10 +325,6 @@ export default function ProgressPage() {
 			if (totalCompletedLessons >= 5) {
 				newAchievements.push({
 					id: 'dedicated',
-					title: language === 'bm' ? 'Pelajar Berdedikasi' : 'Dedicated Learner',
-					description: language === 'bm' ? 'Menyiapkan 5+ pelajaran' : 'Completed 5+ lessons',
-					icon: CheckCircle2,
-					color: 'text-emerald-500 bg-emerald-100',
 					date: new Date()
 				});
 			}
@@ -546,7 +555,7 @@ export default function ProgressPage() {
 	return (
 		<div className="space-y-8">
 			{/* Header */}
-			<div className="flex items-start justify-between gap-4">
+			<div className="flex items-start justify-between gap-4 print:hidden">
 				<div>
 					<h1 className="text-h1 text-neutralDark mb-2">
 						{language === 'bm' ? 'Kemajuan Saya' : 'My Progress'}
@@ -564,7 +573,7 @@ export default function ProgressPage() {
 							onClick={() => setCurrentView('hub')}
 							className="gap-2 print:hidden"
 						>
-							<ArrowLeft className="h-4 w-4" />
+							<ArrowLeft className="h-5 w-5" />
 							{language === 'bm' ? 'Kembali ke Papan Pemuka' : 'Back to Dashboard'}
 						</Button>
 					)}
@@ -572,7 +581,7 @@ export default function ProgressPage() {
 						<Dialog open={showReportModal} onOpenChange={setShowReportModal}>
 							<DialogTrigger asChild>
 								<Button variant="outline" className="gap-2 print:hidden">
-									<Printer className="h-4 w-4" />
+									<Printer className="h-5 w-5" />
 									{language === 'bm' ? 'Laporan' : 'Export'}
 								</Button>
 							</DialogTrigger>
@@ -586,54 +595,29 @@ export default function ProgressPage() {
 									</DialogDescription>
 								</DialogHeader>
 								<div className="grid gap-4 py-4">
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="performance"
-											checked={reportConfig.includePerformance}
-											onCheckedChange={(checked) => setReportConfig({ ...reportConfig, includePerformance: checked })}
-										/>
-										<Label htmlFor="performance">{language === 'bm' ? 'Prestasi Kursus' : 'Course Performance'}</Label>
-									</div>
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="progress"
-											checked={reportConfig.includeProgress}
-											onCheckedChange={(checked) => setReportConfig({ ...reportConfig, includeProgress: checked })}
-										/>
-										<Label htmlFor="progress">{language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress'}</Label>
-									</div>
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="trend"
-											checked={reportConfig.includeTrend}
-											onCheckedChange={(checked) => setReportConfig({ ...reportConfig, includeTrend: checked })}
-										/>
-										<Label htmlFor="trend">{language === 'bm' ? 'Trend Penilaian' : 'Score Trend'}</Label>
-									</div>
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="strong"
-											checked={reportConfig.includeStrong}
-											onCheckedChange={(checked) => setReportConfig({ ...reportConfig, includeStrong: checked })}
-										/>
-										<Label htmlFor="strong">{language === 'bm' ? 'Topik Kuat' : 'Strong Topics'}</Label>
-									</div>
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="risk"
-											checked={reportConfig.includeRisk}
-											onCheckedChange={(checked) => setReportConfig({ ...reportConfig, includeRisk: checked })}
-										/>
-										<Label htmlFor="risk">{language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators'}</Label>
-									</div>
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="details"
-											checked={reportConfig.includeDetails}
-											onCheckedChange={(checked) => setReportConfig({ ...reportConfig, includeDetails: checked })}
-										/>
-										<Label htmlFor="details">{language === 'bm' ? 'Butiran Kursus' : 'Course Details'}</Label>
-									</div>
+									{[
+										{ id: 'includeDetails', label: language === 'bm' ? 'Butiran Kursus' : 'Course Details' },
+										{ id: 'includePerformance', label: language === 'bm' ? 'Prestasi Kursus' : 'Course Performance' },
+										{ id: 'includeProgress', label: language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress' },
+										{ id: 'includeRisk', label: language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators' },
+										{ id: 'includeTrend', label: language === 'bm' ? 'Trend Penilaian' : 'Score Trend' },
+										{ id: 'includeStrong', label: language === 'bm' ? 'Topik Kuat' : 'Strong Topics' },
+									].map((item) => (
+										<div
+											key={item.id}
+											className="flex items-center space-x-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors"
+											onClick={() => setReportConfig({ ...reportConfig, [item.id]: !reportConfig[item.id] })}
+										>
+											<Checkbox
+												id={item.id}
+												checked={reportConfig[item.id]}
+												className="pointer-events-none h-6 w-6"
+											/>
+											<Label htmlFor={item.id} className="cursor-pointer flex-1">
+												{item.label}
+											</Label>
+										</div>
+									))}
 								</div>
 								<DialogFooter>
 									<Button onClick={handlePrint} className="gap-2">
@@ -655,7 +639,7 @@ export default function ProgressPage() {
 								}, 500);
 							}}
 						>
-							<Printer className="h-4 w-4" />
+							<Printer className="h-5 w-5" />
 							{language === 'bm' ? 'Laporan' : 'Export'}
 						</Button>
 					)}
@@ -682,7 +666,7 @@ export default function ProgressPage() {
 			{/* Summary Cards */}
 			{/* Summary Cards */}
 			{courseProgress.length > 0 && (
-				<div className={currentView !== 'hub' && !isPrinting ? 'print:hidden' : 'mb-16'}>
+				<div className={currentView !== 'hub' && !isPrinting ? 'print:hidden' : 'mb-16 print:hidden'}>
 					{currentView === 'hub' && (
 						<div className="grid gap-6 md:grid-cols-3">
 							<Card className="border-none shadow-md bg-gradient-to-br from-blue-500 to-blue-600 text-white overflow-hidden relative">
@@ -748,7 +732,7 @@ export default function ProgressPage() {
 
 					{/* US011-05: Achievements Section */}
 					{currentView === 'hub' && achievements.length > 0 && (
-						<div className="my-16">
+						<div className="my-16 print:hidden">
 							<div className="flex items-center gap-4 mb-4">
 								<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
 									{language === 'bm' ? 'Pencapaian Saya' : 'My Achievements'}
@@ -757,27 +741,36 @@ export default function ProgressPage() {
 								<div className="h-px bg-neutral-200 flex-1" />
 							</div>
 							<div className="grid gap-4 md:grid-cols-3">
-								{achievements.map((badge) => (
-									<Card key={badge.id} className="border-none shadow-sm hover:shadow-md transition-shadow bg-white overflow-hidden relative">
-										<div className={`absolute top-0 right-0 p-3 opacity-10 transform translate-x-2 -translate-y-2 ${badge.color.replace('text-', 'bg-').replace('bg-', 'text-')}`}>
-											<badge.icon className="w-16 h-16" />
-										</div>
-										<CardContent className="p-5 relative z-10 flex items-start gap-4">
-											<div className={`p-3 rounded-xl ${badge.color} bg-opacity-20`}>
-												<badge.icon className={`h-6 w-6 ${badge.color.split(' ')[0]}`} />
+								{achievements.map((achievement) => {
+									const definition = ACHIEVEMENT_DEFINITIONS[achievement.id];
+									if (!definition) return null;
+
+									const Icon = definition.icon;
+									const title = definition.title[language] || definition.title['en'];
+									const description = definition.description[language] || definition.description['en'];
+
+									return (
+										<Card key={achievement.id} className="border-none shadow-sm hover:shadow-md transition-shadow bg-white overflow-hidden relative">
+											<div className={`absolute top-0 right-0 p-3 opacity-10 transform translate-x-2 -translate-y-2 ${definition.color.replace('text-', 'bg-').replace('bg-', 'text-')}`}>
+												<Icon className="w-16 h-16" />
 											</div>
-											<div>
-												<h3 className="font-bold text-neutralDark">{badge.title}</h3>
-												<p className="text-xs text-muted-foreground mt-1 mb-2">{badge.description}</p>
-												{badge.date && (
-													<span className="text-[10px] bg-neutral-100 px-2 py-0.5 rounded-full text-neutral-500">
-														{badge.date instanceof Date ? badge.date.toLocaleDateString() : 'Earned'}
-													</span>
-												)}
-											</div>
-										</CardContent>
-									</Card>
-								))}
+											<CardContent className="p-5 relative z-10 flex items-start gap-4">
+												<div className={`p-3 rounded-xl ${definition.color} bg-opacity-20`}>
+													<Icon className={`h-6 w-6 ${definition.color.split(' ')[0]}`} />
+												</div>
+												<div>
+													<h3 className="font-bold text-neutralDark">{title}</h3>
+													<p className="text-xs text-muted-foreground mt-1 mb-2">{description}</p>
+													{achievement.date && (
+														<span className="text-[10px] bg-neutral-100 px-2 py-0.5 rounded-full text-neutral-500">
+															{formatDate(achievement.date)}
+														</span>
+													)}
+												</div>
+											</CardContent>
+										</Card>
+									);
+								})}
 							</div>
 						</div>
 					)}
@@ -785,7 +778,7 @@ export default function ProgressPage() {
 
 					{/* US011-05: Dashboard Hub Grid */}
 					{currentView === 'hub' && (
-						<div className="mt-16">
+						<div className="mt-16 print:hidden">
 							<div className="flex items-center gap-4 mb-6">
 								<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
 									{language === 'bm' ? 'Papan Pemuka Kemajuan' : 'Progress Dashboard'}
@@ -794,14 +787,14 @@ export default function ProgressPage() {
 								<div className="h-px bg-neutral-200 flex-1" />
 							</div>
 							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-500">
-								<Link href="/weak-areas" className="col-span-1">
-									<DashboardBlock
-										title={language === 'bm' ? 'Bidang Lemah' : 'Weak Learning Areas'}
-										description={language === 'bm' ? 'Kenal pasti dan perbaiki topik yang sukar' : 'Identify and improve upon challenging topics'}
-										icon={TrendingDown}
-										colorClass="text-error"
-									/>
-								</Link>
+
+								<DashboardBlock
+									title={language === 'bm' ? 'Butiran Kursus' : 'Course Details'}
+									description={language === 'bm' ? 'Lihat senarai lengkap kursus dan tugasan' : 'View detailed breakdowns of all your enrolled courses'}
+									icon={FileText}
+									colorClass="text-neutral-500"
+									onClick={() => setCurrentView('details')}
+								/>
 								<DashboardBlock
 									title={language === 'bm' ? 'Prestasi Kursus' : 'Course Performance'}
 									description={language === 'bm' ? 'Analisis skor penilaian merentas semua kursus' : 'Analyze assessment scores across all courses'}
@@ -817,6 +810,13 @@ export default function ProgressPage() {
 									onClick={() => setCurrentView('progress')}
 								/>
 								<DashboardBlock
+									title={language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators'}
+									description={language === 'bm' ? 'Amaran awal untuk memastikan anda di landasan' : 'Early warnings to keep you on track'}
+									icon={AlertTriangle}
+									colorClass="text-orange-500"
+									onClick={() => setCurrentView('risk')}
+								/>
+								<DashboardBlock
 									title={language === 'bm' ? 'Trend Penilaian' : 'Score Trend'}
 									description={language === 'bm' ? 'Lihat peningkatan skor dari semasa ke semasa' : 'View your score improvements over time'}
 									icon={TrendingUp}
@@ -830,20 +830,14 @@ export default function ProgressPage() {
 									colorClass="text-amber-500"
 									onClick={() => setCurrentView('strong')}
 								/>
-								<DashboardBlock
-									title={language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators'}
-									description={language === 'bm' ? 'Amaran awal untuk memastikan anda di landasan' : 'Early warnings to keep you on track'}
-									icon={AlertTriangle}
-									colorClass="text-orange-500"
-									onClick={() => setCurrentView('risk')}
-								/>
-								<DashboardBlock
-									title={language === 'bm' ? 'Butiran Kursus' : 'Course Details'}
-									description={language === 'bm' ? 'Lihat senarai lengkap kursus dan tugasan' : 'View detailed breakdowns of all your enrolled courses'}
-									icon={FileText}
-									colorClass="text-neutral-500"
-									onClick={() => setCurrentView('details')}
-								/>
+								<Link href="/weak-areas" className="col-span-1">
+									<DashboardBlock
+										title={language === 'bm' ? 'Bidang Lemah' : 'Weak Learning Areas'}
+										description={language === 'bm' ? 'Kenal pasti dan perbaiki topik yang sukar' : 'Identify and improve upon challenging topics'}
+										icon={TrendingDown}
+										colorClass="text-error"
+									/>
+								</Link>
 							</div>
 						</div>
 					)}
@@ -855,7 +849,7 @@ export default function ProgressPage() {
 
 
 					{/* Conditional: Course Performance */}
-					{(currentView === 'performance' || reportConfig.includePerformance) && (
+					{(currentView === 'performance' || (currentView === 'hub' && reportConfig.includePerformance)) && (
 						<div className={currentView !== 'performance' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
 							<Card className="shadow-sm border-neutral-200">
 								<CardHeader>
@@ -894,7 +888,7 @@ export default function ProgressPage() {
 
 					{/* Conditional: Course Progress */}
 					{/* Conditional: Course Progress */}
-					{(currentView === 'progress' || reportConfig.includeProgress) && (
+					{(currentView === 'progress' || (currentView === 'hub' && reportConfig.includeProgress)) && (
 						<div className={currentView !== 'progress' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
 							<Card className="shadow-sm border-neutral-200">
 								<CardHeader>
@@ -935,7 +929,7 @@ export default function ProgressPage() {
 					*/}
 
 					{/* Score Trend */}
-					{(currentView === 'trend' || reportConfig.includeTrend) && scoreTrend.length > 0 && (
+					{(currentView === 'trend' || (currentView === 'hub' && reportConfig.includeTrend)) && scoreTrend.length > 0 && (
 						<div className={currentView !== 'trend' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
 							<Card className="shadow-sm border-neutral-200">
 								<CardHeader>
@@ -964,7 +958,7 @@ export default function ProgressPage() {
 			)}
 
 			{/* US011-01: Strong Topics Section */}
-			{(currentView === 'strong' || reportConfig.includeStrong) && strongTopics.length > 0 && (
+			{(currentView === 'strong' || (currentView === 'hub' && reportConfig.includeStrong)) && strongTopics.length > 0 && (
 				<div className={currentView !== 'strong' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
 					<div className={`mt-8 mb-4`}>
 						<h2 className="text-h2 text-neutralDark flex items-center gap-2 mb-4">
@@ -1014,7 +1008,7 @@ export default function ProgressPage() {
 					</CardContent>
 				</Card>
 			)}
-			{(currentView === 'risk' || reportConfig.includeRisk) && Object.keys(riskIndicators).length > 0 && (
+			{(currentView === 'risk' || (currentView === 'hub' && reportConfig.includeRisk)) && Object.keys(riskIndicators).length > 0 && (
 				<div className={currentView !== 'risk' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
 					<div className={`space-y-4`}>
 						<h2 className="text-h2 text-neutralDark flex items-center gap-2 mt-8 mb-4">
@@ -1104,7 +1098,7 @@ export default function ProgressPage() {
 			)}
 
 			{/* Course Progress List */}
-			{(currentView === 'details' || reportConfig.includeDetails) && (
+			{(currentView === 'details' || (currentView === 'hub' && reportConfig.includeDetails)) && (
 				courseProgress.length === 0 ? (
 					<Card className="border-dashed border-2">
 						<CardContent className="py-12 text-center">
