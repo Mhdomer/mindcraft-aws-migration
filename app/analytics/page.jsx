@@ -1084,8 +1084,8 @@ export default function AnalyticsPage() {
 					<div className="relative self-start md:self-auto">
 						<Button
 							onClick={() => setShowExportMenu(!showExportMenu)}
-							variant="outline"
-							className="flex items-center justify-center gap-2 border-neutral-200 hover:bg-neutral-50 hover:text-neutral-900 transition-colors"
+							variant="default"
+							className="gap-2 shadow-sm hover:shadow transition-all"
 						>
 							<Download className="h-4 w-4" />
 							{language === 'bm' ? 'Eksport' : 'Export'}

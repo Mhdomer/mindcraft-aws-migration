@@ -7,14 +7,14 @@ import { cn } from '@/lib/utils';
 import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
-import { 
-	LayoutDashboard, 
-	UserPlus, 
-	BookOpen, 
-	BarChart3, 
-	FileText, 
-	ClipboardCheck, 
-	GraduationCap, 
+import {
+	LayoutDashboard,
+	UserPlus,
+	BookOpen,
+	BarChart3,
+	FileText,
+	ClipboardCheck,
+	GraduationCap,
 	MessageSquare,
 	Home,
 	Search,
@@ -97,11 +97,11 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 				try {
 					const userDocRef = doc(db, 'user', user.uid);
 					const userDoc = await getDoc(userDocRef);
-					
+
 					if (userDoc.exists()) {
 						const userData = userDoc.data();
 						const newRole = userData.role || 'student';
-						
+
 						// Update role if it changed (using functional update to avoid dependency)
 						setCurrentRole(prevRole => {
 							if (newRole !== prevRole) {
@@ -111,11 +111,11 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 							}
 							return prevRole;
 						});
-						
+
 						setProfilePicture(userData.profilePicture || null);
 						setUserName(userData.name || '');
 					}
-					
+
 					// Set up real-time listener for user profile changes
 					unsubscribeFirestore = onSnapshot(
 						userDocRef,
@@ -123,7 +123,7 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 							if (snapshot.exists()) {
 								const userData = snapshot.data();
 								const newRole = userData.role || 'student';
-								
+
 								// Update role if it changed
 								setCurrentRole(prevRole => {
 									if (newRole !== prevRole) {
@@ -132,7 +132,7 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 									}
 									return prevRole;
 								});
-								
+
 								setProfilePicture(userData.profilePicture || null);
 								setUserName(userData.name || '');
 							}
@@ -196,15 +196,15 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 	return (
 		<aside className="hidden md:flex w-52 flex-shrink-0 h-screen flex-col bg-white border-r border-border shadow-sm sticky top-0 z-50">
 			{/* Logo/Brand */}
-			<Link 
+			<Link
 				href={
 					currentRole === 'guest'
 						? '/'
 						: currentRole === 'admin'
-						? '/dashboard/admin'
-						: currentRole === 'teacher'
-						? '/dashboard/teacher'
-						: '/dashboard/student'
+							? '/dashboard/admin'
+							: currentRole === 'teacher'
+								? '/dashboard/teacher'
+								: '/dashboard/student'
 				}
 				className="px-6 pt-6 pb-4 flex items-center justify-center hover:opacity-80 transition-opacity duration-200"
 			>
@@ -220,7 +220,7 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 					/>
 				</div>
 			</Link>
-			
+
 			{/* Profile Picture and Role Badge */}
 			<div className="px-6 pb-6 flex items-center gap-3">
 				{/* Profile Picture - Circular Container - Clickable */}
@@ -256,19 +256,19 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 						)}
 					</>
 				)}
-				
+
 				{/* Role Badge */}
 				<span className="inline-flex items-center px-3 py-1 rounded-lg text-caption font-medium bg-neutralLight text-neutralDark capitalize">
 					{currentRole === 'guest' ? 'Guest' : currentRole}
 				</span>
 			</div>
-			
+
 			{/* Navigation */}
 			<nav className="flex-1 px-3 space-y-1.5 overflow-y-auto">
 				{navItems.map((item) => {
 					const Icon = iconMap[item.label] || LayoutDashboard;
 					const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
-					
+
 					// Determine if this item has sub-items (either from layout or AI Assistant)
 					const isAIAssistant = item.href === '/ai';
 					const layoutSubItems = Array.isArray(item.children) ? item.children : [];
@@ -280,11 +280,11 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 					const subItems = layoutSubItems.length > 0 ? layoutSubItems : aiSubItems;
 					const hasSubItems = subItems.length > 0;
 					const isExpanded = expandedItems.has(item.href);
-					
+
 					return (
 						<div key={item.href}>
 							{hasSubItems ? (
-								<div 
+								<div
 									className="group relative"
 									onMouseEnter={() => {
 										setExpandedItems(prev => {
@@ -325,12 +325,11 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 										{Icon && <Icon className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-white' : 'text-neutralDark')} />}
 										<span className="flex-1 min-w-0 overflow-visible whitespace-normal text-left">{item.label}</span>
 									</Link>
-										<div 
-										className={`ml-4 mt-1 space-y-2 border-l-2 border-border/50 pl-3 pr-2 bg-neutralLight/80 rounded-lg overflow-hidden transition-all duration-500 ease-in-out ${
-											expandedItems.has(item.href) 
-												? 'max-h-[500px] opacity-100 py-3' 
+									<div
+										className={`ml-4 mt-1 space-y-2 border-l-2 border-border/50 pl-3 pr-2 bg-neutralLight/80 rounded-lg overflow-hidden transition-all duration-500 ease-in-out ${expandedItems.has(item.href)
+												? 'max-h-[500px] opacity-100 py-3'
 												: 'max-h-0 opacity-0 py-0'
-										}`}
+											}`}
 									>
 										<div className="space-y-2">
 											{subItems.map((subItem) => {
@@ -383,4 +382,3 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 		</aside>
 	);
 }
-
