@@ -4,6 +4,12 @@ module.exports = {
 	content: [
 		'./app/**/*.{js,jsx,ts,tsx}',
 		'./components/**/*.{js,jsx,ts,tsx}',
+		'./node_modules/@tremor/**/*.{js,ts,jsx,tsx}',
+	],
+	safelist: [
+		{
+			pattern: /^(bg|text|border|ring|stroke|fill)-(blue|emerald|violet|amber|cyan|rose)-[0-9]+$/,
+		},
 	],
 	theme: {
 		extend: {

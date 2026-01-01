@@ -6,13 +6,14 @@ import Link from 'next/link';
 import SignOutButton from '@/app/components/SignOutButton';
 import { Button } from './ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
+import NotificationBell from './NotificationBell';
 import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 
 export default function Header({ role: initialRole }) {
 	const router = useRouter();
-	const { language } = useLanguage();
+	const { language, setLanguage } = useLanguage();
 	const [currentRole, setCurrentRole] = useState(initialRole);
 
 	// Listen to auth state changes and refresh the page
@@ -23,11 +24,11 @@ export default function Header({ role: initialRole }) {
 				try {
 					const userDocRef = doc(db, 'user', user.uid);
 					const userDoc = await getDoc(userDocRef);
-					
+
 					if (userDoc.exists()) {
 						const userData = userDoc.data();
 						const newRole = userData.role || 'student';
-						
+
 						// Update role if it changed (using functional update to avoid dependency)
 						setCurrentRole(prevRole => {
 							if (newRole !== prevRole) {
@@ -69,7 +70,7 @@ export default function Header({ role: initialRole }) {
 				<div className="flex-1 flex items-center justify-end px-6 min-w-0">
 					{/* Mobile Logo - only visible on mobile */}
 					<div className="md:hidden font-semibold text-h3 text-neutralDark mr-auto">MindCraft</div>
-					
+
 					{/* User Actions - always on the right */}
 					<div className="flex items-center gap-3 flex-shrink-0">
 						{currentRole === 'guest' ? (
@@ -80,6 +81,16 @@ export default function Header({ role: initialRole }) {
 							</Link>
 						) : (
 							<>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => setLanguage(language === 'en' ? 'bm' : 'en')}
+									className="font-bold text-neutralDark hover:bg-neutralLight px-2 min-w-[3rem]"
+									title={language === 'en' ? 'Switch to Bahasa Melayu' : 'Tukar ke Bahasa Inggeris'}
+								>
+									{language === 'en' ? 'EN' : 'BM'}
+								</Button>
+								<NotificationBell />
 								<span className="hidden sm:inline-flex items-center px-3 py-1 rounded-lg text-caption font-medium bg-neutralLight text-neutralDark capitalize whitespace-nowrap">
 									{currentRole}
 								</span>

@@ -18,7 +18,6 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics } from 'firebase/analytics';
-import { getAI, GoogleAIBackend } from 'firebase/ai';
 
 const firebaseConfig = {
 	apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -51,9 +50,6 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-
-// Initialize Firebase AI (Gemini) - works in both client and server
-export const ai = getAI(app, { backend: new GoogleAIBackend() });
 
 // Analytics (only works in browser, not in API routes)
 if (typeof window !== 'undefined') {

@@ -21,11 +21,12 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, TrendingDown, ArrowRight, Brain } from 'lucide-react';
+import { AlertCircle, TrendingDown, ArrowRight, Brain, Lightbulb, History, BookOpen, Target, ArrowLeft, Printer } from 'lucide-react';
 import Link from 'next/link';
 import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { AreaChart } from '@tremor/react';
 
 export default function WeakAreasPage() {
 	const [loading, setLoading] = useState(true);
@@ -71,80 +72,107 @@ export default function WeakAreasPage() {
 			const topicScores = new Map();
 
 			for (const submission of submissions) {
+				let title = 'Unknown Topic';
+				let courseId = null;
+				let percentScore = null;
+				let date = submission.submittedAt?.toDate ? submission.submittedAt.toDate() : new Date();
+
 				// Assessments
 				if (submission.assessmentId) {
 					try {
 						const assessmentDoc = await getDoc(doc(db, 'assessment', submission.assessmentId));
 						if (assessmentDoc.exists()) {
-							const assessmentData = assessmentDoc.data();
-							const title = assessmentData.title || 'Assessment';
-							const courseId = assessmentData.courseId;
-
-							let percentScore = null;
+							const data = assessmentDoc.data();
+							title = data.title;
+							courseId = data.courseId;
 							if (typeof submission.score === 'number' && typeof submission.totalPoints === 'number' && submission.totalPoints > 0) {
 								percentScore = (submission.score / submission.totalPoints) * 100;
 							} else if (typeof submission.grade === 'number') {
 								percentScore = submission.grade;
 							}
-
-							if (percentScore !== null) {
-								const key = `assessment_${submission.assessmentId}`;
-								const existing = topicScores.get(key) || {
-									topic: title,
-									sum: 0,
-									count: 0,
-									lessonPath: courseId ? `/courses/${courseId}` : '/courses',
-								};
-								existing.sum += percentScore;
-								existing.count += 1;
-								topicScores.set(key, existing);
-							}
 						}
 					} catch (err) {
-						console.error('Error loading assessment for weak areas:', err);
+						console.warn('Error loading assessment:', err);
 					}
 				}
-
 				// Assignments
-				if (submission.assignmentId) {
+				else if (submission.assignmentId) {
 					try {
 						const assignmentDoc = await getDoc(doc(db, 'assignment', submission.assignmentId));
 						if (assignmentDoc.exists()) {
-							const assignmentData = assignmentDoc.data();
-							const title = assignmentData.title || 'Assignment';
-							const courseId = assignmentData.courseId;
-
-							const percentScore =
-								typeof submission.grade === 'number' ? submission.grade : null;
-
-							if (percentScore !== null) {
-								const key = `assignment_${submission.assignmentId}`;
-								const existing = topicScores.get(key) || {
-									topic: title,
-									sum: 0,
-									count: 0,
-									lessonPath: courseId ? `/courses/${courseId}` : '/courses',
-								};
-								existing.sum += percentScore;
-								existing.count += 1;
-								topicScores.set(key, existing);
-							}
+							const data = assignmentDoc.data();
+							title = data.title;
+							courseId = data.courseId;
+							percentScore = typeof submission.grade === 'number' ? submission.grade : null;
 						}
 					} catch (err) {
-						console.error('Error loading assignment for weak areas:', err);
+						console.warn('Error loading assignment:', err);
 					}
+				}
+
+				if (percentScore !== null && title !== 'Unknown Topic') {
+					// Use a composite key of CourseID + Title to avoid collisions if titles are generic (e.g. "Final Exam")
+					// But for simplicity and grouping similar topics across courses, we might just use title or a smart grouping.
+					// Let's stick to unique ID if possible, but we don't have topic IDs. 
+					// Using assessmentId/assignmentId prevents grouping *re-attempts* of the same assessment properly if they are different submissions (which they usually are).
+					// If we want to group "Mathematics" we need course metadata.
+					// For US011-04, let's group by the *Assessment/Assignment ID* itself to track specific improvement on THAT item, 
+					// OR group by Title if we assume re-attempts.
+					// Let's group by Title + CourseId to capture "Module 1 Quiz" distinct from "Module 2 Quiz".
+					const key = `${courseId}_${title}`;
+
+					const existing = topicScores.get(key) || {
+						topic: title,
+						courseId: courseId,
+						history: [],
+						lessonPath: courseId ? `/courses/${courseId}` : '/courses',
+					};
+
+					existing.history.push({
+						date: date,
+						score: percentScore,
+						dateStr: date.toLocaleDateString()
+					});
+
+					topicScores.set(key, existing);
 				}
 			}
 
-			// 3. Build weak area list (topics with average score < 70%)
+			// 3. Process weak areas
 			const weakAreaList = Array.from(topicScores.values())
-				.map((entry) => ({
-					topic: entry.topic,
-					avgScore: entry.count > 0 ? entry.sum / entry.count : null,
-					lessonPath: entry.lessonPath,
-				}))
-				.filter((area) => area.avgScore !== null && area.avgScore < 70)
-				.sort((a, b) => (a.avgScore ?? 0) - (b.avgScore ?? 0));
+				.map((entry) => {
+					// Sort history by date
+					entry.history.sort((a, b) => a.date - b.date);
+
+					// Compute average
+					const sum = entry.history.reduce((acc, curr) => acc + curr.score, 0);
+					const avgScore = sum / entry.history.length;
+
+					// Generate mock recommendations if we don't have a sophisticated engine
+					const recommendations = [
+						{
+							title: `Review ${entry.topic} Materials`,
+							type: 'reading',
+							link: entry.lessonPath
+						},
+						{
+							title: 'Practice Quiz: Core Concepts',
+							type: 'quiz',
+							link: entry.lessonPath
+						}
+					];
+
+					return {
+						id: entry.courseId + entry.topic,
+						topic: entry.topic,
+						avgScore: avgScore,
+						history: entry.history,
+						lessonPath: entry.lessonPath,
+						recommendations: recommendations
+					};
+				})
+				.filter((area) => area.avgScore < 70) // Threshold for weakness
+				.sort((a, b) => a.avgScore - b.avgScore);
 
 			setWeakAreas(weakAreaList);
 		} catch (err) {
@@ -202,11 +230,23 @@ export default function WeakAreasPage() {
 						Insights into topics where your scores are lowest, based on your recent assessments and assignments.
 					</p>
 				</div>
-				<Link href="/progress">
-					<Button variant="outline" size="sm">
-						View Overall Progress
+				<div className="flex flex-col gap-2 shrink-0">
+					<Link href="/progress" className="print:hidden">
+						<Button variant="outline" size="sm" className="w-full gap-2 justify-start">
+							<ArrowLeft className="h-4 w-4" />
+							Back to Dashboard
+						</Button>
+					</Link>
+					<Button
+						variant="outline"
+						size="sm"
+						className="gap-2 print:hidden"
+						onClick={() => window.print()}
+					>
+						<Printer className="h-4 w-4" />
+						Export
 					</Button>
-				</Link>
+				</div>
 			</div>
 
 			{weakAreas.length === 0 ? (
@@ -230,9 +270,10 @@ export default function WeakAreasPage() {
 						const score = typeof area.avgScore === 'number' ? area.avgScore : null;
 						const severity = getSeverity(score ?? NaN);
 
+
 						return (
-							<Card key={index} className="card-hover">
-								<CardHeader>
+							<Card key={index} className="card-hover overflow-hidden border-l-4 border-l-error">
+								<CardHeader className="pb-2">
 									<div className="flex items-start justify-between gap-3">
 										<div className="flex items-start gap-3 flex-1">
 											<div className="p-2 bg-error/10 rounded-lg">
@@ -243,38 +284,68 @@ export default function WeakAreasPage() {
 													{area.topic || 'Unknown Topic'}
 												</CardTitle>
 												<CardDescription>
-													This topic is showing lower scores compared to your other work. Reviewing it will help
-													strengthen your foundation.
+													Average Score: <span className="font-bold text-error">{score.toFixed(0)}%</span> • {severity.label}
 												</CardDescription>
 											</div>
 										</div>
-										{score !== null && (
-											<div className="text-right">
-												<p className="text-sm font-semibold text-neutralDark">
-													Average Score
-												</p>
-												<p className="text-2xl font-bold text-error">
-													{score.toFixed(0)}%
-												</p>
-												<p className={`text-xs mt-1 ${severity.colorClass}`}>
-													{severity.label}
-												</p>
-											</div>
-										)}
 									</div>
 								</CardHeader>
-								<CardContent className="flex items-center justify-between gap-4 pt-0">
-									<p className="text-caption text-muted-foreground">
-										Based on your past submissions where your score fell below 70% for this topic.
-									</p>
-									{area.lessonPath && (
-										<Link href={area.lessonPath}>
-											<Button size="sm" className="flex items-center gap-1">
-												Review Related Content
-												<ArrowRight className="h-4 w-4" />
-											</Button>
-										</Link>
-									)}
+								<CardContent>
+									<div className="grid md:grid-cols-2 gap-8 mt-2">
+										{/* History Chart */}
+										<div className="space-y-2">
+											<h4 className="text-sm font-semibold text-neutralDark flex items-center gap-2">
+												<History className="h-4 w-4 text-neutral-500" />
+												Performance History
+											</h4>
+											<div className="h-32 w-full">
+												<AreaChart
+													className="h-32"
+													data={area.history}
+													index="dateStr"
+													categories={['score']}
+													colors={['rose']}
+													valueFormatter={(number) => `${number}%`}
+													showLegend={false}
+													showGridLines={false}
+													showYAxis={false}
+													startEndOnly={true}
+												/>
+											</div>
+											<p className="text-xs text-muted-foreground">
+												Latest attempt: {area.history[area.history.length - 1]?.score}%
+											</p>
+										</div>
+
+										{/* Recommendations */}
+										<div className="space-y-3">
+											<h4 className="text-sm font-semibold text-neutralDark flex items-center gap-2">
+												<Lightbulb className="h-4 w-4 text-amber-500" />
+												Recommended Practice
+											</h4>
+											<div className="space-y-2">
+												{area.recommendations.map((rec, idx) => (
+													<Link href={rec.link} key={idx} className="block group">
+														<div className="flex items-center justify-between p-2 rounded-lg bg-neutral-50 border border-neutral-100 group-hover:bg-neutral-100 transition-colors">
+															<div className="flex items-center gap-3">
+																<div className="p-1.5 bg-white rounded-md shadow-sm">
+																	{rec.type === 'quiz' ? (
+																		<Target className="h-4 w-4 text-blue-500" />
+																	) : (
+																		<BookOpen className="h-4 w-4 text-emerald-500" />
+																	)}
+																</div>
+																<span className="text-sm font-medium text-neutralDark group-hover:text-primary transition-colors">
+																	{rec.title}
+																</span>
+															</div>
+															<ArrowRight className="h-4 w-4 text-neutral-400 group-hover:text-primary transition-colors" />
+														</div>
+													</Link>
+												))}
+											</div>
+										</div>
+									</div>
 								</CardContent>
 							</Card>
 						);
