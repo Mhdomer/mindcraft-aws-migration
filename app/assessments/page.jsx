@@ -213,22 +213,45 @@ export default function AssessmentsPage() {
 		try {
 			const submissionsQuery = query(
 				collection(db, 'submission'),
-				where('studentId', '==', currentUserId)
+				where('studentId', '==', currentUserId),
+				orderBy('submittedAt', 'desc')
 			);
-			const snapshot = await getDocs(submissionsQuery);
+
+			let snapshot;
+			try {
+				snapshot = await getDocs(submissionsQuery);
+			} catch (err) {
+				// Fallback if index is missing
+				console.warn('OrderBy submittedAt failed, falling back to in-memory sort', err);
+				const fallbackQuery = query(
+					collection(db, 'submission'),
+					where('studentId', '==', currentUserId)
+				);
+				snapshot = await getDocs(fallbackQuery);
+			}
 
 			const submissionsMap = {};
-			snapshot.docs.forEach(doc => {
-				const data = doc.data();
-				submissionsMap[data.assessmentId] = {
-					id: doc.id,
-					...data,
-				};
+			const docs = snapshot.docs.map(doc => ({
+				id: doc.id,
+				...doc.data()
+			}));
+
+			// If we fell back or to be safe, sort in-memory
+			docs.sort((a, b) => {
+				const aTime = a.submittedAt?.toDate?.() || a.submittedAt || 0;
+				const bTime = b.submittedAt?.toDate?.() || b.submittedAt || 0;
+				return bTime - aTime;
+			});
+
+			docs.forEach(data => {
+				if (!submissionsMap[data.assessmentId]) {
+					submissionsMap[data.assessmentId] = data;
+				}
 			});
 
 			setSubmissions(submissionsMap);
 
-			// Initialize uploaded files from existing submissions
+			// Initialize uploaded files from existing submissions (using the latest one if multiple exist)
 			const filesMap = {};
 			Object.keys(submissionsMap).forEach(assessmentId => {
 				filesMap[assessmentId] = submissionsMap[assessmentId].files || [];
@@ -713,6 +736,15 @@ export default function AssessmentsPage() {
 																		{submission.score}/{submission.totalPoints} ({percentage.toFixed(1)}%)
 																	</span>
 																</div>
+																<Button
+																	variant="ghost"
+																	size="sm"
+																	className="w-full mt-2 h-7 text-xs flex items-center justify-center gap-1 hover:bg-white/20"
+																	onClick={() => setSelectedResult(submission)}
+																>
+																	<Eye className="h-3 w-3" />
+																	{language === 'bm' ? 'Lihat Keputusan' : 'View Results'}
+																</Button>
 															</div>
 														);
 													})()}
@@ -730,12 +762,7 @@ export default function AssessmentsPage() {
 											)
 										) : (
 											<>
-												<Link href={`/assessments/${assessment.id}/submissions`} className="flex-1 min-w-[100px]">
-													<Button variant="outline" className="w-full border-secondary/20 hover:bg-secondary/10 hover:border-secondary/40" size="sm" title="View Submissions">
-														<Users className="h-5 w-5 mr-2 text-secondary" />
-														Submissions
-													</Button>
-												</Link>
+
 												<Link href={`/assessments/${assessment.id}/edit`} className="flex-1 min-w-[100px]">
 													<Button variant="outline" className="w-full border-primary/20 hover:bg-primary/10 hover:border-primary/40" size="sm" title={language === 'bm' ? 'Edit Penilaian' : 'Edit Assessment'}>
 														<Edit2 className="h-5 w-5 mr-2 text-primary" />
@@ -1026,6 +1053,7 @@ export default function AssessmentsPage() {
 				isOpen={!!selectedResult}
 				onClose={() => setSelectedResult(null)}
 				submission={selectedResult}
+				passingPercentage={assessments.find(a => a.id === selectedResult?.assessmentId)?.config?.passingPercentage ?? 40}
 			/>
 		</div>
 	);
