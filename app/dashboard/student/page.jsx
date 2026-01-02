@@ -126,10 +126,24 @@ export default function StudentDashboard() {
 			setRecentAssessments(pendingAssessments.slice(0, 3));
 
 			// Calculate overall progress
+			// Calculate overall progress
 			const totalTasks = allAssessments.length + allAssignments.length;
-			const completedTasks = submissions.length;
+
+			// Count unique completed tasks that are part of the currently enrolled courses
+			const validSubmittedAssessmentIds = new Set(
+				submissions
+					.filter(s => s.assessmentId && allAssessments.some(a => a.id === s.assessmentId))
+					.map(s => s.assessmentId)
+			);
+			const validSubmittedAssignmentIds = new Set(
+				submissions
+					.filter(s => s.assignmentId && allAssignments.some(a => a.id === s.assignmentId))
+					.map(s => s.assignmentId)
+			);
+
+			const completedTasks = validSubmittedAssessmentIds.size + validSubmittedAssignmentIds.size;
 			const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-			setOverallProgress(progress);
+			setOverallProgress(Math.min(progress, 100)); // Ensure it never exceeds 100%
 
 			// Load recommendations preview
 			loadRecommendationsPreview();
@@ -142,7 +156,7 @@ export default function StudentDashboard() {
 
 	async function loadRecommendationsPreview() {
 		if (!currentUserId) return;
-		
+
 		try {
 			// Fetch recommendations client-side to avoid server permission issues
 			const response = await fetch('/api/ai/recommendations', {
@@ -323,7 +337,7 @@ export default function StudentDashboard() {
 								</div>
 								<div>
 									<CardTitle>AI Assistant</CardTitle>
-									<CardDescription>Get AI assistance</CardDescription>	
+									<CardDescription>Get AI assistance</CardDescription>
 								</div>
 							</Flex>
 						</CardHeader>

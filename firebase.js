@@ -53,7 +53,11 @@ export const storage = getStorage(app);
 
 // Analytics (only works in browser, not in API routes)
 if (typeof window !== 'undefined') {
-	getAnalytics(app);
+	try {
+		getAnalytics(app);
+	} catch (error) {
+		console.warn('Firebase Analytics failed to initialize (likely blocked by ad blocker):', error);
+	}
 }
 
 // Export app for use in other modules

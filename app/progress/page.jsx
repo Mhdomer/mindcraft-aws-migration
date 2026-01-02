@@ -12,7 +12,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { BarChart, LineChart } from '@tremor/react';
+import { BarChart } from '@tremor/react';
+import { ResponsiveContainer, LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 
 const ACHIEVEMENT_DEFINITIONS = {
 	'first-step': {
@@ -350,7 +351,7 @@ export default function ProgressPage() {
 							allAssessments.push({
 								courseTitle: course.courseTitle,
 								assessmentTitle: a.assessmentTitle,
-								score: a.score,
+								score: a.totalPoints ? Math.round((a.score / a.totalPoints) * 100) : 0,
 								date: a.submittedAt?.toDate ? a.submittedAt.toDate() : new Date(a.submittedAt || Date.now()) // Handle firestore timestamp
 							});
 						}
@@ -361,7 +362,7 @@ export default function ProgressPage() {
 			allAssessments.sort((a, b) => a.date - b.date);
 			// Format for chart
 			const trendData = allAssessments.map(a => ({
-				date: a.date.toLocaleDateString(),
+				date: a.date.toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', { month: 'short', day: 'numeric' }),
 				score: a.score,
 				title: a.assessmentTitle
 			}));
@@ -495,7 +496,7 @@ export default function ProgressPage() {
 		setTimeout(() => {
 			window.print();
 			setIsPrinting(false);
-		}, 500);
+		}, 1000);
 	}
 
 	function formatDate(timestamp) {
@@ -554,218 +555,594 @@ export default function ProgressPage() {
 
 	return (
 		<div className="space-y-8">
-			{/* Header */}
-			<div className="flex items-start justify-between gap-4 print:hidden">
-				<div>
-					<h1 className="text-h1 text-neutralDark mb-2">
-						{language === 'bm' ? 'Kemajuan Saya' : 'My Progress'}
-					</h1>
-					<p className="text-body text-muted-foreground">
-						{language === 'bm'
-							? 'Ikuti kemajuan pembelajaran anda merentas semua kursus yang didaftarkan'
-							: 'Track your learning progress across all enrolled courses'}
-					</p>
-				</div>
-				<div className="flex flex-col items-end gap-2">
-					{currentView !== 'hub' && (
-						<Button
-							variant="outline"
-							onClick={() => setCurrentView('hub')}
-							className="gap-2 print:hidden"
-						>
-							<ArrowLeft className="h-5 w-5" />
-							{language === 'bm' ? 'Kembali ke Papan Pemuka' : 'Back to Dashboard'}
-						</Button>
-					)}
-					{currentView === 'hub' ? (
-						<Dialog open={showReportModal} onOpenChange={setShowReportModal}>
-							<DialogTrigger asChild>
-								<Button variant="outline" className="gap-2 print:hidden">
-									<Printer className="h-5 w-5" />
-									{language === 'bm' ? 'Laporan' : 'Export'}
-								</Button>
-							</DialogTrigger>
-							<DialogContent className="sm:max-w-[425px]">
-								<DialogHeader>
-									<DialogTitle>{language === 'bm' ? 'Jana Laporan Prestasi' : 'Generate Performance Report'}</DialogTitle>
-									<DialogDescription>
-										{language === 'bm'
-											? 'Pilih bahagian yang ingin disertakan dalam laporan PDF anda.'
-											: 'Select sections to include in your PDF report.'}
-									</DialogDescription>
-								</DialogHeader>
-								<div className="grid gap-4 py-4">
-									{[
-										{ id: 'includeDetails', label: language === 'bm' ? 'Butiran Kursus' : 'Course Details' },
-										{ id: 'includePerformance', label: language === 'bm' ? 'Prestasi Kursus' : 'Course Performance' },
-										{ id: 'includeProgress', label: language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress' },
-										{ id: 'includeRisk', label: language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators' },
-										{ id: 'includeTrend', label: language === 'bm' ? 'Trend Penilaian' : 'Score Trend' },
-										{ id: 'includeStrong', label: language === 'bm' ? 'Topik Kuat' : 'Strong Topics' },
-									].map((item) => (
-										<div
-											key={item.id}
-											className="flex items-center space-x-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors"
-											onClick={() => setReportConfig({ ...reportConfig, [item.id]: !reportConfig[item.id] })}
-										>
-											<Checkbox
-												id={item.id}
-												checked={reportConfig[item.id]}
-												className="pointer-events-none h-6 w-6"
-											/>
-											<Label htmlFor={item.id} className="cursor-pointer flex-1">
-												{item.label}
-											</Label>
-										</div>
-									))}
-								</div>
-								<DialogFooter>
-									<Button onClick={handlePrint} className="gap-2">
-										<Download className="h-4 w-4" />
-										{language === 'bm' ? 'Muat Turun PDF' : 'Download PDF'}
+			{/* --- Interactive Dashboard (Hidden on Print) --- */}
+			<div className="print:hidden space-y-8">
+				{/* Header */}
+				<div className="flex items-start justify-between gap-4">
+					<div>
+						<h1 className="text-h1 text-neutralDark mb-2">
+							{language === 'bm' ? 'Kemajuan Saya' : 'My Progress'}
+						</h1>
+						<p className="text-body text-muted-foreground">
+							{language === 'bm'
+								? 'Ikuti kemajuan pembelajaran anda merentas semua kursus yang didaftarkan'
+								: 'Track your learning progress across all enrolled courses'}
+						</p>
+					</div>
+					<div className="flex flex-col items-end gap-2">
+						{currentView !== 'hub' && (
+							<Button
+								variant="outline"
+								onClick={() => setCurrentView('hub')}
+								className="gap-2 print:hidden"
+							>
+								<ArrowLeft className="h-5 w-5" />
+								{language === 'bm' ? 'Kembali ke Papan Pemuka' : 'Back to Dashboard'}
+							</Button>
+						)}
+						{currentView === 'hub' ? (
+							<Dialog open={showReportModal} onOpenChange={setShowReportModal}>
+								<DialogTrigger asChild>
+									<Button variant="outline" className="gap-2 print:hidden">
+										<Printer className="h-5 w-5" />
+										{language === 'bm' ? 'Laporan' : 'Export'}
 									</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
-					) : (
-						<Button
-							variant="outline"
-							className="gap-2 print:hidden"
-							onClick={() => {
-								setIsPrinting(true);
-								setTimeout(() => {
-									window.print();
-									setIsPrinting(false);
-								}, 500);
-							}}
-						>
-							<Printer className="h-5 w-5" />
-							{language === 'bm' ? 'Laporan' : 'Export'}
-						</Button>
-					)}
+								</DialogTrigger>
+								<DialogContent className="sm:max-w-[425px]">
+									<DialogHeader>
+										<DialogTitle>{language === 'bm' ? 'Jana Laporan Prestasi' : 'Generate Performance Report'}</DialogTitle>
+										<DialogDescription>
+											{language === 'bm'
+												? 'Pilih bahagian yang ingin disertakan dalam laporan PDF anda.'
+												: 'Select sections to include in your PDF report.'}
+										</DialogDescription>
+									</DialogHeader>
+									<div className="grid gap-4 py-4">
+										{[
+											{ id: 'includeDetails', label: language === 'bm' ? 'Butiran Kursus' : 'Course Details' },
+											{ id: 'includePerformance', label: language === 'bm' ? 'Prestasi Kursus' : 'Course Performance' },
+											{ id: 'includeProgress', label: language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress' },
+											{ id: 'includeRisk', label: language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators' },
+											{ id: 'includeTrend', label: language === 'bm' ? 'Trend Penilaian' : 'Score Trend' },
+											{ id: 'includeStrong', label: language === 'bm' ? 'Topik Kuat' : 'Strong Topics' },
+										].map((item) => (
+											<div
+												key={item.id}
+												className="flex items-center space-x-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors"
+												onClick={() => setReportConfig({ ...reportConfig, [item.id]: !reportConfig[item.id] })}
+											>
+												<Checkbox
+													id={item.id}
+													checked={reportConfig[item.id]}
+													className="pointer-events-none h-6 w-6"
+												/>
+												<Label htmlFor={item.id} className="cursor-pointer flex-1">
+													{item.label}
+												</Label>
+											</div>
+										))}
+									</div>
+									<DialogFooter>
+										<Button onClick={handlePrint} className="gap-2">
+											<Download className="h-4 w-4" />
+											{language === 'bm' ? 'Muat Turun PDF' : 'Download PDF'}
+										</Button>
+									</DialogFooter>
+								</DialogContent>
+							</Dialog>
+						) : (
+							<Button
+								variant="outline"
+								className="gap-2 print:hidden"
+								onClick={() => {
+									setIsPrinting(true);
+									setTimeout(() => {
+										window.print();
+										setIsPrinting(false);
+									}, 500);
+								}}
+							>
+								<Printer className="h-5 w-5" />
+								{language === 'bm' ? 'Laporan' : 'Export'}
+							</Button>
+						)}
+					</div>
 				</div>
-			</div>
 
-			{/* US011-05: Detail View Header (Back Button) */}
-			{/* US011-05: Detail View Header (Back Button) */}
+				{/* US011-05: Detail View Header (Back Button) */}
+				{/* US011-05: Detail View Header (Back Button) */}
 
 
-			{/* Print Styles */}
-			<style jsx global>{`
+				{/* Print Styles */}
+				<style jsx global>{`
 				@media print {
-					@page { margin: 20mm; }
-					body { background: white; }
+					@page { margin: 15mm; size: auto; }
+					html, body {
+						height: auto !important;
+						overflow: visible !important;
+						background: white !important;
+						color: black !important;
+					}
+					/* Hide everything by default, then show specific print content */
+					body > * { display: none !important; }
+					
+					/* Allow the main Next.js app container to show, but reset its layout */
+					body > div:first-child, #__next, body > main { 
+						display: block !important; 
+						height: auto !important; 
+						overflow: visible !important; 
+					}
+
+					/* Specific print helpers */
 					.print\\:hidden { display: none !important; }
 					.print\\:visible { display: block !important; }
-					nav, header, footer { display: none !important; }
-					.card { break-inside: avoid; border: 1px solid #ddd; box-shadow: none; }
+					
+					/* Hide UI chrome */
+					nav, header, footer, aside, .sidebar, button, .bg-gradient-to-br { display: none !important; }
+					
+					/* Ensure our content container is visible */
+					.print-content-managed {
+						display: block !important;
+						width: 100% !important;
+						margin: 0 !important;
+						padding: 0 !important;
+						overflow: visible !important;
+					}
+
+					/* Force Cards to look good */
+					.card, .border-neutral-200 { 
+						break-inside: avoid; 
+						border: 1px solid #ccc !important;
+						box-shadow: none !important; 
+						margin-bottom: 24px !important;
+						background: white !important;
+						color: black !important;
+					}
+					
+					/* Text visibility */
+					p, h1, h2, h3, h4, span, div {
+						color: black !important;
+						-webkit-print-color-adjust: exact;
+						print-color-adjust: exact;
+					}
 				}
 				.print\\:visible { display: none; }
 			`}</style>
 
-			{/* Summary Cards */}
-			{/* Summary Cards */}
-			{courseProgress.length > 0 && (
-				<div className={currentView !== 'hub' && !isPrinting ? 'print:hidden' : 'mb-16 print:hidden'}>
-					{currentView === 'hub' && (
-						<div className="grid gap-6 md:grid-cols-3">
-							<Card className="border-none shadow-md bg-gradient-to-br from-blue-500 to-blue-600 text-white overflow-hidden relative">
-								<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2">
-									<BookOpen className="w-24 h-24" />
-								</div>
-								<CardContent className="pt-6 relative z-10">
-									<div className="flex items-center justify-between">
-										<div>
-											<p className="text-blue-100 font-medium text-sm">
-												{language === 'bm' ? 'Kursus yang Didaftarkan' : 'Enrolled Courses'}
-											</p>
-											<p className="text-4xl font-bold mt-2">{courseProgress.length}</p>
-										</div>
-										<div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
-											<BookOpen className="h-[34px] w-[34px] text-white" />
-										</div>
+				{/* Summary Cards */}
+				{/* Summary Cards */}
+				{courseProgress.length > 0 && (
+					<div className={currentView !== 'hub' && !isPrinting ? 'print:hidden' : 'mb-16 print:hidden'}>
+						{currentView === 'hub' && (
+							<div className="grid gap-6 md:grid-cols-3">
+								<Card className="border-none shadow-md bg-gradient-to-br from-blue-500 to-blue-600 text-white overflow-hidden relative">
+									<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2">
+										<BookOpen className="w-24 h-24" />
 									</div>
-								</CardContent>
-							</Card>
-							<Card className="border-none shadow-md bg-gradient-to-br from-emerald-500 to-emerald-600 text-white overflow-hidden relative">
-								<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2">
-									<CheckCircle2 className="w-24 h-24" />
-								</div>
-								<CardContent className="pt-6 relative z-10">
-									<div className="flex items-center justify-between">
-										<div>
-											<p className="text-emerald-100 font-medium text-sm">
-												{language === 'bm' ? 'Pelajaran Selesai' : 'Completed Lessons'}
-											</p>
-											<p className="text-4xl font-bold mt-2">
-												{courseProgress.reduce((sum, course) => sum + course.completedLessons, 0)}
-											</p>
+									<CardContent className="pt-6 relative z-10">
+										<div className="flex items-center justify-between">
+											<div>
+												<p className="text-blue-100 font-medium text-sm">
+													{language === 'bm' ? 'Kursus yang Didaftarkan' : 'Enrolled Courses'}
+												</p>
+												<p className="text-4xl font-bold mt-2">{courseProgress.length}</p>
+											</div>
+											<div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
+												<BookOpen className="h-[34px] w-[34px] text-white" />
+											</div>
 										</div>
-										<div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
-											<CheckCircle2 className="h-[34px] w-[34px] text-white" />
-										</div>
+									</CardContent>
+								</Card>
+								<Card className="border-none shadow-md bg-gradient-to-br from-emerald-500 to-emerald-600 text-white overflow-hidden relative">
+									<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2">
+										<CheckCircle2 className="w-24 h-24" />
 									</div>
-								</CardContent>
-							</Card>
-							<Card className="border-none shadow-md bg-gradient-to-br from-violet-500 to-violet-600 text-white overflow-hidden relative">
-								<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2">
-									<ClipboardCheck className="w-24 h-24" />
-								</div>
-								<CardContent className="pt-6 relative z-10">
-									<div className="flex items-center justify-between">
-										<div>
-											<p className="text-violet-100 font-medium text-sm">
-												{language === 'bm' ? 'Penilaian Selesai' : 'Assessments Completed'}
-											</p>
-											<p className="text-4xl font-bold mt-2">
-												{courseProgress.reduce((sum, course) => sum + course.assessments.length, 0)}
-											</p>
+									<CardContent className="pt-6 relative z-10">
+										<div className="flex items-center justify-between">
+											<div>
+												<p className="text-emerald-100 font-medium text-sm">
+													{language === 'bm' ? 'Pelajaran Selesai' : 'Completed Lessons'}
+												</p>
+												<p className="text-4xl font-bold mt-2">
+													{courseProgress.reduce((sum, course) => sum + course.completedLessons, 0)}
+												</p>
+											</div>
+											<div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
+												<CheckCircle2 className="h-[34px] w-[34px] text-white" />
+											</div>
 										</div>
-										<div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
-											<ClipboardCheck className="h-[34px] w-[34px] text-white" />
-										</div>
+									</CardContent>
+								</Card>
+								<Card className="border-none shadow-md bg-gradient-to-br from-violet-500 to-violet-600 text-white overflow-hidden relative">
+									<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2">
+										<ClipboardCheck className="w-24 h-24" />
 									</div>
-								</CardContent>
-							</Card>
-						</div>
-					)}
-
-					{/* US011-05: Achievements Section */}
-					{currentView === 'hub' && achievements.length > 0 && (
-						<div className="my-16 print:hidden">
-							<div className="flex items-center gap-4 mb-4">
-								<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
-									{language === 'bm' ? 'Pencapaian Saya' : 'My Achievements'}
-									<Award className="h-6 w-6 text-amber-500" />
-								</h2>
-								<div className="h-px bg-neutral-200 flex-1" />
+									<CardContent className="pt-6 relative z-10">
+										<div className="flex items-center justify-between">
+											<div>
+												<p className="text-violet-100 font-medium text-sm">
+													{language === 'bm' ? 'Penilaian Selesai' : 'Assessments Completed'}
+												</p>
+												<p className="text-4xl font-bold mt-2">
+													{courseProgress.reduce((sum, course) => sum + course.assessments.length, 0)}
+												</p>
+											</div>
+											<div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
+												<ClipboardCheck className="h-[34px] w-[34px] text-white" />
+											</div>
+										</div>
+									</CardContent>
+								</Card>
 							</div>
-							<div className="grid gap-4 md:grid-cols-3">
-								{achievements.map((achievement) => {
-									const definition = ACHIEVEMENT_DEFINITIONS[achievement.id];
-									if (!definition) return null;
+						)}
 
-									const Icon = definition.icon;
-									const title = definition.title[language] || definition.title['en'];
-									const description = definition.description[language] || definition.description['en'];
+						{/* US011-05: Achievements Section */}
+						{currentView === 'hub' && achievements.length > 0 && (
+							<div className="my-16 print:hidden">
+								<div className="flex items-center gap-4 mb-4">
+									<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
+										{language === 'bm' ? 'Pencapaian Saya' : 'My Achievements'}
+										<Award className="h-6 w-6 text-amber-500" />
+									</h2>
+									<div className="h-px bg-neutral-200 flex-1" />
+								</div>
+								<div className="grid gap-4 md:grid-cols-3">
+									{achievements.map((achievement) => {
+										const definition = ACHIEVEMENT_DEFINITIONS[achievement.id];
+										if (!definition) return null;
+
+										const Icon = definition.icon;
+										const title = definition.title[language] || definition.title['en'];
+										const description = definition.description[language] || definition.description['en'];
+
+										return (
+											<Card key={achievement.id} className="border-none shadow-sm hover:shadow-md transition-shadow bg-white overflow-hidden relative">
+												<div className={`absolute top-0 right-0 p-3 opacity-10 transform translate-x-2 -translate-y-2 ${definition.color.replace('text-', 'bg-').replace('bg-', 'text-')}`}>
+													<Icon className="w-16 h-16" />
+												</div>
+												<CardContent className="p-5 relative z-10 flex items-start gap-4">
+													<div className={`p-3 rounded-xl ${definition.color} bg-opacity-20`}>
+														<Icon className={`h-6 w-6 ${definition.color.split(' ')[0]}`} />
+													</div>
+													<div>
+														<h3 className="font-bold text-neutralDark">{title}</h3>
+														<p className="text-xs text-muted-foreground mt-1 mb-2">{description}</p>
+														{achievement.date && (
+															<span className="text-[10px] bg-neutral-100 px-2 py-0.5 rounded-full text-neutral-500">
+																{formatDate(achievement.date)}
+															</span>
+														)}
+													</div>
+												</CardContent>
+											</Card>
+										);
+									})}
+								</div>
+							</div>
+						)}
+
+
+						{/* US011-05: Dashboard Hub Grid */}
+						{currentView === 'hub' && (
+							<div className="mt-16 print:hidden">
+								<div className="flex items-center gap-4 mb-6">
+									<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
+										{language === 'bm' ? 'Papan Pemuka Kemajuan' : 'Progress Dashboard'}
+										<LayoutDashboard className="h-6 w-6 text-primary" />
+									</h2>
+									<div className="h-px bg-neutral-200 flex-1" />
+								</div>
+								<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-500">
+
+									<DashboardBlock
+										title={language === 'bm' ? 'Butiran Kursus' : 'Course Details'}
+										description={language === 'bm' ? 'Lihat senarai lengkap kursus dan tugasan' : 'View detailed breakdowns of all your enrolled courses'}
+										icon={FileText}
+										colorClass="text-neutral-500"
+										onClick={() => setCurrentView('details')}
+									/>
+									<DashboardBlock
+										title={language === 'bm' ? 'Prestasi Kursus' : 'Course Performance'}
+										description={language === 'bm' ? 'Analisis skor penilaian merentas semua kursus' : 'Analyze assessment scores across all courses'}
+										icon={Target}
+										colorClass="text-blue-500"
+										onClick={() => setCurrentView('performance')}
+									/>
+									<DashboardBlock
+										title={language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress'}
+										description={language === 'bm' ? 'Jejak peratusan siap pelajaran' : 'Track completion rates for your lessons'}
+										icon={Activity}
+										colorClass="text-emerald-500"
+										onClick={() => setCurrentView('progress')}
+									/>
+									<DashboardBlock
+										title={language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators'}
+										description={language === 'bm' ? 'Amaran awal untuk memastikan anda di landasan' : 'Early warnings to keep you on track'}
+										icon={AlertTriangle}
+										colorClass="text-orange-500"
+										onClick={() => setCurrentView('risk')}
+									/>
+									<DashboardBlock
+										title={language === 'bm' ? 'Trend Penilaian' : 'Score Trend'}
+										description={language === 'bm' ? 'Lihat peningkatan skor dari semasa ke semasa' : 'View your score improvements over time'}
+										icon={TrendingUp}
+										colorClass="text-indigo-500"
+										onClick={() => setCurrentView('trend')}
+									/>
+									<DashboardBlock
+										title={language === 'bm' ? 'Topik Kuat' : 'Strong Topics'}
+										description={language === 'bm' ? 'Raikan bidang yang anda kuasai' : 'Celebrate the areas where you excel'}
+										icon={Award}
+										colorClass="text-amber-500"
+										onClick={() => setCurrentView('strong')}
+									/>
+									<Link href="/weak-areas" className="col-span-1">
+										<DashboardBlock
+											title={language === 'bm' ? 'Bidang Lemah' : 'Weak Learning Areas'}
+											description={language === 'bm' ? 'Kenal pasti dan perbaiki topik yang sukar' : 'Identify and improve upon challenging topics'}
+											icon={TrendingDown}
+											colorClass="text-error"
+										/>
+									</Link>
+								</div>
+							</div>
+						)}
+
+						{/* US011-05: Conditional Sections based on currentView */}
+
+
+
+
+
+						{/* Conditional: Course Performance */}
+						{(currentView === 'performance' || (currentView === 'hub' && reportConfig.includePerformance)) && (
+							<div className={currentView !== 'performance' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid print-content-managed' : 'mb-8 break-inside-avoid print-content-managed'}>
+								<Card className="shadow-sm border-neutral-200">
+									<CardHeader>
+										<CardTitle className="text-lg font-semibold text-neutralDark flex items-center gap-2">
+											<Target className="h-5 w-5 text-primary" />
+											{language === 'bm' ? 'Prestasi Kursus' : 'Course Performance'}
+										</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<BarChart
+											className="h-72"
+											data={courseProgress
+												.slice()
+												.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
+												.map(c => ({
+													name: c.courseTitle,
+													[c.courseTitle]: c.avgAssessmentScore || 0
+												}))
+											}
+											index="name"
+											categories={courseProgress
+												.slice()
+												.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
+												.map(c => c.courseTitle)
+											}
+											colors={['blue', 'emerald', 'violet', 'amber', 'cyan', 'rose']}
+											valueFormatter={(number) => `${number}%`}
+											yAxisWidth={48}
+											showLegend={false}
+											showAnimation={!isPrinting}
+										/>
+									</CardContent>
+								</Card>
+							</div>
+						)}
+
+						{/* Conditional: Course Progress */}
+						{(currentView === 'progress' || (currentView === 'hub' && reportConfig.includeProgress)) && (
+							<div className={currentView !== 'progress' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid print-content-managed' : 'mb-8 break-inside-avoid print-content-managed'}>
+								<Card className="shadow-sm border-neutral-200">
+									<CardHeader>
+										<CardTitle className="text-lg font-semibold text-neutralDark flex items-center gap-2">
+											<Activity className="h-5 w-5 text-emerald-500" />
+											{language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress'}
+										</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<BarChart
+											className="h-72"
+											data={courseProgress
+												.slice()
+												.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
+												.map(c => ({
+													name: c.courseTitle,
+													[language === 'bm' ? 'Kemajuan' : 'Progress']: c.overallProgress || 0
+												}))
+											}
+											index="name"
+											categories={[language === 'bm' ? 'Kemajuan' : 'Progress']}
+											colors={['emerald']}
+											valueFormatter={(number) => `${number}%`}
+											yAxisWidth={48}
+											showLegend={false}
+											showAnimation={!isPrinting}
+										/>
+									</CardContent>
+								</Card>
+							</div>
+						)}
+
+						{/* Score Trend */}
+						{(currentView === 'trend' || (currentView === 'hub' && reportConfig.includeTrend)) && scoreTrend.length > 0 && (
+							<div className={currentView !== 'trend' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid print-content-managed' : 'mb-8 break-inside-avoid print-content-managed'}>
+								<Card className="shadow-sm border-neutral-200">
+									<CardHeader>
+										<CardTitle className="text-lg font-semibold text-neutralDark flex items-center gap-2">
+											<TrendingUp className="h-5 w-5 text-indigo-500" />
+											{language === 'bm' ? 'Trend Prestasi Penilaian' : 'Assessment Score Trend'}
+										</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<ResponsiveContainer width="100%" height={288}>
+											<RechartsLineChart data={scoreTrend}>
+												<CartesianGrid strokeDasharray="3 3" vertical={false} />
+												<XAxis
+													dataKey="date"
+													interval={0}
+													tick={{ fontSize: 12, fill: '#6b7280' }}
+													padding={{ left: 20, right: 20 }}
+												/>
+												<YAxis
+													width={48}
+													tick={{ fontSize: 12, fill: '#6b7280' }}
+													tickFormatter={(value) => `${value}%`}
+													domain={[0, 100]}
+												/>
+												<RechartsTooltip
+													formatter={(value) => [`${value}%`, 'Score']}
+													contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+												/>
+												<Line
+													type="monotone"
+													dataKey="score"
+													stroke="#3b82f6"
+													strokeWidth={2}
+													dot={{ r: 4, fill: '#3b82f6' }}
+													isAnimationActive={!isPrinting}
+												/>
+											</RechartsLineChart>
+										</ResponsiveContainer>
+									</CardContent>
+								</Card>
+							</div>
+						)}
+					</div>
+				)}
+
+				{/* US011-01: Strong Topics Section */}
+				{(currentView === 'strong' || (currentView === 'hub' && reportConfig.includeStrong)) && strongTopics.length > 0 && (
+					<div className={currentView !== 'strong' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
+						<div className={`mt-8 mb-4`}>
+							<h2 className="text-h2 text-neutralDark flex items-center gap-2 mb-4">
+								<TrendingUp className="h-6 w-6 text-emerald-500" />
+								{language === 'bm' ? 'Topik Pembelajaran Kuat' : 'Strong Learning Topics'}
+							</h2>
+							<div className="flex flex-col gap-4">
+								{strongTopics.map((topic) => (
+									<Card key={topic.id} className="border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition-shadow">
+										<CardHeader className="pb-2">
+											<div className="flex items-start justify-between gap-2">
+												<CardTitle className="text-lg font-bold text-neutralDark line-clamp-1">
+													{topic.title}
+												</CardTitle>
+												<span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide flex-shrink-0">
+													{language === 'bm' ? 'Cemerlang' : 'Excellent'}
+												</span>
+											</div>
+										</CardHeader>
+										<CardContent>
+											<p className="text-sm text-neutralDark mb-2">
+												{language === 'bm' ? 'Skor purata penilaian:' : 'Average assessment score:'} <strong>{topic.score}%</strong>
+											</p>
+											<p className="text-xs text-muted-foreground">
+												{language === 'bm' ? 'Teruskan usaha cemerlang ini!' : 'Keep up the excellent work! You show strong understanding in this area.'}
+											</p>
+										</CardContent>
+									</Card>
+								))}
+							</div>
+						</div>
+					</div>
+				)}
+
+				{/* Risk Indicators Section */}
+				{courseProgress.length > 0 && Object.keys(riskIndicators).length === 0 && !loading && (
+					<Card className="border-info/20 bg-info/5 shadow-sm">
+						<CardContent className="py-8 text-center">
+							<div className="mx-auto w-12 h-12 bg-info/10 rounded-full flex items-center justify-center mb-3">
+								<Info className="h-6 w-6 text-info" />
+							</div>
+							<p className="text-body text-muted-foreground max-w-lg mx-auto">
+								{language === 'bm'
+									? 'Data tidak mencukupi untuk menilai risiko pembelajaran. Selesaikan lebih banyak pelajaran dan penilaian untuk melihat penunjuk risiko anda.'
+									: 'Insufficient data to assess learning risk. Complete more lessons and assessments to see your risk indicators.'}
+							</p>
+						</CardContent>
+					</Card>
+				)}
+				{(currentView === 'risk' || (currentView === 'hub' && reportConfig.includeRisk)) && Object.keys(riskIndicators).length > 0 && (
+					<div className={currentView !== 'risk' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
+						<div className={`space-y-4`}>
+							<h2 className="text-h2 text-neutralDark flex items-center gap-2 mt-8 mb-4">
+								<AlertTriangle className="h-6 w-6 text-warning" />
+								{language === 'bm' ? 'Penunjuk Risiko Pembelajaran' : 'Learning Risk Indicators'}
+							</h2>
+							<div className="flex flex-col gap-4">
+								{Object.entries(riskIndicators).map(([courseId, risk]) => {
+									const course = courseProgress.find(c => c.courseId === courseId);
+									if (!course) return null;
 
 									return (
-										<Card key={achievement.id} className="border-none shadow-sm hover:shadow-md transition-shadow bg-white overflow-hidden relative">
-											<div className={`absolute top-0 right-0 p-3 opacity-10 transform translate-x-2 -translate-y-2 ${definition.color.replace('text-', 'bg-').replace('bg-', 'text-')}`}>
-												<Icon className="w-16 h-16" />
-											</div>
-											<CardContent className="p-5 relative z-10 flex items-start gap-4">
-												<div className={`p-3 rounded-xl ${definition.color} bg-opacity-20`}>
-													<Icon className={`h-6 w-6 ${definition.color.split(' ')[0]}`} />
+										<Card key={courseId} className={`shadow-sm border-l-4 ${risk.riskLevel === 'high' ? 'border-l-destructive' : risk.riskLevel === 'medium' ? 'border-l-warning' : 'border-l-success'}`}>
+											<CardHeader className="pb-2">
+												<div className="flex items-start justify-between gap-2">
+													<CardTitle className="text-lg font-bold text-neutralDark">
+														{course.courseTitle}
+													</CardTitle>
+													<span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ${risk.riskLevel === 'high' ? 'bg-destructive/10 text-destructive' : risk.riskLevel === 'medium' ? 'bg-warning/10 text-warning-dark' : 'bg-success/10 text-success'}`}>
+														{risk.riskLevel === 'high' ? (language === 'bm' ? 'Risiko Tinggi' : 'High Risk') :
+															risk.riskLevel === 'medium' ? (language === 'bm' ? 'Risiko Sederhana' : 'Medium Risk') :
+																(language === 'bm' ? 'Sihat' : 'Healthy')}
+													</span>
 												</div>
-												<div>
-													<h3 className="font-bold text-neutralDark">{title}</h3>
-													<p className="text-xs text-muted-foreground mt-1 mb-2">{description}</p>
-													{achievement.date && (
-														<span className="text-[10px] bg-neutral-100 px-2 py-0.5 rounded-full text-neutral-500">
-															{formatDate(achievement.date)}
-														</span>
-													)}
+											</CardHeader>
+											<CardContent>
+												{risk.riskReasons.length > 0 ? (
+													<ul className="space-y-1 mb-3">
+														{risk.riskReasons.map((reason, idx) => (
+															<li key={idx} className="text-sm text-neutralDark flex items-start gap-2">
+																<span className="text-destructive mt-0.5">•</span>
+																{reason}
+															</li>
+														))}
+													</ul>
+												) : (
+													<p className="text-sm text-muted-foreground mb-3">
+														{language === 'bm' ? 'Tiada faktor risiko dikesan.' : 'No risk factors detected.'}
+													</p>
+												)}
+
+												{risk.recommendations.length > 0 && (
+													<div className="bg-neutral-50 p-3 rounded-lg border border-neutral-100">
+														<p className="text-xs font-semibold text-neutralDark mb-2 flex items-center gap-1.5 align-middle">
+															<Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+															{language === 'bm' ? 'Cadangan:' : 'Recommended Action:'}
+														</p>
+														<ul className="space-y-1">
+															{risk.recommendations.map((rec, idx) => (
+																<li key={idx} className="text-xs text-muted-foreground flex items-start gap-2">
+																	<span>-</span>
+																	{rec}
+																</li>
+															))}
+														</ul>
+													</div>
+												)}
+
+												{/* Key Metrics Mini Grid */}
+												<div className="grid grid-cols-3 gap-1 pt-3 border-t">
+													<div className="text-center p-1">
+														<p className="text-xs text-muted-foreground uppercase">
+															{language === 'bm' ? 'Skor' : 'Score'}
+														</p>
+														<p className="font-bold text-neutralDark">{Math.round(risk.avgScore)}%</p>
+													</div>
+													<div className="text-center p-1 border-l">
+														<p className="text-[10px] text-muted-foreground uppercase">
+															{language === 'bm' ? 'Siap' : 'Done'}
+														</p>
+														<p className="font-bold text-neutralDark">{Math.round(risk.completionRate)}%</p>
+													</div>
+													<div className="text-center p-1 border-l">
+														<p className="text-[10px] text-muted-foreground uppercase">
+															{language === 'bm' ? 'Pasif' : 'Idle'}
+														</p>
+														<p className="font-bold text-neutralDark">{risk.daysSinceActivity}d</p>
+													</div>
 												</div>
 											</CardContent>
 										</Card>
@@ -773,631 +1150,546 @@ export default function ProgressPage() {
 								})}
 							</div>
 						</div>
-					)}
+					</div>
+				)}
 
-
-					{/* US011-05: Dashboard Hub Grid */}
-					{currentView === 'hub' && (
-						<div className="mt-16 print:hidden">
-							<div className="flex items-center gap-4 mb-6">
-								<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
-									{language === 'bm' ? 'Papan Pemuka Kemajuan' : 'Progress Dashboard'}
-									<LayoutDashboard className="h-6 w-6 text-primary" />
-								</h2>
-								<div className="h-px bg-neutral-200 flex-1" />
-							</div>
-							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-500">
-
-								<DashboardBlock
-									title={language === 'bm' ? 'Butiran Kursus' : 'Course Details'}
-									description={language === 'bm' ? 'Lihat senarai lengkap kursus dan tugasan' : 'View detailed breakdowns of all your enrolled courses'}
-									icon={FileText}
-									colorClass="text-neutral-500"
-									onClick={() => setCurrentView('details')}
-								/>
-								<DashboardBlock
-									title={language === 'bm' ? 'Prestasi Kursus' : 'Course Performance'}
-									description={language === 'bm' ? 'Analisis skor penilaian merentas semua kursus' : 'Analyze assessment scores across all courses'}
-									icon={Target}
-									colorClass="text-blue-500"
-									onClick={() => setCurrentView('performance')}
-								/>
-								<DashboardBlock
-									title={language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress'}
-									description={language === 'bm' ? 'Jejak peratusan siap pelajaran' : 'Track completion rates for your lessons'}
-									icon={Activity}
-									colorClass="text-emerald-500"
-									onClick={() => setCurrentView('progress')}
-								/>
-								<DashboardBlock
-									title={language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators'}
-									description={language === 'bm' ? 'Amaran awal untuk memastikan anda di landasan' : 'Early warnings to keep you on track'}
-									icon={AlertTriangle}
-									colorClass="text-orange-500"
-									onClick={() => setCurrentView('risk')}
-								/>
-								<DashboardBlock
-									title={language === 'bm' ? 'Trend Penilaian' : 'Score Trend'}
-									description={language === 'bm' ? 'Lihat peningkatan skor dari semasa ke semasa' : 'View your score improvements over time'}
-									icon={TrendingUp}
-									colorClass="text-indigo-500"
-									onClick={() => setCurrentView('trend')}
-								/>
-								<DashboardBlock
-									title={language === 'bm' ? 'Topik Kuat' : 'Strong Topics'}
-									description={language === 'bm' ? 'Raikan bidang yang anda kuasai' : 'Celebrate the areas where you excel'}
-									icon={Award}
-									colorClass="text-amber-500"
-									onClick={() => setCurrentView('strong')}
-								/>
-								<Link href="/weak-areas" className="col-span-1">
-									<DashboardBlock
-										title={language === 'bm' ? 'Bidang Lemah' : 'Weak Learning Areas'}
-										description={language === 'bm' ? 'Kenal pasti dan perbaiki topik yang sukar' : 'Identify and improve upon challenging topics'}
-										icon={TrendingDown}
-										colorClass="text-error"
-									/>
+				{/* Course Progress List */}
+				{(currentView === 'details' || (currentView === 'hub' && reportConfig.includeDetails)) && (
+					courseProgress.length === 0 ? (
+						<Card className="border-dashed border-2">
+							<CardContent className="py-12 text-center">
+								<div className="mx-auto w-16 h-16 bg-neutral-50 rounded-full flex items-center justify-center mb-4">
+									<BookOpen className="h-8 w-8 text-muted-foreground/50" />
+								</div>
+								<h3 className="text-lg font-semibold text-neutralDark mb-1">
+									{language === 'bm' ? 'Tiada Kursus' : 'No Courses Found'}
+								</h3>
+								<p className="text-body text-muted-foreground mb-6">
+									{language === 'bm'
+										? 'Anda belum mendaftar dalam sebarang kursus lagi.'
+										: "You haven't enrolled in any courses yet."}
+								</p>
+								<Link href="/courses/explore">
+									<Button>{language === 'bm' ? 'Terokai Kursus' : 'Explore Courses'}</Button>
 								</Link>
-							</div>
-						</div>
-					)}
-
-					{/* US011-05: Conditional Sections based on currentView */}
-
-
-
-
-
-					{/* Conditional: Course Performance */}
-					{(currentView === 'performance' || (currentView === 'hub' && reportConfig.includePerformance)) && (
-						<div className={currentView !== 'performance' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
-							<Card className="shadow-sm border-neutral-200">
-								<CardHeader>
-									<CardTitle className="text-lg font-semibold text-neutralDark flex items-center gap-2">
-										<Target className="h-5 w-5 text-primary" />
-										{language === 'bm' ? 'Prestasi Kursus' : 'Course Performance'}
-									</CardTitle>
-								</CardHeader>
-								<CardContent>
-									<BarChart
-										className="h-72"
-										data={courseProgress
-											.slice()
-											.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
-											.map(c => ({
-												name: c.courseTitle,
-												[c.courseTitle]: c.avgAssessmentScore || 0
-											}))
-										}
-										index="name"
-										categories={courseProgress
-											.slice()
-											.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
-											.map(c => c.courseTitle)
-										}
-										colors={['blue', 'emerald', 'violet', 'amber', 'cyan', 'rose']}
-										valueFormatter={(number) => `${number}%`}
-										yAxisWidth={48}
-										showLegend={false}
-										showAnimation={!isPrinting}
-									/>
-								</CardContent>
-							</Card>
-						</div>
-					)}
-
-					{/* Conditional: Course Progress */}
-					{/* Conditional: Course Progress */}
-					{(currentView === 'progress' || (currentView === 'hub' && reportConfig.includeProgress)) && (
-						<div className={currentView !== 'progress' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
-							<Card className="shadow-sm border-neutral-200">
-								<CardHeader>
-									<CardTitle className="text-lg font-semibold text-neutralDark flex items-center gap-2">
-										<Activity className="h-5 w-5 text-emerald-500" />
-										{language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress'}
-									</CardTitle>
-								</CardHeader>
-								<CardContent>
-									<BarChart
-										className="h-72"
-										data={courseProgress
-											.slice()
-											.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
-											.map(c => ({
-												name: c.courseTitle,
-												[language === 'bm' ? 'Kemajuan' : 'Progress']: c.overallProgress || 0
-											}))
-										}
-										index="name"
-										categories={[language === 'bm' ? 'Kemajuan' : 'Progress']}
-										colors={['emerald']}
-										valueFormatter={(number) => `${number}%`}
-										yAxisWidth={48}
-										showLegend={false}
-										showAnimation={!isPrinting}
-									/>
-								</CardContent>
-							</Card>
-						</div>
-					)}
-
-					{/* Old Charts Section (Commented out/Refactored above) */}
-					{/* 
-					<div className={`flex flex-col gap-6 ${!reportConfig.includeCharts ? 'print:hidden' : ''}`}>
-						...
-					</div> 
-					*/}
-
-					{/* Score Trend */}
-					{(currentView === 'trend' || (currentView === 'hub' && reportConfig.includeTrend)) && scoreTrend.length > 0 && (
-						<div className={currentView !== 'trend' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
-							<Card className="shadow-sm border-neutral-200">
-								<CardHeader>
-									<CardTitle className="text-lg font-semibold text-neutralDark flex items-center gap-2">
-										<TrendingUp className="h-5 w-5 text-indigo-500" />
-										{language === 'bm' ? 'Trend Prestasi Penilaian' : 'Assessment Score Trend'}
-									</CardTitle>
-								</CardHeader>
-								<CardContent>
-									<LineChart
-										className="h-72"
-										data={scoreTrend}
-										index="date"
-										categories={['score']}
-										colors={['indigo']}
-										valueFormatter={(number) => `${number}%`}
-										yAxisWidth={48}
-										showLegend={false}
-										showAnimation={!isPrinting}
-									/>
-								</CardContent>
-							</Card>
-						</div>
-					)}
-				</div>
-			)}
-
-			{/* US011-01: Strong Topics Section */}
-			{(currentView === 'strong' || (currentView === 'hub' && reportConfig.includeStrong)) && strongTopics.length > 0 && (
-				<div className={currentView !== 'strong' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
-					<div className={`mt-8 mb-4`}>
-						<h2 className="text-h2 text-neutralDark flex items-center gap-2 mb-4">
-							<TrendingUp className="h-6 w-6 text-emerald-500" />
-							{language === 'bm' ? 'Topik Pembelajaran Kuat' : 'Strong Learning Topics'}
-						</h2>
-						<div className="flex flex-col gap-4">
-							{strongTopics.map((topic) => (
-								<Card key={topic.id} className="border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition-shadow">
-									<CardHeader className="pb-2">
-										<div className="flex items-start justify-between gap-2">
-											<CardTitle className="text-lg font-bold text-neutralDark line-clamp-1">
-												{topic.title}
-											</CardTitle>
-											<span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide flex-shrink-0">
-												{language === 'bm' ? 'Cemerlang' : 'Excellent'}
-											</span>
+							</CardContent>
+						</Card>
+					) : (
+						<div className={currentView !== 'details' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid mt-8' : 'space-y-8 mt-8'}>
+							<h2 className="text-h2 text-neutralDark">
+								{language === 'bm' ? 'Butiran Kursus' : 'Course Details'}
+							</h2>
+							{courseProgress.map((course) => (
+								<Card key={course.courseId} className="overflow-hidden border-neutral-200 shadow-sm hover:shadow-md transition-shadow mb-8 break-inside-avoid">
+									<div className="border-b border-neutral-100 bg-neutral-50/50 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+										<div>
+											<div className="flex items-center gap-3 mb-1">
+												<h3 className="text-xl font-bold text-neutralDark">{course.courseTitle}</h3>
+												<span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+													{course.overallProgress}% {language === 'bm' ? 'Siap' : 'Done'}
+												</span>
+											</div>
+											<div className="flex items-center gap-4 text-sm text-muted-foreground">
+												<div className="flex items-center gap-1.5">
+													<Calendar className="h-4 w-4" />
+													{language === 'bm' ? 'Didaftarkan:' : 'Enrolled:'} {formatDate(course.enrolledAt)}
+												</div>
+											</div>
 										</div>
-									</CardHeader>
-									<CardContent>
-										<p className="text-sm text-neutralDark mb-2">
-											{language === 'bm' ? 'Skor purata penilaian:' : 'Average assessment score:'} <strong>{topic.score}%</strong>
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{language === 'bm' ? 'Teruskan usaha cemerlang ini!' : 'Keep up the excellent work! You show strong understanding in this area.'}
-										</p>
+										<Link href={`/courses/${course.courseId}`} className="print:hidden">
+											<Button variant="outline" size="sm" className="gap-2">
+												{language === 'bm' ? 'Teruskan Belajar' : 'Continue Learning'}
+												<BookOpen className="h-4 w-4" />
+											</Button>
+										</Link>
+									</div>
+
+									<CardContent className="p-6 space-y-8">
+										{/* Overall Progress Bar */}
+										<div>
+											<div className="flex items-center justify-between mb-2">
+												<span className="text-sm font-medium text-neutralDark">
+													{language === 'bm' ? 'Kemajuan Keseluruhan' : 'Overall Progress'}
+												</span>
+											</div>
+											<div className="w-full bg-neutral-100 rounded-full h-2.5">
+												<div
+													className="bg-primary rounded-full h-2.5 transition-all duration-500 ease-out print:force-color"
+													style={{ width: `${course.overallProgress}%` }}
+												/>
+											</div>
+										</div>
+
+										{/* Progress Metrics Grid */}
+										<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+											<div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+												<div className="flex items-center gap-2 mb-2">
+													<div className="p-1.5 bg-blue-100 rounded-lg">
+														<BookOpen className="h-4 w-4 text-blue-600" />
+													</div>
+													<span className="text-sm font-semibold text-blue-900">
+														{language === 'bm' ? 'Pelajaran' : 'Lessons'}
+													</span>
+												</div>
+												<p className="text-2xl font-bold text-neutralDark">
+													{course.completedLessons} <span className="text-sm text-muted-foreground font-normal">/ {course.totalLessons}</span>
+												</p>
+											</div>
+											<div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
+												<div className="flex items-center gap-2 mb-2">
+													<div className="p-1.5 bg-emerald-100 rounded-lg">
+														<CheckCircle2 className="h-4 w-4 text-emerald-600" />
+													</div>
+													<span className="text-sm font-semibold text-emerald-900">
+														{language === 'bm' ? 'Modul' : 'Modules'}
+													</span>
+												</div>
+												<p className="text-2xl font-bold text-neutralDark">
+													{course.completedModules} <span className="text-sm text-muted-foreground font-normal">/ {course.totalModules}</span>
+												</p>
+											</div>
+											<div className="p-4 bg-violet-50/50 rounded-xl border border-violet-100">
+												<div className="flex items-center gap-2 mb-2">
+													<div className="p-1.5 bg-violet-100 rounded-lg">
+														<ClipboardCheck className="h-4 w-4 text-violet-600" />
+													</div>
+													<span className="text-sm font-semibold text-violet-900">
+														{language === 'bm' ? 'Penilaian' : 'Assessments'}
+													</span>
+												</div>
+												<p className="text-2xl font-bold text-neutralDark">
+													{course.assessments.length} <span className="text-sm text-muted-foreground font-normal">{language === 'bm' ? 'selesai' : 'done'}</span>
+												</p>
+											</div>
+											<div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100">
+												<div className="flex items-center gap-2 mb-2">
+													<div className="p-1.5 bg-orange-100 rounded-lg">
+														<Target className="h-4 w-4 text-orange-600" />
+													</div>
+													<span className="text-sm font-semibold text-orange-900">
+														{language === 'bm' ? 'Skor Purata' : 'Avg Score'}
+													</span>
+												</div>
+												<p className="text-2xl font-bold text-neutralDark">
+													{course.avgAssessmentScore !== null ? `${course.avgAssessmentScore}%` : '-'}
+												</p>
+											</div>
+										</div>
+
+										<div className="grid md:grid-cols-2 gap-8">
+											{/* Assessment Scores */}
+											{course.assessments.length > 0 && (
+												<div>
+													<h3 className="text-sm font-bold text-neutralDark mb-4 flex items-center gap-2 uppercase tracking-wider">
+														<ClipboardCheck className="h-4 w-4 text-primary" />
+														{language === 'bm' ? 'Sejarah Penilaian' : 'Assessment History'}
+													</h3>
+													<div className="space-y-3">
+														{course.assessments.slice(0, 5).map((submission, idx) => (
+															<div
+																key={idx}
+																className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:border-primary/20 transition-colors"
+															>
+																<div className="min-w-0 flex-1 pr-4">
+																	<p className="text-sm font-medium text-neutralDark truncate">{submission.assessmentTitle}</p>
+																	<p className="text-[10px] text-muted-foreground">
+																		{formatDateTime(submission.submittedAt)}
+																	</p>
+																</div>
+																<div className="text-right flex-shrink-0">
+																	{submission.score !== undefined && submission.totalPoints ? (
+																		<div className="flex flex-col items-end">
+																			<span className="text-sm font-bold text-neutralDark">
+																				{submission.score}/{submission.totalPoints}
+																			</span>
+																			<span className={`text-[10px] font-medium px-1.5 rounded ${(submission.score / submission.totalPoints) >= 0.7
+																				? 'bg-green-100 text-green-700'
+																				: 'bg-yellow-100 text-yellow-700'
+																				}`}>
+																				{Math.round((submission.score / submission.totalPoints) * 100)}%
+																			</span>
+																		</div>
+																	) : (
+																		<span className="text-xs bg-neutral-200 text-neutral-600 px-2 py-1 rounded">
+																			{language === 'bm' ? 'Dinilai' : 'Grading'}
+																		</span>
+																	)}
+																</div>
+															</div>
+														))}
+														{course.assessments.length > 5 && (
+															<p className="text-xs text-center text-muted-foreground pt-2">
+																+{course.assessments.length - 5} {language === 'bm' ? 'lagi' : 'more'}...
+															</p>
+														)}
+													</div>
+												</div>
+											)}
+
+											{/* Assignment Grades */}
+											{course.assignments.length > 0 && (
+												<div>
+													<h3 className="text-sm font-bold text-neutralDark mb-4 flex items-center gap-2 uppercase tracking-wider">
+														<FileText className="h-4 w-4 text-secondary" />
+														{language === 'bm' ? 'Sejarah Tugasan' : 'Assignment History'}
+													</h3>
+													<div className="space-y-3">
+														{course.assignments.slice(0, 5).map((submission, idx) => (
+															<div
+																key={idx}
+																className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:border-secondary/20 transition-colors"
+															>
+																<div className="min-w-0 flex-1 pr-4">
+																	<p className="text-sm font-medium text-neutralDark truncate">{submission.assignmentTitle}</p>
+																	<p className="text-[10px] text-muted-foreground">
+																		{formatDateTime(submission.submittedAt)}
+																	</p>
+																</div>
+																<div className="text-right flex-shrink-0">
+																	{submission.grade !== undefined ? (
+																		<div className="flex flex-col items-end">
+																			<span className="text-sm font-bold text-neutralDark">
+																				{submission.grade}%
+																			</span>
+																		</div>
+																	) : (
+																		<span className="text-xs bg-neutral-200 text-neutral-600 px-2 py-1 rounded">
+																			{language === 'bm' ? 'Menunggu' : 'Pending'}
+																		</span>
+																	)}
+																</div>
+															</div>
+														))}
+														{course.assignments.length > 5 && (
+															<p className="text-xs text-center text-muted-foreground pt-2">
+																+{course.assignments.length - 5} {language === 'bm' ? 'lagi' : 'more'}...
+															</p>
+														)}
+													</div>
+												</div>
+											)}
+
+											{course.assessments.length === 0 && course.assignments.length === 0 && (
+												<div className="col-span-full py-8 text-center text-muted-foreground bg-neutral-50/50 rounded-xl border border-dashed border-neutral-200">
+													<p className="text-sm">
+														{language === 'bm'
+															? 'Tiada aktiviti penilaian atau tugasan direkodkan lagi.'
+															: 'No assessments or assignments recorded yet.'}
+													</p>
+												</div>
+											)}
+										</div>
 									</CardContent>
 								</Card>
 							))}
 						</div>
-					</div>
-				</div>
-			)}
-
-			{/* Risk Indicators Section */}
-			{courseProgress.length > 0 && Object.keys(riskIndicators).length === 0 && !loading && (
-				<Card className="border-info/20 bg-info/5 shadow-sm">
-					<CardContent className="py-8 text-center">
-						<div className="mx-auto w-12 h-12 bg-info/10 rounded-full flex items-center justify-center mb-3">
-							<Info className="h-6 w-6 text-info" />
-						</div>
-						<p className="text-body text-muted-foreground max-w-lg mx-auto">
-							{language === 'bm'
-								? 'Data tidak mencukupi untuk menilai risiko pembelajaran. Selesaikan lebih banyak pelajaran dan penilaian untuk melihat penunjuk risiko anda.'
-								: 'Insufficient data to assess learning risk. Complete more lessons and assessments to see your risk indicators.'}
-						</p>
-					</CardContent>
-				</Card>
-			)}
-			{(currentView === 'risk' || (currentView === 'hub' && reportConfig.includeRisk)) && Object.keys(riskIndicators).length > 0 && (
-				<div className={currentView !== 'risk' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
-					<div className={`space-y-4`}>
-						<h2 className="text-h2 text-neutralDark flex items-center gap-2 mt-8 mb-4">
-							<AlertTriangle className="h-6 w-6 text-warning" />
-							{language === 'bm' ? 'Penunjuk Risiko Pembelajaran' : 'Learning Risk Indicators'}
-						</h2>
-						<div className="flex flex-col gap-4">
-							{Object.entries(riskIndicators).map(([courseId, risk]) => {
-								const course = courseProgress.find(c => c.courseId === courseId);
-								if (!course) return null;
-
-								return (
-									<Card key={courseId} className={`shadow-sm border-l-4 ${risk.riskLevel === 'high' ? 'border-l-destructive' : risk.riskLevel === 'medium' ? 'border-l-warning' : 'border-l-success'}`}>
-										<CardHeader className="pb-2">
-											<div className="flex items-start justify-between gap-2">
-												<CardTitle className="text-lg font-bold text-neutralDark">
-													{course.courseTitle}
-												</CardTitle>
-												<span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ${risk.riskLevel === 'high' ? 'bg-destructive/10 text-destructive' : risk.riskLevel === 'medium' ? 'bg-warning/10 text-warning-dark' : 'bg-success/10 text-success'}`}>
-													{risk.riskLevel === 'high' ? (language === 'bm' ? 'Risiko Tinggi' : 'High Risk') :
-														risk.riskLevel === 'medium' ? (language === 'bm' ? 'Risiko Sederhana' : 'Medium Risk') :
-															(language === 'bm' ? 'Sihat' : 'Healthy')}
-												</span>
-											</div>
-										</CardHeader>
-										<CardContent>
-											{risk.riskReasons.length > 0 ? (
-												<ul className="space-y-1 mb-3">
-													{risk.riskReasons.map((reason, idx) => (
-														<li key={idx} className="text-sm text-neutralDark flex items-start gap-2">
-															<span className="text-destructive mt-0.5">•</span>
-															{reason}
-														</li>
-													))}
-												</ul>
-											) : (
-												<p className="text-sm text-muted-foreground mb-3">
-													{language === 'bm' ? 'Tiada faktor risiko dikesan.' : 'No risk factors detected.'}
-												</p>
-											)}
-
-											{risk.recommendations.length > 0 && (
-												<div className="bg-neutral-50 p-3 rounded-lg border border-neutral-100">
-													<p className="text-xs font-semibold text-neutralDark mb-2 flex items-center gap-1.5 align-middle">
-														<Lightbulb className="h-3.5 w-3.5 text-amber-500" />
-														{language === 'bm' ? 'Cadangan:' : 'Recommended Action:'}
-													</p>
-													<ul className="space-y-1">
-														{risk.recommendations.map((rec, idx) => (
-															<li key={idx} className="text-xs text-muted-foreground flex items-start gap-2">
-																<span>-</span>
-																{rec}
-															</li>
-														))}
-													</ul>
-												</div>
-											)}
-
-											{/* Key Metrics Mini Grid */}
-											<div className="grid grid-cols-3 gap-1 pt-3 border-t">
-												<div className="text-center p-1">
-													<p className="text-xs text-muted-foreground uppercase">
-														{language === 'bm' ? 'Skor' : 'Score'}
-													</p>
-													<p className="font-bold text-neutralDark">{Math.round(risk.avgScore)}%</p>
-												</div>
-												<div className="text-center p-1 border-l">
-													<p className="text-[10px] text-muted-foreground uppercase">
-														{language === 'bm' ? 'Siap' : 'Done'}
-													</p>
-													<p className="font-bold text-neutralDark">{Math.round(risk.completionRate)}%</p>
-												</div>
-												<div className="text-center p-1 border-l">
-													<p className="text-[10px] text-muted-foreground uppercase">
-														{language === 'bm' ? 'Pasif' : 'Idle'}
-													</p>
-													<p className="font-bold text-neutralDark">{risk.daysSinceActivity}d</p>
-												</div>
-											</div>
-										</CardContent>
-									</Card>
-								);
-							})}
-						</div>
-					</div>
-				</div>
-			)}
-
-			{/* Course Progress List */}
-			{(currentView === 'details' || (currentView === 'hub' && reportConfig.includeDetails)) && (
-				courseProgress.length === 0 ? (
-					<Card className="border-dashed border-2">
-						<CardContent className="py-12 text-center">
-							<div className="mx-auto w-16 h-16 bg-neutral-50 rounded-full flex items-center justify-center mb-4">
-								<BookOpen className="h-8 w-8 text-muted-foreground/50" />
-							</div>
-							<h3 className="text-lg font-semibold text-neutralDark mb-1">
-								{language === 'bm' ? 'Tiada Kursus' : 'No Courses Found'}
-							</h3>
-							<p className="text-body text-muted-foreground mb-6">
-								{language === 'bm'
-									? 'Anda belum mendaftar dalam sebarang kursus lagi.'
-									: "You haven't enrolled in any courses yet."}
-							</p>
-							<Link href="/courses/explore">
-								<Button>{language === 'bm' ? 'Terokai Kursus' : 'Explore Courses'}</Button>
-							</Link>
-						</CardContent>
-					</Card>
-				) : (
-					<div className={currentView !== 'details' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid mt-8' : 'space-y-8 mt-8'}>
-						<h2 className="text-h2 text-neutralDark">
-							{language === 'bm' ? 'Butiran Kursus' : 'Course Details'}
-						</h2>
-						{courseProgress.map((course) => (
-							<Card key={course.courseId} className="overflow-hidden border-neutral-200 shadow-sm hover:shadow-md transition-shadow mb-8 break-inside-avoid">
-								<div className="border-b border-neutral-100 bg-neutral-50/50 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-									<div>
-										<div className="flex items-center gap-3 mb-1">
-											<h3 className="text-xl font-bold text-neutralDark">{course.courseTitle}</h3>
-											<span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-												{course.overallProgress}% {language === 'bm' ? 'Siap' : 'Done'}
-											</span>
-										</div>
-										<div className="flex items-center gap-4 text-sm text-muted-foreground">
-											<div className="flex items-center gap-1.5">
-												<Calendar className="h-4 w-4" />
-												{language === 'bm' ? 'Didaftarkan:' : 'Enrolled:'} {formatDate(course.enrolledAt)}
-											</div>
-										</div>
-									</div>
-									<Link href={`/courses/${course.courseId}`} className="print:hidden">
-										<Button variant="outline" size="sm" className="gap-2">
-											{language === 'bm' ? 'Teruskan Belajar' : 'Continue Learning'}
-											<BookOpen className="h-4 w-4" />
-										</Button>
-									</Link>
-								</div>
-
-								<CardContent className="p-6 space-y-8">
-									{/* Overall Progress Bar */}
-									<div>
-										<div className="flex items-center justify-between mb-2">
-											<span className="text-sm font-medium text-neutralDark">
-												{language === 'bm' ? 'Kemajuan Keseluruhan' : 'Overall Progress'}
-											</span>
-										</div>
-										<div className="w-full bg-neutral-100 rounded-full h-2.5">
-											<div
-												className="bg-primary rounded-full h-2.5 transition-all duration-500 ease-out print:force-color"
-												style={{ width: `${course.overallProgress}%` }}
-											/>
-										</div>
-									</div>
-
-									{/* Progress Metrics Grid */}
-									<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-										<div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-											<div className="flex items-center gap-2 mb-2">
-												<div className="p-1.5 bg-blue-100 rounded-lg">
-													<BookOpen className="h-4 w-4 text-blue-600" />
-												</div>
-												<span className="text-sm font-semibold text-blue-900">
-													{language === 'bm' ? 'Pelajaran' : 'Lessons'}
-												</span>
-											</div>
-											<p className="text-2xl font-bold text-neutralDark">
-												{course.completedLessons} <span className="text-sm text-muted-foreground font-normal">/ {course.totalLessons}</span>
-											</p>
-										</div>
-										<div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
-											<div className="flex items-center gap-2 mb-2">
-												<div className="p-1.5 bg-emerald-100 rounded-lg">
-													<CheckCircle2 className="h-4 w-4 text-emerald-600" />
-												</div>
-												<span className="text-sm font-semibold text-emerald-900">
-													{language === 'bm' ? 'Modul' : 'Modules'}
-												</span>
-											</div>
-											<p className="text-2xl font-bold text-neutralDark">
-												{course.completedModules} <span className="text-sm text-muted-foreground font-normal">/ {course.totalModules}</span>
-											</p>
-										</div>
-										<div className="p-4 bg-violet-50/50 rounded-xl border border-violet-100">
-											<div className="flex items-center gap-2 mb-2">
-												<div className="p-1.5 bg-violet-100 rounded-lg">
-													<ClipboardCheck className="h-4 w-4 text-violet-600" />
-												</div>
-												<span className="text-sm font-semibold text-violet-900">
-													{language === 'bm' ? 'Penilaian' : 'Assessments'}
-												</span>
-											</div>
-											<p className="text-2xl font-bold text-neutralDark">
-												{course.assessments.length} <span className="text-sm text-muted-foreground font-normal">{language === 'bm' ? 'selesai' : 'done'}</span>
-											</p>
-										</div>
-										<div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100">
-											<div className="flex items-center gap-2 mb-2">
-												<div className="p-1.5 bg-orange-100 rounded-lg">
-													<Target className="h-4 w-4 text-orange-600" />
-												</div>
-												<span className="text-sm font-semibold text-orange-900">
-													{language === 'bm' ? 'Skor Purata' : 'Avg Score'}
-												</span>
-											</div>
-											<p className="text-2xl font-bold text-neutralDark">
-												{course.avgAssessmentScore !== null ? `${course.avgAssessmentScore}%` : '-'}
-											</p>
-										</div>
-									</div>
-
-									<div className="grid md:grid-cols-2 gap-8">
-										{/* Assessment Scores */}
-										{course.assessments.length > 0 && (
-											<div>
-												<h3 className="text-sm font-bold text-neutralDark mb-4 flex items-center gap-2 uppercase tracking-wider">
-													<ClipboardCheck className="h-4 w-4 text-primary" />
-													{language === 'bm' ? 'Sejarah Penilaian' : 'Assessment History'}
-												</h3>
-												<div className="space-y-3">
-													{course.assessments.slice(0, 5).map((submission, idx) => (
-														<div
-															key={idx}
-															className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:border-primary/20 transition-colors"
-														>
-															<div className="min-w-0 flex-1 pr-4">
-																<p className="text-sm font-medium text-neutralDark truncate">{submission.assessmentTitle}</p>
-																<p className="text-[10px] text-muted-foreground">
-																	{formatDateTime(submission.submittedAt)}
-																</p>
-															</div>
-															<div className="text-right flex-shrink-0">
-																{submission.score !== undefined && submission.totalPoints ? (
-																	<div className="flex flex-col items-end">
-																		<span className="text-sm font-bold text-neutralDark">
-																			{submission.score}/{submission.totalPoints}
-																		</span>
-																		<span className={`text-[10px] font-medium px-1.5 rounded ${(submission.score / submission.totalPoints) >= 0.7
-																			? 'bg-green-100 text-green-700'
-																			: 'bg-yellow-100 text-yellow-700'
-																			}`}>
-																			{Math.round((submission.score / submission.totalPoints) * 100)}%
-																		</span>
-																	</div>
-																) : (
-																	<span className="text-xs bg-neutral-200 text-neutral-600 px-2 py-1 rounded">
-																		{language === 'bm' ? 'Dinilai' : 'Grading'}
-																	</span>
-																)}
-															</div>
-														</div>
-													))}
-													{course.assessments.length > 5 && (
-														<p className="text-xs text-center text-muted-foreground pt-2">
-															+{course.assessments.length - 5} {language === 'bm' ? 'lagi' : 'more'}...
-														</p>
-													)}
-												</div>
-											</div>
-										)}
-
-										{/* Assignment Grades */}
-										{course.assignments.length > 0 && (
-											<div>
-												<h3 className="text-sm font-bold text-neutralDark mb-4 flex items-center gap-2 uppercase tracking-wider">
-													<FileText className="h-4 w-4 text-secondary" />
-													{language === 'bm' ? 'Sejarah Tugasan' : 'Assignment History'}
-												</h3>
-												<div className="space-y-3">
-													{course.assignments.slice(0, 5).map((submission, idx) => (
-														<div
-															key={idx}
-															className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:border-secondary/20 transition-colors"
-														>
-															<div className="min-w-0 flex-1 pr-4">
-																<p className="text-sm font-medium text-neutralDark truncate">{submission.assignmentTitle}</p>
-																<p className="text-[10px] text-muted-foreground">
-																	{formatDateTime(submission.submittedAt)}
-																</p>
-															</div>
-															<div className="text-right flex-shrink-0">
-																{submission.grade !== undefined ? (
-																	<div className="flex flex-col items-end">
-																		<span className="text-sm font-bold text-neutralDark">
-																			{submission.grade}%
-																		</span>
-																	</div>
-																) : (
-																	<span className="text-xs bg-neutral-200 text-neutral-600 px-2 py-1 rounded">
-																		{language === 'bm' ? 'Menunggu' : 'Pending'}
-																	</span>
-																)}
-															</div>
-														</div>
-													))}
-													{course.assignments.length > 5 && (
-														<p className="text-xs text-center text-muted-foreground pt-2">
-															+{course.assignments.length - 5} {language === 'bm' ? 'lagi' : 'more'}...
-														</p>
-													)}
-												</div>
-											</div>
-										)}
-
-										{course.assessments.length === 0 && course.assignments.length === 0 && (
-											<div className="col-span-full py-8 text-center text-muted-foreground bg-neutral-50/50 rounded-xl border border-dashed border-neutral-200">
-												<p className="text-sm">
-													{language === 'bm'
-														? 'Tiada aktiviti penilaian atau tugasan direkodkan lagi.'
-														: 'No assessments or assignments recorded yet.'}
-												</p>
-											</div>
-										)}
-									</div>
-								</CardContent>
-							</Card>
-						))}
-					</div>
+					)
 				)
-			)
-			}
-			{/* US011-03: Report Specific Sections (Hidden on screen, visible on print) */}
-			{
-				reportConfig.includeAttendance && (
-					<div className="print:visible mt-8" style={{ display: 'none' }}>
-						<h2 className="text-xl font-bold text-neutralDark mb-4 border-b pb-2">
-							{language === 'bm' ? 'Rekod Kehadiran' : 'Attendance Records'}
-						</h2>
-						<div className="bg-white border rounded-lg overflow-hidden">
-							<table className="w-full text-sm">
-								<thead className="bg-neutral-100">
-									<tr>
-										<th className="p-3 text-left font-semibold">{language === 'bm' ? 'Kursus' : 'Course'}</th>
-										<th className="p-3 text-center font-semibold">{language === 'bm' ? 'Kehadiran' : 'Attendance'}</th>
-										<th className="p-3 text-center font-semibold">{language === 'bm' ? 'Status' : 'Status'}</th>
-									</tr>
-								</thead>
-								<tbody>
-									{courseProgress.map((course, idx) => (
-										<tr key={idx} className="border-t">
-											<td className="p-3">{course.courseTitle}</td>
-											<td className="p-3 text-center">95%</td>
-											<td className="p-3 text-center text-green-600 font-medium">
-												{language === 'bm' ? 'Hadir' : 'Present'}
-											</td>
+				}
+				{/* US011-03: Report Specific Sections (Hidden on screen, visible on print) */}
+				{
+					reportConfig.includeAttendance && (
+						<div className="print:visible mt-8" style={{ display: 'none' }}>
+							<h2 className="text-xl font-bold text-neutralDark mb-4 border-b pb-2">
+								{language === 'bm' ? 'Rekod Kehadiran' : 'Attendance Records'}
+							</h2>
+							<div className="bg-white border rounded-lg overflow-hidden">
+								<table className="w-full text-sm">
+									<thead className="bg-neutral-100">
+										<tr>
+											<th className="p-3 text-left font-semibold">{language === 'bm' ? 'Kursus' : 'Course'}</th>
+											<th className="p-3 text-center font-semibold">{language === 'bm' ? 'Kehadiran' : 'Attendance'}</th>
+											<th className="p-3 text-center font-semibold">{language === 'bm' ? 'Status' : 'Status'}</th>
 										</tr>
-									))}
-								</tbody>
-							</table>
-							<p className="p-3 text-xs text-muted-foreground italic">
-								* {language === 'bm' ? 'Data kehadiran dijana secara automatik berdasarkan log masuk sistem.' : 'Attendance data generated automatically based on system logins.'}
-							</p>
+									</thead>
+									<tbody>
+										{courseProgress.map((course, idx) => (
+											<tr key={idx} className="border-t">
+												<td className="p-3">{course.courseTitle}</td>
+												<td className="p-3 text-center">95%</td>
+												<td className="p-3 text-center text-green-600 font-medium">
+													{language === 'bm' ? 'Hadir' : 'Present'}
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+								<p className="p-3 text-xs text-muted-foreground italic">
+									* {language === 'bm' ? 'Data kehadiran dijana secara automatik berdasarkan log masuk sistem.' : 'Attendance data generated automatically based on system logins.'}
+								</p>
+							</div>
 						</div>
-					</div>
-				)
-			}
+					)
+				}
 
-			{
-				reportConfig.includeFeedback && (
-					<div className="print:visible mt-8" style={{ display: 'none' }}>
-						<h2 className="text-xl font-bold text-neutralDark mb-4 border-b pb-2">
-							{language === 'bm' ? 'Maklum Balas Guru' : 'Teacher Feedback'}
-						</h2>
-						<div className="space-y-4">
-							{courseProgress.map((course, idx) => (
-								<div key={idx} className="bg-white border rounded-lg p-4">
-									<h3 className="font-bold text-neutralDark mb-2">{course.courseTitle}</h3>
-									<div className="flex gap-4 items-start">
-										<div className="bg-neutral-100 p-2 rounded-full">
-											<FileText className="h-5 w-5 text-neutral-500" />
-										</div>
-										<div>
-											<p className="text-sm text-neutralDark mb-1">
-												{idx === 0
-													? (language === 'bm' ? 'Pelajar menunjukkan prestasi yang sangat baik. Teruskan usaha!' : 'Student shows excellent performance. Keep up the good work!')
-													: (language === 'bm' ? 'Terdapat peningkatan yang ketara dalam tugasan terakhir.' : 'Significant improvement shown in recent assignments.')}
-											</p>
-											<p className="text-xs text-muted-foreground">
-												- {language === 'bm' ? 'Dihantar oleh Cikgu' : 'Posted by Teacher'} • {new Date().toLocaleDateString()}
-											</p>
+				{
+					reportConfig.includeFeedback && (
+						<div className="print:visible mt-8" style={{ display: 'none' }}>
+							<h2 className="text-xl font-bold text-neutralDark mb-4 border-b pb-2">
+								{language === 'bm' ? 'Maklum Balas Guru' : 'Teacher Feedback'}
+							</h2>
+							<div className="space-y-4">
+								{courseProgress.map((course, idx) => (
+									<div key={idx} className="bg-white border rounded-lg p-4">
+										<h3 className="font-bold text-neutralDark mb-2">{course.courseTitle}</h3>
+										<div className="flex gap-4 items-start">
+											<div className="bg-neutral-100 p-2 rounded-full">
+												<FileText className="h-5 w-5 text-neutral-500" />
+											</div>
+											<div>
+												<p className="text-sm text-neutralDark mb-1">
+													{idx === 0
+														? (language === 'bm' ? 'Pelajar menunjukkan prestasi yang sangat baik. Teruskan usaha!' : 'Student shows excellent performance. Keep up the good work!')
+														: (language === 'bm' ? 'Terdapat peningkatan yang ketara dalam tugasan terakhir.' : 'Significant improvement shown in recent assignments.')}
+												</p>
+												<p className="text-xs text-muted-foreground">
+													- {language === 'bm' ? 'Dihantar oleh Cikgu' : 'Posted by Teacher'} • {new Date().toLocaleDateString()}
+												</p>
+											</div>
 										</div>
 									</div>
+								))}
+							</div>
+						</div>
+					)
+				}
+			</div>
+			{/* --- End Interactive Dashboard --- */}
+
+			{/* --- Dedicated Print View (Visible ONLY on Print) --- */}
+			<div className="fixed top-0 left-[-10000px] w-[1024px] h-auto overflow-hidden opacity-0 pointer-events-none print:relative print:left-0 print:top-auto print:w-full print:h-auto print:opacity-100 print:overflow-visible print:pointer-events-auto space-y-8">
+				<div className="text-center border-b pb-6">
+					<h1 className="text-3xl font-bold text-neutralDark mb-2">
+						{language === 'bm' ? 'Laporan Prestasi Pelajar' : 'Student Performance Report'}
+					</h1>
+					<p className="text-muted-foreground">
+						{language === 'bm' ? 'Dijana pada:' : 'Generated on:'} {new Date().toLocaleDateString()}
+					</p>
+				</div>
+
+				{/* Section: Course Performance */}
+				{reportConfig.includePerformance && (
+					<div className="break-inside-avoid">
+						<h2 className="text-xl font-bold text-neutralDark mb-4 flex items-center gap-2 border-b pb-2">
+							<Target className="h-5 w-5 text-primary" />
+							{language === 'bm' ? 'Prestasi Kursus' : 'Course Performance'}
+						</h2>
+						<div className="h-80 w-full border rounded p-4">
+							{/* Recharts/Tremor needs specific dimensions in print mode often */}
+							<BarChart
+								className="h-72 w-full"
+								data={courseProgress
+									.slice()
+									.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
+									.map(c => ({
+										name: c.courseTitle,
+										[c.courseTitle]: c.avgAssessmentScore || 0
+									}))
+								}
+								index="name"
+								categories={courseProgress
+									.slice()
+									.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
+									.map(c => c.courseTitle)
+								}
+								colors={['blue', 'emerald', 'violet', 'amber', 'cyan', 'rose']}
+								valueFormatter={(number) => `${number}%`}
+								yAxisWidth={48}
+								showLegend={false}
+								showAnimation={false} // No animation for print
+							/>
+						</div>
+					</div>
+				)}
+
+				{/* Section: Course Progress */}
+				{reportConfig.includeProgress && (
+					<div className="break-inside-avoid pt-4">
+						<h2 className="text-xl font-bold text-neutralDark mb-4 flex items-center gap-2 border-b pb-2">
+							<Activity className="h-5 w-5 text-emerald-500" />
+							{language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress'}
+						</h2>
+						<div className="h-80 w-full border rounded p-4">
+							<BarChart
+								className="h-72 w-full"
+								data={courseProgress
+									.slice()
+									.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
+									.map(c => ({
+										name: c.courseTitle,
+										[language === 'bm' ? 'Kemajuan' : 'Progress']: c.overallProgress || 0
+									}))
+								}
+								index="name"
+								categories={[language === 'bm' ? 'Kemajuan' : 'Progress']}
+								colors={['emerald']}
+								valueFormatter={(number) => `${number}%`}
+								yAxisWidth={48}
+								showLegend={false}
+								showAnimation={false}
+							/>
+						</div>
+					</div>
+				)}
+
+				{/* Section: Score Trend */}
+				{reportConfig.includeTrend && scoreTrend.length > 0 && (
+					<div className="break-inside-avoid pt-4">
+						<h2 className="text-xl font-bold text-neutralDark mb-4 flex items-center gap-2 border-b pb-2">
+							<TrendingUp className="h-5 w-5 text-indigo-500" />
+							{language === 'bm' ? 'Trend Prestasi Penilaian' : 'Assessment Score Trend'}
+						</h2>
+						<div className="h-80 w-full border rounded p-4">
+							<ResponsiveContainer width="100%" height="100%">
+								<RechartsLineChart data={scoreTrend}>
+									<CartesianGrid strokeDasharray="3 3" vertical={false} />
+									<XAxis
+										dataKey="date"
+										interval={0}
+										tick={{ fontSize: 12, fill: '#6b7280' }}
+										padding={{ left: 20, right: 20 }}
+									/>
+									<YAxis
+										width={48}
+										tick={{ fontSize: 12, fill: '#6b7280' }}
+										tickFormatter={(value) => `${value}%`}
+										domain={[0, 100]}
+									/>
+									<Line
+										type="monotone"
+										dataKey="score"
+										stroke="#3b82f6"
+										strokeWidth={2}
+										dot={{ r: 4, fill: '#3b82f6' }}
+										isAnimationActive={false}
+									/>
+								</RechartsLineChart>
+							</ResponsiveContainer>
+						</div>
+					</div>
+				)}
+
+				{/* Section: Strong Topics */}
+				{reportConfig.includeStrong && strongTopics.length > 0 && (
+					<div className="break-inside-avoid pt-4">
+						<h2 className="text-xl font-bold text-neutralDark mb-4 flex items-center gap-2 border-b pb-2">
+							<Award className="h-5 w-5 text-amber-500" />
+							{language === 'bm' ? 'Topik Pembelajaran Kuat' : 'Strong Learning Topics'}
+						</h2>
+						<div className="grid grid-cols-2 gap-4">
+							{strongTopics.map((topic) => (
+								<div key={topic.id} className="border p-4 rounded-lg bg-emerald-50/30">
+									<h3 className="font-bold text-lg mb-1">{topic.title}</h3>
+									<p className="text-sm">Avgerage Score: <span className="font-bold">{topic.score}%</span></p>
 								</div>
 							))}
 						</div>
 					</div>
-				)
-			}
-		</div >
+				)}
+
+				{/* Section: Risk Indicators */}
+				{reportConfig.includeRisk && Object.keys(riskIndicators).length > 0 && (
+					<div className="break-inside-avoid pt-4">
+						<h2 className="text-xl font-bold text-neutralDark mb-4 flex items-center gap-2 border-b pb-2">
+							<AlertTriangle className="h-5 w-5 text-warning" />
+							{language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators'}
+						</h2>
+						<div className="grid gap-4">
+							{Object.entries(riskIndicators).map(([courseId, risk]) => {
+								const course = courseProgress.find(c => c.courseId === courseId);
+								if (!course) return null;
+								return (
+									<div key={courseId} className="border p-4 rounded-lg">
+										<div className="flex justify-between mb-2">
+											<span className="font-bold">{course.courseTitle}</span>
+											<span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${risk.riskLevel === 'high' ? 'bg-red-100 text-red-700' :
+												risk.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+													'bg-green-100 text-green-700'
+												}`}>
+												{risk.riskLevel} Risk
+											</span>
+										</div>
+										<ul className="text-sm space-y-1 list-disc pl-5">
+											{risk.riskReasons.map((r, i) => <li key={i}>{r}</li>)}
+										</ul>
+									</div>
+								);
+							})}
+						</div>
+					</div>
+				)}
+
+				{/* Section: Course Details */}
+				{reportConfig.includeDetails && courseProgress.length > 0 && (
+					<div className="break-inside-avoid pt-4">
+						<h2 className="text-xl font-bold text-neutralDark mb-4 flex items-center gap-2 border-b pb-2">
+							<BookOpen className="h-5 w-5 text-blue-500" />
+							{language === 'bm' ? 'Butiran Kursus' : 'Course Details'}
+						</h2>
+						<div className="space-y-6">
+							{courseProgress.map((course) => (
+								<div key={course.courseId} className="border p-4 rounded-lg">
+									<div className="flex justify-between items-center mb-4 border-b pb-2">
+										<h3 className="font-bold text-lg">{course.courseTitle}</h3>
+										<span className="text-sm bg-neutral-100 px-2 py-1 rounded">Progress: {course.overallProgress}%</span>
+									</div>
+									<div className="grid grid-cols-4 gap-4 text-center text-sm mb-4">
+										<div className="bg-blue-50 p-2 rounded">
+											<span className="block text-xs text-muted-foreground">Lessons</span>
+											<span className="font-bold">{course.completedLessons}/{course.totalLessons}</span>
+										</div>
+										<div className="bg-emerald-50 p-2 rounded">
+											<span className="block text-xs text-muted-foreground">Modules</span>
+											<span className="font-bold">{course.completedModules}/{course.totalModules}</span>
+										</div>
+										<div className="bg-violet-50 p-2 rounded">
+											<span className="block text-xs text-muted-foreground">Assessments</span>
+											<span className="font-bold">{course.assessments.length}</span>
+										</div>
+										<div className="bg-orange-50 p-2 rounded">
+											<span className="block text-xs text-muted-foreground">Avg Score</span>
+											<span className="font-bold">{course.avgAssessmentScore}%</span>
+										</div>
+									</div>
+
+									{/* Recent Activity Table style for print */}
+									{(course.assessments.length > 0 || course.assignments.length > 0) && (
+										<div className="text-sm">
+											<p className="font-semibold mb-2">Recent Activity</p>
+											<table className="w-full border-collapse">
+												<thead>
+													<tr className="bg-neutral-100 text-left">
+														<th className="p-2 border">Item</th>
+														<th className="p-2 border">Date</th>
+														<th className="p-2 border text-right">Score</th>
+													</tr>
+												</thead>
+												<tbody>
+													{course.assessments.slice(0, 3).map((a, i) => (
+														<tr key={i}>
+															<td className="p-2 border">{a.assessmentTitle} (Assessment)</td>
+															<td className="p-2 border">{formatDate(a.submittedAt)}</td>
+															<td className="p-2 border text-right">{a.score}/{a.totalPoints}</td>
+														</tr>
+													))}
+													{course.assignments.slice(0, 3).map((a, i) => (
+														<tr key={i}>
+															<td className="p-2 border">{a.assignmentTitle} (Assignment)</td>
+															<td className="p-2 border">{formatDate(a.submittedAt)}</td>
+															<td className="p-2 border text-right">{a.grade}%</td>
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</div>
+									)}
+								</div>
+							))}
+						</div>
+					</div>
+				)}
+			</div>
+		</div>
 	);
 }
 
