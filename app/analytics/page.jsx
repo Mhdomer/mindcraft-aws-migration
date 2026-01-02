@@ -1921,9 +1921,7 @@ export default function AnalyticsPage() {
 									<label className="text-sm font-semibold text-neutralDark flex items-center gap-2">
 										<Lightbulb className="h-4 w-4 text-primary" />
 										{language === 'bm' ? 'Panduan atau Cadangan' : 'Guidance or Recommendations'}
-										<span className="text-xs font-normal text-muted-foreground">
-											({language === 'bm' ? 'Pilihan' : 'Optional'})
-										</span>
+										<span className="text-xs font-normal text-red-500">*</span>
 									</label>
 									<textarea
 										value={notificationGuidance}
@@ -1971,6 +1969,17 @@ export default function AnalyticsPage() {
 									</Button>
 									<Button
 										onClick={async () => {
+											// Validate message content
+											if (!notificationGuidance.trim()) {
+												setToast({
+													type: 'error',
+													message: language === 'bm'
+														? 'Sila masukkan mesej panduan.'
+														: 'Please enter a guidance message.'
+												});
+												return;
+											}
+
 											// Validate student data before sending
 											if (!notificationStudent || !notificationStudent.studentId) {
 												console.error('Invalid student data:', notificationStudent);
