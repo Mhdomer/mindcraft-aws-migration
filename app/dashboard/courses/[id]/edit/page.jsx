@@ -151,6 +151,7 @@ export default function EditCoursePage() {
 						<label className="block">
 							<span className="block text-body font-medium text-neutralDark mb-2">Description</span>
 							<textarea
+								required
 								value={description}
 								onChange={(e) => setDescription(e.target.value)}
 								rows={4}
