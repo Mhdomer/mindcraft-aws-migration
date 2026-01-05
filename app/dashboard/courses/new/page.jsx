@@ -38,6 +38,7 @@ export default function NewCoursePage() {
 			signInError: 'You must be signed in to create a course',
 			roleError: 'Only teachers and admins can create courses',
 			saveFailed: 'Failed to save course',
+			publishNeedsContent: 'To publish a course, add at least 1 module and 1 lesson first.',
 			publishedSuccess: (title) => `Course "${title}" published successfully!`,
 			draftSuccess: (title) => `Course "${title}" saved as draft. You can continue editing and publish when ready.`,
 		},
@@ -53,6 +54,7 @@ export default function NewCoursePage() {
 			signInError: 'Anda mesti log masuk untuk mencipta kursus',
 			roleError: 'Hanya guru dan admin boleh mencipta kursus',
 			saveFailed: 'Gagal menyimpan kursus',
+			publishNeedsContent: 'Untuk menerbitkan kursus, tambah sekurang-kurangnya 1 modul dan 1 pelajaran dahulu.',
 			publishedSuccess: (title) => `Kursus "${title}" diterbitkan dengan jayanya!`,
 			draftSuccess: (title) => `Kursus "${title}" disimpan sebagai draf. Anda boleh terus mengedit dan menerbitkan apabila sedia.`,
 		},
@@ -98,6 +100,20 @@ export default function NewCoursePage() {
 			return;
 		}
 
+		// If user wants to publish immediately, enforce at least 1 module + 1 lesson (from builder state)
+		if (publish) {
+			const hasModule = Array.isArray(modules) && modules.length > 0;
+			const hasLesson =
+				Array.isArray(modules) &&
+				modules.some((m) => Array.isArray(m?.lessons) && m.lessons.length > 0);
+
+			if (!hasModule || !hasLesson) {
+				setError(t.publishNeedsContent);
+				setSubmitting(false);
+				return;
+			}
+		}
+
 		// Check if user is authenticated
 		const user = auth.currentUser;
 		if (!user) {
@@ -118,10 +134,11 @@ export default function NewCoursePage() {
 			}
 
 			// Create course in Firestore
+			// If publishing immediately, create as draft first, then publish after modules/lessons are created successfully.
 			const courseData = {
 				title: title.trim(),
 				description: description?.trim() || '',
-				status: publish ? 'published' : 'draft',
+				status: 'draft',
 				modules: [],
 				createdBy: user.uid,
 				authorName: userData.name || 'Unknown',
@@ -197,6 +214,14 @@ export default function NewCoursePage() {
 						}
 					}
 				}
+			}
+
+			// Publish only after content is created
+			if (publish) {
+				await updateDoc(doc(db, 'course', newCourseId), {
+					status: 'published',
+					updatedAt: serverTimestamp(),
+				});
 			}
 			
 			const isPublished = publish;

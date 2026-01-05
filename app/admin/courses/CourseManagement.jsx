@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, limit, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,36 @@ export default function CourseManagement({ course, currentUserId, currentRole })
 	// Teachers can delete their own courses (drafts or published), admins can delete any course
 	const canDelete =
 		currentRole === 'admin' || (currentRole === 'teacher' && course.createdBy === currentUserId);
+
+	async function validatePublishableCourse() {
+		const moduleIds = Array.isArray(course.modules) ? course.modules.filter(Boolean) : [];
+		if (moduleIds.length === 0) {
+			return {
+				ok: false,
+				message: 'To publish a course, add at least 1 module and 1 lesson first.',
+			};
+		}
+
+		const hasAnyLesson = (
+			await Promise.all(
+				moduleIds.map(async (moduleId) => {
+					const snap = await getDocs(
+						query(collection(db, 'lesson'), where('moduleId', '==', moduleId), limit(1))
+					);
+					return snap.size > 0;
+				})
+			)
+		).some(Boolean);
+
+		if (!hasAnyLesson) {
+			return {
+				ok: false,
+				message: 'To publish a course, add at least 1 module and 1 lesson first.',
+			};
+		}
+
+		return { ok: true };
+	}
 
 	async function handleDelete() {
 		if (!confirm(`Are you sure you want to delete "${course.title}"? This action cannot be undone.`)) {
@@ -38,6 +68,13 @@ export default function CourseManagement({ course, currentUserId, currentRole })
 		setLoading(true);
 		setError('');
 		try {
+			const validation = await validatePublishableCourse();
+			if (!validation.ok) {
+				setError(validation.message);
+				setLoading(false);
+				return;
+			}
+
 			await updateDoc(doc(db, 'course', course.id), {
 				status: 'published',
 				updatedAt: serverTimestamp(),
