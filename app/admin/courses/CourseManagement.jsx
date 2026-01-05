@@ -7,7 +7,7 @@ import { db } from '@/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-export default function CourseManagement({ course, currentUserId, currentRole }) {
+export default function CourseManagement({ course, currentUserId, currentRole, onDeleted }) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState('');
 	const router = useRouter();
@@ -25,8 +25,11 @@ export default function CourseManagement({ course, currentUserId, currentRole })
 		setError('');
 		try {
 			await deleteDoc(doc(db, 'course', course.id));
-			// Force page reload to refresh the courses list
-			window.location.reload();
+			onDeleted?.(course.id);
+			if (!onDeleted) {
+				// Fallback: reload if onDeleted callback not provided
+				window.location.reload();
+			}
 		} catch (err) {
 			console.error('Delete error:', err);
 			setError(err.message || 'Failed to delete');
