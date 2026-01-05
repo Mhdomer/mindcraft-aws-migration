@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-export default function CourseManagement({ course, currentUserId, currentRole }) {
+export default function CourseManagement({ course, currentUserId, currentRole, onDeleted }) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState('');
 	const router = useRouter();
@@ -18,15 +18,61 @@ export default function CourseManagement({ course, currentUserId, currentRole })
 		currentRole === 'admin' || (currentRole === 'teacher' && course.createdBy === currentUserId);
 
 	async function handleDelete() {
-		if (!confirm(`Are you sure you want to delete "${course.title}"? This action cannot be undone.`)) {
+		if (!confirm(`Are you sure you want to delete "${course.title}"?\n\nThis will also delete its modules, lessons, and enrollments. This action cannot be undone.`)) {
 			return;
 		}
 		setLoading(true);
 		setError('');
 		try {
-			await deleteDoc(doc(db, 'course', course.id));
-			// Force page reload to refresh the courses list
-			window.location.reload();
+			// Extra client-side guard (Firestore rules should still enforce this)
+			if (!canDelete) {
+				throw new Error('Unauthorized: You cannot delete this course');
+			}
+
+			const courseRef = doc(db, 'course', course.id);
+			const moduleIds = Array.isArray(course.modules) ? course.modules : [];
+
+			// Collect related docs
+			const lessonRefs = [];
+			const moduleRefs = [];
+			for (const moduleId of moduleIds) {
+				if (!moduleId) continue;
+				moduleRefs.push(doc(db, 'module', moduleId));
+
+				const lessonsSnap = await getDocs(
+					query(collection(db, 'lesson'), where('moduleId', '==', moduleId))
+				);
+				for (const d of lessonsSnap.docs) {
+					lessonRefs.push(d.ref);
+				}
+			}
+
+			const enrollmentRefs = [];
+			const enrollmentsSnap = await getDocs(
+				query(collection(db, 'enrollment'), where('courseId', '==', course.id))
+			);
+			for (const d of enrollmentsSnap.docs) {
+				enrollmentRefs.push(d.ref);
+			}
+
+			// Firestore batch limit is 500 operations; chunk deletes safely
+			const refsToDelete = [...lessonRefs, ...moduleRefs, ...enrollmentRefs];
+			const chunkSize = 450;
+			for (let i = 0; i < refsToDelete.length; i += chunkSize) {
+				const batch = writeBatch(db);
+				const chunk = refsToDelete.slice(i, i + chunkSize);
+				for (const ref of chunk) batch.delete(ref);
+				await batch.commit();
+			}
+
+			// Delete the course last
+			{
+				const batch = writeBatch(db);
+				batch.delete(courseRef);
+				await batch.commit();
+			}
+
+			onDeleted?.(course.id);
 		} catch (err) {
 			console.error('Delete error:', err);
 			setError(err.message || 'Failed to delete');
