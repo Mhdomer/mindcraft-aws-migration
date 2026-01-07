@@ -194,6 +194,11 @@ export default function AdminCoursesPage() {
 		  })
 		: publishedCourses;
 
+	function handleCourseDeleted(courseId) {
+		setDraftCourses((prev) => prev.filter((c) => c.id !== courseId));
+		setPublishedCourses((prev) => prev.filter((c) => c.id !== courseId));
+	}
+
 	if (role !== 'admin' && role !== 'teacher') {
 		return (
 			<Card className="border-error bg-error/5">
@@ -251,7 +256,13 @@ export default function AdminCoursesPage() {
 				) : (
 					<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 						{filteredDraftCourses.map((course) => (
-							<CourseManagement key={course.id} course={course} currentUserId={userId} currentRole={role} />
+							<CourseManagement
+								key={course.id}
+								course={course}
+								currentUserId={userId}
+								currentRole={role}
+								onDeleted={handleCourseDeleted}
+							/>
 						))}
 					</div>
 				)}
@@ -274,7 +285,13 @@ export default function AdminCoursesPage() {
 				) : (
 					<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 						{filteredPublishedCourses.map((course) => (
-							<CourseManagement key={course.id} course={course} currentUserId={userId} currentRole={role} />
+							<CourseManagement
+								key={course.id}
+								course={course}
+								currentUserId={userId}
+								currentRole={role}
+								onDeleted={handleCourseDeleted}
+							/>
 						))}
 					</div>
 				)}
