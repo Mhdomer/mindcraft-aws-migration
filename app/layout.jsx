@@ -89,9 +89,9 @@ export default async function RootLayout({ children }) {
 			<head>
 				<link rel="preconnect" href="https://fonts.googleapis.com" />
 				<link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-				<link href="https://fonts.googleapis.com/css2?family=Silkscreen&family=VT323&display=swap" rel="stylesheet" />
+				<link href="https://fonts.googleapis.com/css2?family=Silkscreen&family=VT323&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet" />
 			</head>
-			<body className="min-h-screen bg-neutralLight font-pixel">
+			<body className="min-h-screen bg-neutralLight font-sans">
 				<LanguageProvider>
 					<div className="flex min-h-screen">
 						{/* Sidebar - in normal flow, takes up space. Only show for logged in users (not guest) */}
