@@ -481,6 +481,14 @@ export async function POST(request) {
 		// US012-01: Coding Help - Using Firebase AI (database-focused)
 		if (action === 'coding_help') {
 			try {
+				// Check if Firebase is properly configured
+				const firebaseApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+				if (!firebaseApiKey) {
+					console.error('⚠️ Firebase AI not configured: NEXT_PUBLIC_FIREBASE_API_KEY is missing');
+					console.error('💡 Solution: Create a .env.local file with Firebase credentials (see .env.example)');
+					throw new Error('Firebase AI not configured. Missing environment variables.');
+				}
+
 				const history = (options.conversationHistory || []).map(msg => ({
 					role: msg.role === 'user' ? 'user' : 'model',
 					parts: [{ text: msg.content }]
@@ -533,7 +541,10 @@ Be concise, database-oriented, and educational.`;
 					]
 				});
 			} catch (err) {
-				console.error('Coding help error:', err);
+				console.error('❌ Firebase AI Error (Coding Help):', err.message);
+				console.error('📋 Full error:', err);
+				console.error('💡 This means the app is using hardcoded fallback responses instead of real Gemini AI.');
+				console.error('🔧 To fix: Ensure .env.local exists with all NEXT_PUBLIC_FIREBASE_* variables configured.');
 				// Fallback to stub if AI fails
 				const resp = sampleCodingHelp(input, options.conversationHistory || [], language);
 				return NextResponse.json(resp);
@@ -543,6 +554,14 @@ Be concise, database-oriented, and educational.`;
 		// US012-02: Concept Explanation - Using Firebase AI (database-first)
 		if (action === 'explain_concept') {
 			try {
+				// Check if Firebase is properly configured
+				const firebaseApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+				if (!firebaseApiKey) {
+					console.error('⚠️ Firebase AI not configured: NEXT_PUBLIC_FIREBASE_API_KEY is missing');
+					console.error('💡 Solution: Create a .env.local file with Firebase credentials (see .env.example)');
+					throw new Error('Firebase AI not configured. Missing environment variables.');
+				}
+
 				const prompt = `You are explaining computer science concepts with a **strong focus on database systems** (SQL, relational databases, data modeling, indexing, transactions, ACID, security).
 
 Explain the concept "${input}" in ${language === 'bm' ? 'Bahasa Malaysia' : 'English'} for secondary school students (age 16-17).
@@ -570,7 +589,10 @@ Keep it educational, easy to understand, and oriented around databases wherever 
 
 				return NextResponse.json(explanation);
 			} catch (err) {
-				console.error('Concept explanation error:', err);
+				console.error('❌ Firebase AI Error (Concept Explanation):', err.message);
+				console.error('📋 Full error:', err);
+				console.error('💡 This means the app is using hardcoded fallback responses instead of real Gemini AI.');
+				console.error('🔧 To fix: Ensure .env.local exists with all NEXT_PUBLIC_FIREBASE_* variables configured.');
 				// Fallback to stub if AI fails
 				const resp = sampleExplainConcept(input, options.regenerate || false, language);
 				return NextResponse.json(resp);

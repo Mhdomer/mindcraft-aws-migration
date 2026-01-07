@@ -43,6 +43,8 @@ npm install
 
 ### 3. Set Up Environment Variables
 
+**⚠️ IMPORTANT: Without proper Firebase configuration, the AI assistant will use hardcoded fallback responses instead of real Gemini AI!**
+
 **Option A: Get Firebase Config from Firebase Console (Recommended)**
 1. You should receive an invite to the Firebase project
 2. Go to [Firebase Console](https://console.firebase.google.com/)
@@ -50,7 +52,7 @@ npm install
 4. Click **gear icon** → **Project settings**
 5. Scroll to **Your apps** section → **Web app** (or create one if needed)
 6. Copy the Firebase config values
-7. Create `.env` file in project root with these values:
+7. Create `.env.local` file in project root with these values:
 
 ```env
 NEXT_PUBLIC_FIREBASE_API_KEY=<paste from Firebase Console>
@@ -62,10 +64,10 @@ NEXT_PUBLIC_FIREBASE_APP_ID=<paste from Firebase Console>
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=<paste from Firebase Console>
 ```
 
-**Option B: Receive .env file from team lead**
-- You'll receive a `.env` file via secure channel
-- Copy the `.env` file to the project root directory
-- Make sure it's named exactly `.env` (with the leading dot)
+**Option B: Receive .env.local file from team lead**
+- You'll receive a `.env.local` file via secure channel
+- Copy the `.env.local` file to the project root directory
+- Make sure it's named exactly `.env.local` (with the leading dot)
 
 ### 4. Run Development Server
 
@@ -80,16 +82,18 @@ npm run dev
 
 ## Environment Variables
 
-The `.env` file contains Firebase configuration. **Never commit this file to Git!**
+The `.env.local` file contains Firebase configuration. **Never commit this file to Git!**
 
 Required variables:
-- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_API_KEY` - **Required for AI features (Gemini)**
 - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
 - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
 - `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
 - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
 - `NEXT_PUBLIC_FIREBASE_APP_ID`
 - `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID`
+
+**Note**: Next.js automatically loads `.env.local` files. Make sure your file is named exactly `.env.local` (not `.env` or `env.local`).
 
 ## Getting Firebase Credentials
 
@@ -100,9 +104,20 @@ If you need Firebase access:
 ## Troubleshooting
 
 **"Missing NEXT_PUBLIC_FIREBASE_API_KEY" error:**
-- Make sure `.env` file exists in project root
-- Check file name is exactly `.env` (not `env.txt` or `.env.local`)
-- Restart dev server after creating/updating `.env`
+- Make sure `.env.local` file exists in project root
+- Check file name is exactly `.env.local` (not `env.txt` or `.env`)
+- Restart dev server after creating/updating `.env.local`
+
+**AI Assistant using hardcoded responses instead of real Gemini:**
+- **Symptom**: AI responses are generic and don't seem intelligent/contextual
+- **Cause**: Firebase environment variables are missing or incorrect
+- **Solution**:
+  1. Check that `.env.local` exists in project root
+  2. Verify all `NEXT_PUBLIC_FIREBASE_*` variables are set correctly
+  3. Check server console for error messages like `⚠️ Firebase AI not configured` or `❌ Firebase AI Error`
+  4. Restart the dev server (`npm run dev`)
+  5. Check that Firebase API Key has Gemini API enabled in Firebase Console
+- **How to verify**: Look at server console logs – if you see the above errors, the AI is falling back to hardcoded responses
 
 **"Permission denied" errors:**
 - Make sure you're signed in with Firebase Auth
