@@ -26,6 +26,7 @@ export default function EditAssignmentPage() {
 	const [status, setStatus] = useState('draft');
 	const [isOpen, setIsOpen] = useState(true);
 	const [allowLateSubmissions, setAllowLateSubmissions] = useState(false);
+	const [attempts, setAttempts] = useState(1);
 	const [courses, setCourses] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
@@ -97,6 +98,7 @@ export default function EditAssignmentPage() {
 			setStatus(assignmentData.status || 'draft');
 			setIsOpen(assignmentData.isOpen !== undefined ? assignmentData.isOpen : true);
 			setAllowLateSubmissions(assignmentData.allowLateSubmissions !== undefined ? assignmentData.allowLateSubmissions : false);
+			setAttempts(assignmentData.attempts || 1);
 
 			// Format deadline for datetime-local input
 			if (assignmentData.deadline) {
@@ -158,6 +160,7 @@ export default function EditAssignmentPage() {
 				status,
 				isOpen,
 				allowLateSubmissions,
+				attempts,
 				updatedAt: serverTimestamp(),
 			};
 
@@ -306,7 +309,7 @@ export default function EditAssignmentPage() {
 							<CardDescription>Configure assignment settings</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
-							<div className="w-1/2">
+							<div className="w-full">
 								<label htmlFor="deadline" className="block text-sm font-medium mb-2">
 									Deadline
 								</label>
@@ -340,7 +343,23 @@ export default function EditAssignmentPage() {
 								</div>
 							</div>
 
-							<div className="w-1/2">
+							<div className="w-full">
+								<label htmlFor="attempts" className="block text-sm font-medium mb-2">
+									Max Attempts
+								</label>
+								<Input
+									id="attempts"
+									type="number"
+									value={attempts}
+									onChange={(e) => setAttempts(parseInt(e.target.value) || 1)}
+									min="1"
+								/>
+								<p className="text-xs text-muted-foreground mt-1">
+									Maximum number of times a student can submit this assignment
+								</p>
+							</div>
+
+							<div className="w-full">
 								<label htmlFor="status" className="block text-sm font-medium mb-2">
 									Status
 								</label>

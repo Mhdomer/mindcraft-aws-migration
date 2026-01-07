@@ -725,7 +725,7 @@ export default function EditAssessmentPage() {
 								</label>
 							</div>
 
-							<div className="grid grid-cols-2 gap-4">
+							<div className="flex flex-col space-y-4">
 								<div>
 									<label htmlFor="startDate" className="block text-sm font-medium mb-2">
 										Start Date
@@ -759,6 +759,20 @@ export default function EditAssessmentPage() {
 										onChange={(e) => setConfig({ ...config, timer: e.target.value })}
 										placeholder="e.g., 60"
 									/>
+									<div className="flex flex-wrap gap-2 mt-2">
+										{[15, 30, 45, 60, 90, 120].map((time) => (
+											<Button
+												key={time}
+												type="button"
+												variant="outline"
+												size="sm"
+												onClick={() => setConfig({ ...config, timer: time })}
+												className={parseInt(config.timer) === time ? 'bg-primary text-white hover:bg-primary/90' : ''}
+											>
+												{time}m
+											</Button>
+										))}
+									</div>
 								</div>
 								<div>
 									<label htmlFor="attempts" className="block text-sm font-medium mb-2">
@@ -772,18 +786,9 @@ export default function EditAssessmentPage() {
 										min="1"
 									/>
 								</div>
-								<div>
-									<Input
-										id="passingPercentage"
-										type="number"
-										value={config.passingPercentage}
-										onChange={(e) => setConfig({ ...config, passingPercentage: parseInt(e.target.value) || 0 })}
-										min="0"
-										max="100"
-									/>
-								</div>
 
-								<div className="col-span-2 mt-2">
+
+								<div className="mt-2">
 									<div className="flex items-center justify-between p-4 border border-border rounded-lg bg-neutral-50/50">
 										<div className="space-y-0.5">
 											<label htmlFor="allowLateSubmission" className="text-base font-medium text-neutralDark cursor-pointer">

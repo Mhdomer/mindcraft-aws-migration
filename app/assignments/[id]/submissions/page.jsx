@@ -61,16 +61,34 @@ export default function AssignmentSubmissionsPage() {
 			setAssignment({ id: assignmentDoc.id, ...assignmentDoc.data() });
 
 			// Load submissions
-			const submissionsQuery = query(
-				collection(db, 'submission'),
-				where('assignmentId', '==', assignmentId),
-				orderBy('submittedAt', 'desc')
-			);
-			const submissionsSnapshot = await getDocs(submissionsQuery);
+			let submissionsSnapshot;
+			try {
+				const submissionsQuery = query(
+					collection(db, 'submission'),
+					where('assignmentId', '==', assignmentId),
+					orderBy('submittedAt', 'desc')
+				);
+				submissionsSnapshot = await getDocs(submissionsQuery);
+			} catch (err) {
+				console.warn('OrderBy submittedAt failed, falling back to in-memory sort', err);
+				const fallbackQuery = query(
+					collection(db, 'submission'),
+					where('assignmentId', '==', assignmentId)
+				);
+				submissionsSnapshot = await getDocs(fallbackQuery);
+			}
+
 			const loadedSubmissions = submissionsSnapshot.docs.map(doc => ({
 				id: doc.id,
 				...doc.data(),
 			}));
+
+			// Sort in memory to handle fallback case
+			loadedSubmissions.sort((a, b) => {
+				const aTime = a.submittedAt?.toDate?.() || a.submittedAt || 0;
+				const bTime = b.submittedAt?.toDate?.() || b.submittedAt || 0;
+				return bTime - aTime;
+			});
 			setSubmissions(loadedSubmissions);
 
 			// Load student info
@@ -128,9 +146,9 @@ export default function AssignmentSubmissionsPage() {
 	function formatDate(timestamp) {
 		if (!timestamp) return language === 'bm' ? 'Tiada' : 'N/A';
 		const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-		return date.toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', { 
-			year: 'numeric', 
-			month: 'short', 
+		return date.toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', {
+			year: 'numeric',
+			month: 'short',
 			day: 'numeric',
 			hour: '2-digit',
 			minute: '2-digit'
@@ -219,7 +237,7 @@ export default function AssignmentSubmissionsPage() {
 						</div>
 						{filteredSubmissions.length !== submissions.length && (
 							<p className="text-sm text-muted-foreground mt-2">
-								{language === 'bm' 
+								{language === 'bm'
 									? `Menunjukkan ${filteredSubmissions.length} daripada ${submissions.length} penyerahan`
 									: `Showing ${filteredSubmissions.length} of ${submissions.length} submissions`}
 							</p>
@@ -234,7 +252,7 @@ export default function AssignmentSubmissionsPage() {
 					<CardContent className="py-12 text-center">
 						<FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
 						<p className="text-body text-muted-foreground">
-							{language === 'bm' 
+							{language === 'bm'
 								? 'Tiada penyerahan lagi untuk tugasan ini.'
 								: 'No submissions yet for this assignment.'}
 						</p>
