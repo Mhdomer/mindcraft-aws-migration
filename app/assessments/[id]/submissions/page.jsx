@@ -61,16 +61,34 @@ export default function AssessmentSubmissionsPage() {
 			setAssessment({ id: assessmentDoc.id, ...assessmentDoc.data() });
 
 			// Load submissions
-			const submissionsQuery = query(
-				collection(db, 'submission'),
-				where('assessmentId', '==', assessmentId),
-				orderBy('submittedAt', 'desc')
-			);
-			const submissionsSnapshot = await getDocs(submissionsQuery);
+			let submissionsSnapshot;
+			try {
+				const submissionsQuery = query(
+					collection(db, 'submission'),
+					where('assessmentId', '==', assessmentId),
+					orderBy('submittedAt', 'desc')
+				);
+				submissionsSnapshot = await getDocs(submissionsQuery);
+			} catch (err) {
+				console.warn('OrderBy submittedAt failed, falling back to in-memory sort', err);
+				const fallbackQuery = query(
+					collection(db, 'submission'),
+					where('assessmentId', '==', assessmentId)
+				);
+				submissionsSnapshot = await getDocs(fallbackQuery);
+			}
 			const loadedSubmissions = submissionsSnapshot.docs.map(doc => ({
 				id: doc.id,
 				...doc.data(),
 			}));
+
+			// Sort in memory to handle fallback case
+			loadedSubmissions.sort((a, b) => {
+				const aTime = a.submittedAt?.toDate?.() || a.submittedAt || 0;
+				const bTime = b.submittedAt?.toDate?.() || b.submittedAt || 0;
+				return bTime - aTime;
+			});
+
 			setSubmissions(loadedSubmissions);
 
 			// Load student info
@@ -128,13 +146,29 @@ export default function AssessmentSubmissionsPage() {
 	function formatDate(timestamp) {
 		if (!timestamp) return language === 'bm' ? 'Tiada' : 'N/A';
 		const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-		return date.toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', { 
-			year: 'numeric', 
-			month: 'short', 
+		return date.toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', {
+			year: 'numeric',
+			month: 'short',
 			day: 'numeric',
 			hour: '2-digit',
 			minute: '2-digit'
 		});
+	}
+
+	function getGrade(score, total) {
+		if (!total || total === 0) return { grade: 'F', status: 'Gagal', color: 'text-destructive' };
+		const percentage = Math.round((score / total) * 100);
+
+		if (percentage >= 90) return { grade: 'A+', status: 'Cemerlang Tertinggi', color: 'text-success' };
+		if (percentage >= 80) return { grade: 'A', status: 'Cemerlang Tinggi', color: 'text-success' };
+		if (percentage >= 70) return { grade: 'A-', status: 'Cemerlang', color: 'text-success' };
+		if (percentage >= 65) return { grade: 'B+', status: 'Kepujian Tertinggi', color: 'text-info' };
+		if (percentage >= 60) return { grade: 'B', status: 'Kepujian Tinggi', color: 'text-info' };
+		if (percentage >= 55) return { grade: 'C+', status: 'Kepujian Atas', color: 'text-warning' };
+		if (percentage >= 50) return { grade: 'C', status: 'Kepujian', color: 'text-warning' };
+		if (percentage >= 45) return { grade: 'D', status: 'Lulus Atas', color: 'text-orange-500' };
+		if (percentage >= 40) return { grade: 'E', status: 'Lulus', color: 'text-orange-500' };
+		return { grade: 'G', status: 'Gagal', color: 'text-destructive' };
 	}
 
 	if (loading) {
@@ -219,7 +253,7 @@ export default function AssessmentSubmissionsPage() {
 						</div>
 						{filteredSubmissions.length !== submissions.length && (
 							<p className="text-sm text-muted-foreground mt-2">
-								{language === 'bm' 
+								{language === 'bm'
 									? `Menunjukkan ${filteredSubmissions.length} daripada ${submissions.length} penyerahan`
 									: `Showing ${filteredSubmissions.length} of ${submissions.length} submissions`}
 							</p>
@@ -234,7 +268,7 @@ export default function AssessmentSubmissionsPage() {
 					<CardContent className="py-12 text-center">
 						<ClipboardCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
 						<p className="text-body text-muted-foreground">
-							{language === 'bm' 
+							{language === 'bm'
 								? 'Tiada penyerahan lagi untuk penilaian ini.'
 								: 'No submissions yet for this assessment.'}
 						</p>
@@ -263,9 +297,17 @@ export default function AssessmentSubmissionsPage() {
 													</div>
 												)}
 												{submission.score !== undefined && submission.totalPoints && (
-													<div className="text-sm font-medium">
-														{language === 'bm' ? 'Skor:' : 'Score:'} {submission.score} / {submission.totalPoints} 
-														({Math.round((submission.score / submission.totalPoints) * 100)}%)
+													<div className="text-sm font-medium flex items-center gap-2">
+														<span>{language === 'bm' ? 'Skor:' : 'Score:'} {submission.score} / {submission.totalPoints}</span>
+														<span className="text-muted-foreground">|</span>
+														{(() => {
+															const gradeInfo = getGrade(submission.score, submission.totalPoints);
+															return (
+																<span className={`${gradeInfo.color} font-bold`}>
+																	{gradeInfo.grade} ({gradeInfo.status})
+																</span>
+															);
+														})()}
 													</div>
 												)}
 												{isReleased ? (
