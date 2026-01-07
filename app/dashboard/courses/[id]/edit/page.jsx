@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { db } from '@/firebase';
@@ -18,6 +18,7 @@ export default function EditCoursePage() {
 	const [title, setTitle] = useState('');
 	const [description, setDescription] = useState('');
 	const [status, setStatus] = useState('draft');
+	const [moduleIds, setModuleIds] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState('');
@@ -78,6 +79,7 @@ export default function EditCoursePage() {
 				setTitle(course.title);
 				setDescription(course.description || '');
 				setStatus(course.status);
+				setModuleIds(Array.isArray(course.modules) ? course.modules.filter(Boolean) : []);
 			} catch (err) {
 				console.error('Error fetching course:', err);
 				setError('Failed to load course');
@@ -96,6 +98,32 @@ export default function EditCoursePage() {
 		setSuccess('');
 
 		try {
+			// If updating to published, enforce at least 1 module + 1 lesson
+			if (status === 'published') {
+				if (!Array.isArray(moduleIds) || moduleIds.length === 0) {
+					setError('To publish a course, add at least 1 module and 1 lesson first.');
+					setSubmitting(false);
+					return;
+				}
+
+				const hasAnyLesson = (
+					await Promise.all(
+						moduleIds.map(async (moduleId) => {
+							const snap = await getDocs(
+								query(collection(db, 'lesson'), where('moduleId', '==', moduleId), limit(1))
+							);
+							return snap.size > 0;
+						})
+					)
+				).some(Boolean);
+
+				if (!hasAnyLesson) {
+					setError('To publish a course, add at least 1 module and 1 lesson first.');
+					setSubmitting(false);
+					return;
+				}
+			}
+
 			await updateDoc(doc(db, 'course', courseId), {
 				title: title.trim(),
 				description: description?.trim() || '',

@@ -17,6 +17,37 @@ export default function CourseManagement({ course, currentUserId, currentRole, o
 	const canDelete =
 		currentRole === 'admin' || (currentRole === 'teacher' && course.createdBy === currentUserId);
 
+	// Ensure a course cannot be published without at least one module and one lesson
+	async function validatePublishableCourse() {
+		const moduleIds = Array.isArray(course.modules) ? course.modules.filter(Boolean) : [];
+		if (moduleIds.length === 0) {
+			return {
+				ok: false,
+				message: 'To publish a course, add at least 1 module and 1 lesson first.',
+			};
+		}
+
+		const hasAnyLesson = (
+			await Promise.all(
+				moduleIds.map(async (moduleId) => {
+					const snap = await getDocs(
+						query(collection(db, 'lesson'), where('moduleId', '==', moduleId))
+					);
+					return snap.size > 0;
+				})
+			)
+		).some(Boolean);
+
+		if (!hasAnyLesson) {
+			return {
+				ok: false,
+				message: 'To publish a course, add at least 1 module and 1 lesson first.',
+			};
+		}
+
+		return { ok: true };
+	}
+
 	async function handleDelete() {
 		if (!confirm(`Are you sure you want to delete "${course.title}"?\n\nThis will also delete its modules, lessons, and enrollments. This action cannot be undone.`)) {
 			return;
@@ -84,6 +115,13 @@ export default function CourseManagement({ course, currentUserId, currentRole, o
 		setLoading(true);
 		setError('');
 		try {
+			const validation = await validatePublishableCourse();
+			if (!validation.ok) {
+				setError(validation.message);
+				setLoading(false);
+				return;
+			}
+
 			await updateDoc(doc(db, 'course', course.id), {
 				status: 'published',
 				updatedAt: serverTimestamp(),
