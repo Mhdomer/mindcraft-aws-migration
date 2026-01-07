@@ -15,10 +15,13 @@ module.exports = {
 		extend: {
 			colors: {
 				// MindCraft Design System Colors
-				primary: '#4C60FF',
-				secondary: '#FFC857',
-				neutralDark: '#1A1C23',
-				neutralLight: '#F7F8FA',
+				primary: '#5FBF4A', // Grass Green
+				secondary: '#3B6EA5', // Deep Blue
+				accent: '#7FE7FF', // Diamond
+				dirt: '#795548', // Dirt Brown
+				stone: '#9E9E9E', // Stone Grey
+				neutralDark: '#1B1B1B', // Coal Black
+				neutralLight: '#F0F0F0',
 				success: '#4BB543',
 				warning: '#FFB200',
 				error: '#E63946',
@@ -59,12 +62,23 @@ module.exports = {
 				'64': '64px',
 			},
 			// Typography scale from design system
+			fontFamily: {
+				sans: ['ui-sans-serif', 'system-ui', 'sans-serif'],
+				pixel: ['"VT323"', 'monospace'],
+				'pixel-heading': ['"VT323"', 'monospace'],
+				'pixel-body': ['"VT323"', 'monospace'],
+			},
 			fontSize: {
 				'h1': ['32px', { lineHeight: '1.2', fontWeight: '600' }],
 				'h2': ['24px', { lineHeight: '1.3', fontWeight: '600' }],
-				'h3': ['18px', { lineHeight: '1.4', fontWeight: '500' }],
-				'body': ['16px', { lineHeight: '1.5', fontWeight: '400' }],
-				'caption': ['13px', { lineHeight: '1.4', fontWeight: '400' }],
+				'h3': ['20px', { lineHeight: '1.4', fontWeight: '500' }],
+				'body': ['18px', { lineHeight: '1.5', fontWeight: '400' }],
+				'caption': ['14px', { lineHeight: '1.4', fontWeight: '400' }],
+			},
+			boxShadow: {
+				'pixel': '4px 4px 0px 0px rgba(0,0,0,1)',
+				'pixel-lg': '8px 8px 0px 0px rgba(0,0,0,1)',
+				'pixel-sm': '2px 2px 0px 0px rgba(0,0,0,1)',
 			},
 			// Motion principles: fast (120-200ms)
 			transitionDuration: {
@@ -75,7 +89,46 @@ module.exports = {
 			scale: {
 				'105': '1.05',
 			},
+			animation: {
+				blob: "blob 7s infinite",
+				float: "float 6s ease-in-out infinite",
+			},
+			keyframes: {
+				blob: {
+					"0%": {
+						transform: "translate(0px, 0px) scale(1)",
+					},
+					"33%": {
+						transform: "translate(30px, -50px) scale(1.1)",
+					},
+					"66%": {
+						transform: "translate(-20px, 20px) scale(0.9)",
+					},
+					"100%": {
+						transform: "translate(0px, 0px) scale(1)",
+					},
+				},
+				float: {
+					"0%, 100%": {
+						transform: "translateY(0)",
+					},
+					"50%": {
+						transform: "translateY(-20px)",
+					},
+				},
+			},
 		},
 	},
-	plugins: [],
+	plugins: [
+		function ({ addUtilities }) {
+			addUtilities({
+				'.animation-delay-2000': {
+					'animation-delay': '2s',
+				},
+				'.animation-delay-4000': {
+					'animation-delay': '4s',
+				},
+			});
+		},
+	],
 };

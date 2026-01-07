@@ -71,26 +71,27 @@
 	* {
 		@apply border-border;
 	}
+
 	body {
 		@apply bg-neutralLight text-neutralDark;
-		font-family: 'Inter', system-ui, -apple-system, sans-serif;
+		font-family: 'VT323', 'Silkscreen', monospace;
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
 	}
-	
+
 	/* Typography hierarchy */
 	h1 {
 		@apply text-h1 font-semibold;
 	}
-	
+
 	h2 {
 		@apply text-h2 font-semibold;
 	}
-	
+
 	h3 {
 		@apply text-h3 font-medium;
 	}
-	
+
 	p {
 		@apply text-body;
 	}
@@ -101,23 +102,116 @@
 	.primary-btn {
 		@apply bg-primary text-white rounded-lg px-5 py-2 font-medium hover:opacity-90 transition-all duration-200;
 	}
-	
+
 	.secondary-btn {
 		@apply bg-neutralDark text-white rounded-lg px-5 py-2 font-medium hover:opacity-90 transition-all duration-200;
 	}
-	
+
 	.ghost-btn {
 		@apply hover:bg-neutralLight px-4 py-2 rounded-md transition-all duration-200;
 	}
-	
+
 	/* Card with subtle hover animation */
 	.card {
 		@apply rounded-xl p-6 shadow-md bg-white hover:shadow-lg transition-all duration-200;
 	}
-	
+
 	.card-hover {
 		@apply card hover:scale-105;
 	}
+
+	/* Minecraft Button Styles */
+	.mc-btn {
+		@apply relative font-pixel uppercase tracking-wider text-white select-none active:translate-y-1 active:shadow-none transition-all inline-flex items-center justify-center;
+		box-shadow: inset -4px -4px 0px 0px rgba(0, 0, 0, 0.5), inset 4px 4px 0px 0px rgba(255, 255, 255, 0.5), 4px 4px 0px 0px rgba(0, 0, 0, 1);
+		background-color: #7c7c7c;
+		/* Stone default */
+		border: 2px solid #000;
+	}
+
+	.mc-btn-primary {
+		@apply mc-btn;
+		background: linear-gradient(180deg, #5FBF4A 0%, #4DA03C 100%);
+		text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.5);
+	}
+
+	.mc-btn-primary:hover {
+		background-color: #4CAF50;
+	}
+
+	.mc-btn-secondary {
+		@apply mc-btn;
+		background-color: #7c7c7c;
+		/* Stone */
+	}
+
+	.mc-btn-secondary:hover {
+		background-color: #8e8e8e;
+	}
+
+	.mc-card {
+		@apply bg-white border-4 border-black p-4 relative;
+		box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+	}
+
+	.mc-slot {
+		@apply bg-[#8b8b8b] border-4 border-[#373737];
+		box-shadow: inset 2px 2px 0px 0px rgba(0, 0, 0, 0.5), inset -2px -2px 0px 0px rgba(255, 255, 255, 0.1);
+	}
+
+	/* Textures */
+	.mc-dirt-bg {
+		background-color: #5d4037;
+		background-image: url("data:image/svg+xml,%3Csvg width='42' height='44' viewBox='0 0 42 44' xmlns='http://www.w3.org/2000/svg'%3E%3Cg id='Page-1' fill='none' fill-rule='evenodd'%3E%3Cg id='brick-wall' fill='%23795548' fill-opacity='0.4'%3E%3Cpath d='M0 0h42v44H0V0zm1 1h40v20H1V1zM0 22h20v20H0V22zm22 0h20v20H22V22z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+	}
+
+	.mc-stone-bg {
+		background-color: #717171;
+		background-image: url('/images/textures/stone_texture.png');
+		background-size: 64px 64px;
+		background-repeat: repeat;
+		background-blend-mode: multiply;
+	}
+
+	.mc-grass-top-bg {
+		background-image: url('/images/textures/grass_separator.png');
+		background-size: auto 64px;
+		/* Maintain aspect ratio, fix height */
+		background-repeat: repeat-x;
+	}
+
+	.mc-sky-bg {
+		background-color: #9EE7F0;
+		background-image: url('/images/textures/sky_clouds.png');
+		background-size: cover;
+		background-position: 0 top;
+		background-repeat: repeat-x;
+		background-blend-mode: overlay;
+		animation: move-clouds 240s linear infinite;
+	}
+
+	@keyframes move-clouds {
+		from {
+			background-position: 0 top;
+		}
+
+		to {
+			background-position: 10000px top;
+		}
+	}
+
+	/* Faint Pixel Grid Overlay */
+	.mc-grid-overlay {
+		background-image:
+			linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+			linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+		background-size: 32px 32px;
+		pointer-events: none;
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 0;
+	}
 }
-
-
