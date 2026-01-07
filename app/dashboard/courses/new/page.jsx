@@ -256,8 +256,11 @@ export default function NewCoursePage() {
 						</label>
 
 						<label className="block">
-							<span className="block text-body font-medium text-neutralDark mb-2">{t.descriptionLabel}</span>
+							<span className="block text-body font-medium text-neutralDark mb-2">
+								{t.descriptionLabel} <span className="text-error">*</span>
+							</span>
 							<textarea
+								required
 								value={description}
 								onChange={(e) => setDescription(e.target.value)}
 								rows={4}
