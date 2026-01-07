@@ -1,4 +1,5 @@
 import '../styles/globals.css';
+import MainLayout from '@/components/MainLayout';
 import { cookies } from 'next/headers';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -85,11 +86,16 @@ export default async function RootLayout({ children }) {
 
 	return (
 		<html lang="en">
-			<body className="min-h-screen bg-neutralLight">
+			<head>
+				<link rel="preconnect" href="https://fonts.googleapis.com" />
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+				<link href="https://fonts.googleapis.com/css2?family=Silkscreen&family=VT323&display=swap" rel="stylesheet" />
+			</head>
+			<body className="min-h-screen bg-neutralLight font-pixel">
 				<LanguageProvider>
 					<div className="flex min-h-screen">
-						{/* Sidebar - in normal flow, takes up space */}
-						<Sidebar role={role} navItems={navItems} />
+						{/* Sidebar - in normal flow, takes up space. Only show for logged in users (not guest) */}
+						{role !== 'guest' && <Sidebar role={role} navItems={navItems} />}
 
 						{/* Main content area */}
 						<div className="flex-1 flex flex-col min-w-0">
@@ -97,7 +103,7 @@ export default async function RootLayout({ children }) {
 							<Header role={role} />
 
 							{/* Main content */}
-							<main className="flex-1 overflow-y-auto p-6 md:p-8 lg:p-10">{children}</main>
+							<MainLayout>{children}</MainLayout>
 						</div>
 					</div>
 				</LanguageProvider>

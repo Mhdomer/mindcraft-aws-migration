@@ -28,7 +28,10 @@ import {
 	ChevronRight,
 	Sparkles,
 	Gamepad2,
-	FileQuestion
+	FileQuestion,
+	Pickaxe,
+	Map,
+	Backpack
 } from 'lucide-react';
 
 const iconMap = {
@@ -41,14 +44,14 @@ const iconMap = {
 	'Create Course': FileText,
 	'Assessments': FileQuestion,
 	'Assignments': FileText,
-	'My Courses': BookOpen,
-	'Courses': GraduationCap,
-	'Progress': BarChart3,
+	'My Courses': BookOpen, // Learn
+	'Courses': BookOpen,
+	'Progress': Map, // Progress
 	'Forum': MessageSquare,
 	'Home': Home,
 	'Explore Courses': Search,
-	'Profile': User,
-	'Account': User,
+	'Profile': Backpack, // Inventory
+	'Account': Backpack,
 	'Assignments': ClipboardCheck,
 	'Sign In': null,
 	'Coding Help': Code,
@@ -60,6 +63,9 @@ const iconMap = {
 
 export default function Sidebar({ role: initialRole, navItems: initialNavItems }) {
 	const pathname = usePathname();
+
+	if (pathname === '/') return null;
+
 	const router = useRouter();
 	const [profilePicture, setProfilePicture] = useState(null);
 	const [userName, setUserName] = useState('');
@@ -316,7 +322,7 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 									<Link
 										href={item.href}
 										className={cn(
-											'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 min-w-0',
+											'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-body font-medium transition-all duration-200 min-w-0',
 											isActive
 												? 'bg-primary text-white shadow-sm'
 												: 'text-neutralDark hover:bg-neutralLight'
@@ -327,8 +333,8 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 									</Link>
 									<div
 										className={`ml-4 mt-1 space-y-2 border-l-2 border-border/50 pl-3 pr-2 bg-neutralLight/80 rounded-lg overflow-hidden transition-all duration-500 ease-in-out ${expandedItems.has(item.href)
-												? 'max-h-[500px] opacity-100 py-3'
-												: 'max-h-0 opacity-0 py-0'
+											? 'max-h-[500px] opacity-100 py-3'
+											: 'max-h-0 opacity-0 py-0'
 											}`}
 									>
 										<div className="space-y-2">
@@ -340,7 +346,7 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 														key={subItem.href}
 														href={subItem.href}
 														className={cn(
-															'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-300 min-w-0',
+															'flex items-center gap-3 px-3 py-2 rounded-lg text-body transition-all duration-300 min-w-0',
 															isSubActive
 																? 'bg-primary/10 text-primary font-medium'
 																: 'text-neutralDark hover:bg-neutralLight'
@@ -365,7 +371,7 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 								<Link
 									href={item.href}
 									className={cn(
-										'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 min-w-0',
+										'flex items-center gap-3 px-3 py-2.5 rounded-lg text-body font-medium transition-all duration-200 min-w-0',
 										isActive
 											? 'bg-primary text-white shadow-sm'
 											: 'text-neutralDark hover:bg-neutralLight'
