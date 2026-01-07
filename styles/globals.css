@@ -74,7 +74,7 @@
 
 	body {
 		@apply bg-neutralLight text-neutralDark;
-		font-family: 'VT323', 'Silkscreen', monospace;
+		font-family: 'Roboto', 'VT323', 'Silkscreen', monospace;
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
 	}

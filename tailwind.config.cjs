@@ -63,17 +63,18 @@ module.exports = {
 			},
 			// Typography scale from design system
 			fontFamily: {
-				sans: ['ui-sans-serif', 'system-ui', 'sans-serif'],
+				sans: ['"Roboto"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+				roboto: ['"Roboto"', 'sans-serif'],
 				pixel: ['"VT323"', 'monospace'],
 				'pixel-heading': ['"VT323"', 'monospace'],
 				'pixel-body': ['"VT323"', 'monospace'],
 			},
 			fontSize: {
-				'h1': ['32px', { lineHeight: '1.2', fontWeight: '600' }],
-				'h2': ['24px', { lineHeight: '1.3', fontWeight: '600' }],
-				'h3': ['20px', { lineHeight: '1.4', fontWeight: '500' }],
-				'body': ['18px', { lineHeight: '1.5', fontWeight: '400' }],
-				'caption': ['14px', { lineHeight: '1.4', fontWeight: '400' }],
+				'h1': ['29px', { lineHeight: '1.2', fontWeight: '600' }],
+				'h2': ['22px', { lineHeight: '1.3', fontWeight: '600' }],
+				'h3': ['18px', { lineHeight: '1.4', fontWeight: '500' }],
+				'body': ['16px', { lineHeight: '1.5', fontWeight: '400' }],
+				'caption': ['13px', { lineHeight: '1.4', fontWeight: '400' }],
 			},
 			boxShadow: {
 				'pixel': '4px 4px 0px 0px rgba(0,0,0,1)',
