@@ -262,6 +262,48 @@ export default function AssessmentsPage() {
 		}
 	}
 
+	const [activeTab, setActiveTab] = useState('todo');
+
+	const getAssessmentStatus = (assessment, submission) => {
+		const deadlinePassed = assessment.config?.endDate ? isDeadlinePassed(assessment.config.endDate) : false;
+
+		if (deadlinePassed) return 'past_due';
+		if (submission) {
+			// If submitted but still open (can update), it's in progress/submitted
+			// If it's graded or finalized? For now, if submitted & open -> In Progress (Review/Update)
+			return 'submitted';
+		}
+		return 'todo';
+	};
+
+	const filterAssessmentsByTab = (assessments, tab) => {
+		return assessments.filter(assessment => {
+			const submission = submissions[assessment.id];
+			const status = getAssessmentStatus(assessment, submission);
+
+			if (tab === 'todo') {
+				return status === 'todo'; // Not submitted, not past due
+			} else if (tab === 'in_progress') {
+				return status === 'submitted' && !isDeadlinePassed(assessment.config?.endDate); // Submitted but active
+			} else if (tab === 'completed') {
+				return status === 'past_due' || (status === 'submitted' && isDeadlinePassed(assessment.config?.endDate)); // Finished
+			}
+			return true;
+		});
+	};
+
+	const sortAssessmentsSmart = (assessments) => {
+		return [...assessments].sort((a, b) => {
+			// Custom sort per tab could go here, but general logic:
+			// 1. Closest deadline first for active items
+			const aEnd = a.config?.endDate?.toDate?.() || a.config?.endDate ? new Date(a.config.endDate) : new Date(8640000000000000);
+			const bEnd = b.config?.endDate?.toDate?.() || b.config?.endDate ? new Date(b.config.endDate) : new Date(8640000000000000);
+			return aEnd - bEnd;
+		});
+	};
+
+	// We'll wrap the display items with this logic in render
+
 	function getAssessmentIcon(type) {
 		switch (type) {
 			case 'quiz':
@@ -564,6 +606,29 @@ export default function AssessmentsPage() {
 		);
 	}
 
+	function getTimeLeft(deadline) {
+		if (!deadline) return null;
+		const end = deadline.toDate ? deadline.toDate() : new Date(deadline);
+		const now = new Date();
+		const diff = end - now;
+
+		if (diff <= 0) return null;
+
+		const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+		const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+		if (days > 0) return `${days}d ${hours}h left`;
+		return `${hours}h ${Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))}m left`;
+	}
+
+	const filteredAssessments = userRole === 'student'
+		? filterAssessmentsByTab(assessments, activeTab)
+		: assessments;
+
+	const displayAssessments = userRole === 'student'
+		? sortAssessmentsSmart(filteredAssessments)
+		: assessments;
+
 	return (
 		<div className="space-y-8">
 			{/* Page Header */}
@@ -589,241 +654,278 @@ export default function AssessmentsPage() {
 			</div>
 
 			{/* Assessments List */}
-			{assessments.length === 0 ? (
+			{userRole === 'student' && (
+				<div className="flex gap-4 border-b border-border/40 pb-1 mb-6">
+					{['todo', 'in_progress', 'completed'].map(tab => (
+						<button
+							key={tab}
+							onClick={() => setActiveTab(tab)}
+							className={`pb-3 px-1 text-sm font-bold tracking-wide transition-all relative ${activeTab === tab
+									? 'text-primary'
+									: 'text-muted-foreground hover:text-foreground'
+								}`}
+						>
+							{tab === 'todo' && (language === 'bm' ? 'Untuk Dilakukan' : 'To Do')}
+							{tab === 'in_progress' && (language === 'bm' ? 'Dalam Proses' : 'In Progress')}
+							{tab === 'completed' && (language === 'bm' ? 'Selesai' : 'Completed')}
+							{activeTab === tab && (
+								<span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-full" />
+							)}
+						</button>
+					))}
+				</div>
+			)}
+
+			{displayAssessments.length === 0 ? (
 				<Card className="bg-white/50 backdrop-blur-sm border-dashed border-2">
 					<CardContent className="py-16 text-center">
 						<div className="bg-primary/5 p-4 rounded-full w-fit mx-auto mb-4">
 							<ClipboardCheck className="h-8 w-8 text-primary/50" />
 						</div>
 						<p className="text-lg text-muted-foreground font-medium">
-							{language === 'bm' ? 'Tiada penilaian tersedia lagi.' : 'No assessments available yet.'}
+							{userRole === 'student'
+								? (language === 'bm' ? 'Tiada penilaian dalam kategori ini.' : 'No assessments in this category.')
+								: (language === 'bm' ? 'Tiada penilaian tersedia lagi.' : 'No assessments available yet.')}
 						</p>
 					</CardContent>
 				</Card>
 			) : (
 				<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
-					{assessments.map((assessment) => {
-						const deadlinePassed = assessment.config?.endDate ? isDeadlinePassed(assessment.config.endDate) : false;
+					{displayAssessments.map((assessment) => {
+						const submission = submissions[assessment.id];
+						const status = userRole === 'student' ? getAssessmentStatus(assessment, submission) : null;
+
+						// Deadline logic
+						const deadlineDate = assessment.config?.endDate
+							? (assessment.config.endDate.toDate ? assessment.config.endDate.toDate() : new Date(assessment.config.endDate))
+							: null;
+						const deadlinePassed = deadlineDate ? deadlineDate < new Date() : false;
+						const timeLeft = !deadlinePassed && deadlineDate ? getTimeLeft(deadlineDate) : null;
 
 						return (
-							<Card key={assessment.id} className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-border/50 bg-white/50 backdrop-blur-sm rounded-2xl">
+							<Card key={assessment.id} className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-border/50 bg-white/50 backdrop-blur-sm rounded-2xl flex flex-col">
 								<div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-								<CardHeader className="relative border-b border-primary/5 p-6 space-y-4">
-									<div className="flex items-start justify-between">
-										<div className="flex-1">
-											<CardTitle className="text-2xl font-bold text-neutralDark leading-tight group-hover:text-primary transition-colors">{assessment.title}</CardTitle>
-											<div className="flex flex-wrap gap-2">
-												{assessment.published ? (
-													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/10 text-success border border-success/20">
-														{language === 'bm' ? 'Diterbitkan' : 'Published'}
-													</span>
-												) : (
-													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning/10 text-warning border border-warning/20">
-														{language === 'bm' ? 'Draf' : 'Draft'}
-													</span>
-												)}
-												<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-info/10 text-info border border-info/20 capitalize">
-													{language === 'bm'
-														? (assessment.type === 'quiz' ? 'kuiz' : assessment.type === 'assignment' ? 'tugasan' : assessment.type === 'coding' ? 'pengaturcaraan' : assessment.type || 'kuiz')
-														: (assessment.type || 'quiz')}
+
+								{/* Card Header */}
+								<CardHeader className="relative border-b border-primary/5 p-5 space-y-3 pb-4">
+									<div className="flex items-start justify-between gap-3">
+										<div className="flex-1 space-y-1">
+											{/* Metadata Badges */}
+											<div className="flex flex-wrap gap-2 mb-2">
+												<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+													{assessment.type || 'Quiz'}
 												</span>
 												{deadlinePassed && (
-													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20 gap-1.5">
-														<AlertCircle className="h-3 w-3" />
-														{language === 'bm' ? 'Lewat' : 'Past Due'}
+													<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-neutral/10 text-muted-foreground border border-neutral/20">
+														{language === 'bm' ? 'Tamat' : 'Ended'}
+													</span>
+												)}
+												{!deadlinePassed && timeLeft && (
+													<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-warning/10 text-warning border border-warning/20">
+														{timeLeft}
 													</span>
 												)}
 											</div>
+
+											<CardTitle className="text-xl font-bold text-neutralDark leading-tight group-hover:text-primary transition-colors line-clamp-2">
+												{assessment.title}
+											</CardTitle>
 										</div>
 									</div>
+
+									{/* Compact Timeline */}
+									{(assessment.config?.startDate || assessment.config?.endDate) && (
+										<div className="flex items-center gap-3 text-xs text-muted-foreground bg-white/50 p-2 rounded-lg border border-black/5">
+											{assessment.config.startDate && (
+												<div className="flex items-center gap-1.5">
+													<Calendar className="h-3.5 w-3.5 opacity-70" />
+													<span>{formatDate(assessment.config.startDate).split(',')[0]}</span>
+												</div>
+											)}
+											{assessment.config.startDate && assessment.config.endDate && (
+												<span className="text-muted-foreground/30">|</span>
+											)}
+											{assessment.config.endDate && (
+												<div className={`flex items-center gap-1.5 ${deadlinePassed ? 'text-destructive font-medium' : ''}`}>
+													<Clock className="h-3.5 w-3.5 opacity-70" />
+													<span>{formatDate(assessment.config.endDate)}</span>
+												</div>
+											)}
+										</div>
+									)}
 								</CardHeader>
-								<CardContent className="relative z-10 space-y-4">
+
+								{/* Card Content */}
+								<CardContent className="relative z-10 flex-1 flex flex-col p-5 pt-4 space-y-4">
 									{assessment.description && (
 										<p className="text-muted-foreground line-clamp-2 text-sm leading-relaxed">
 											{stripHtml(assessment.description)}
 										</p>
 									)}
 
-									{assessment.questions && (
-										<p className="text-sm text-muted-foreground">
-											{assessment.questions.length} {assessment.questions.length === 1
-												? (language === 'bm' ? 'soalan' : 'question')
-												: (language === 'bm' ? 'soalan' : 'questions')}
-										</p>
-									)}
-
-									{assessment.config && (
-										<div className="grid grid-cols-2 gap-4 text-sm">
-											{assessment.config.startDate && (
-												<div className="flex items-center gap-2 text-muted-foreground">
-													<Calendar className="h-4 w-4" />
-													<div className="flex flex-col">
-														<span className="text-[10px] uppercase font-bold tracking-wider opacity-70">
-															{language === 'bm' ? 'Mula' : 'Starts'}
-														</span>
-														<span>{formatDate(assessment.config.startDate)}</span>
-													</div>
-												</div>
-											)}
-											{assessment.config.endDate && (
-												<div className="flex items-center gap-2">
-													<Clock className={`h-4 w-4 ${deadlinePassed ? 'text-destructive' : 'text-muted-foreground'}`} />
-													<div className="flex flex-col">
-														<span className={`text-[10px] uppercase font-bold tracking-wider opacity-70 ${deadlinePassed ? 'text-destructive' : 'text-muted-foreground'}`}>
-															{language === 'bm' ? 'Tamat' : 'Ends'}
-														</span>
-														<span className={deadlinePassed ? 'text-destructive font-medium' : 'text-muted-foreground'}>
-															{formatDate(assessment.config.endDate)}
-														</span>
-													</div>
-												</div>
-											)}
-										</div>
-									)}
-
-									<div className="flex flex-wrap gap-2 pt-2 border-t">
+									<div className="mt-auto pt-2">
 										{userRole === 'student' ? (
-											assessment.type === 'assignment' ? (
-												<div className="w-full space-y-3">
-													{submissions[assessment.id] && (
-														<div className="p-2 bg-info/10 border border-info/20 rounded-lg">
-															<p className="text-xs text-info flex items-center gap-2">
-																<CheckCircle className="h-3.5 w-3.5" />
-																{language === 'bm' ? 'Telah dihantar' : 'Already submitted'}
-															</p>
-														</div>
-													)}
-													<Link href={`/assessments/${assessment.id}/submit`} className="block w-full">
-														<Button className="w-full h-11 text-base shadow-md group-hover:shadow-lg transition-all" variant="default">
-															{submissions[assessment.id] ? (
-																<>
-																	<Eye className="h-5 w-5 mr-2" />
-																	{language === 'bm' ? 'Lihat / Kemas Kini' : 'View / Update'}
-																</>
-															) : (
-																<>
-																	<Upload className="h-5 w-5 mr-2" />
-																	{language === 'bm' ? 'Hantar Tugasan' : 'Submit Assignment'}
-																</>
-															)}
-														</Button>
-													</Link>
-												</div>
-											) : (
-												<div className="w-full space-y-3">
-													{(() => {
-														const submission = submissions[assessment.id];
-														if (!submission || submission.score === undefined) return null;
+											<div className="space-y-3">
+												{/* Progress / Score Visualization */}
+												{submission && submission.score !== undefined && (
+													<div className="space-y-2">
+														{(() => {
+															const percentage = submission.totalPoints > 0
+																? (submission.score / submission.totalPoints) * 100
+																: 0;
+															const passingPercentage = assessment.config?.passingPercentage ?? 40;
+															const passed = percentage >= passingPercentage;
+															const isPerfect = percentage === 100;
 
-														const percentage = submission.totalPoints > 0
-															? (submission.score / submission.totalPoints) * 100
-															: 0;
-														const passingPercentage = assessment.config?.passingPercentage !== undefined ? assessment.config.passingPercentage : 40;
-														const passed = percentage >= passingPercentage;
+															// Color Logic
+															let statusColor = passed ? 'bg-success text-success' : 'bg-destructive text-destructive';
+															if (isPerfect) statusColor = 'bg-yellow-500 text-yellow-600'; // Gold-ish
 
-														return (
-															<div className={`relative overflow-hidden p-4 rounded-xl border-2 transition-all duration-300 ${passed
-																? 'bg-success/5 border-success/20'
-																: 'bg-destructive/5 border-destructive/20'
-																}`}>
-																<div className="flex items-center justify-between mb-3">
-																	<div className="flex items-center gap-2">
-																		<span className={`text-xs font-black tracking-wider uppercase px-2 py-1 rounded-md ${passed ? 'bg-success text-white' : 'bg-destructive text-white'}`}>
+															return (
+																<div className="space-y-2">
+																	<div className="flex justify-between items-end">
+																		<span className={`text-xs font-bold uppercase tracking-wider ${passed ? (isPerfect ? 'text-yellow-600' : 'text-success') : 'text-destructive'}`}>
 																			{passed
-																				? (language === 'bm' ? 'LULUS' : 'PASS')
-																				: (language === 'bm' ? 'GAGAL' : 'FAIL')
+																				? (language === 'bm' ? 'LULUS' : 'PASSED')
+																				: (language === 'bm' ? 'GAGAL' : 'FAILED')
 																			}
 																		</span>
-																	</div>
-																	<div className="text-right">
-																		<span className={`text-2xl font-black ${passed ? 'text-success' : 'text-destructive'}`}>
+																		<span className={`text-xl font-black ${passed ? (isPerfect ? 'text-yellow-600' : 'text-success') : 'text-destructive'}`}>
 																			{percentage.toFixed(0)}%
 																		</span>
 																	</div>
+
+																	{/* Custom Progress Bar with Pass Mark */}
+																	<div className="relative h-2.5 w-full bg-black/5 rounded-full overflow-hidden">
+																		{/* Pass Mark Indicator Line */}
+																		<div
+																			className="absolute top-0 bottom-0 w-0.5 bg-black/20 z-10"
+																			style={{ left: `${passingPercentage}%` }}
+																			title={`Pass Mark: ${passingPercentage}%`}
+																		/>
+																		<div
+																			className={`h-full transition-all duration-1000 ease-out rounded-full ${passed ? (isPerfect ? 'bg-yellow-500' : 'bg-success') : 'bg-destructive'}`}
+																			style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
+																		/>
+																	</div>
 																</div>
+															);
+														})()}
+													</div>
+												)}
 
-																<div className="w-full h-2 bg-black/5 rounded-full overflow-hidden mb-4">
-																	<div
-																		className={`h-full transition-all duration-1000 ease-out rounded-full ${passed ? 'bg-success' : 'bg-destructive'}`}
-																		style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
-																	/>
-																</div>
-
-																<Button
-																	variant="ghost"
-																	size="sm"
-																	className={`w-full h-7 text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all duration-200 border rounded-lg ${passed
-																		? 'hover:bg-success/5 border-success/10 text-success'
-																		: 'hover:bg-destructive/5 border-destructive/10 text-destructive'
-																		}`}
-																	onClick={() => setSelectedResult(submission)}
-																>
-																	<Eye className="h-3.5 w-3.5" />
-																	{language === 'bm' ? 'Lihat Keputusan' : 'View Results'}
-																</Button>
-															</div>
-														);
-													})()}
-													<Link
-														href={`/assessments/${assessment.id}/take`}
-														className="block w-full"
-													>
-														<Button className="w-full h-11 text-base shadow-md group-hover:shadow-lg transition-all" variant="default">
-															{language === 'bm' ? 'Ambil Penilaian' : 'Take Assessment'}
-															<ArrowRight className="h-5 w-5 ml-2" />
-														</Button>
-													</Link>
-
-												</div>
-											)
-										) : (
-											<>
-
-												<div className="grid grid-cols-2 gap-3">
-													<Link href={`/assessments/${assessment.id}/edit`} className="w-full">
-														<Button variant="outline" className="w-full h-10 border-primary/20 hover:bg-primary/5 hover:border-primary/50 text-primary">
-															<Edit2 className="h-4 w-4 mr-2" />
-															{language === 'bm' ? 'Edit' : 'Edit'}
-														</Button>
-													</Link>
-													<Link href={`/assessments/${assessment.id}/submissions`} className="w-full">
-														<Button variant="outline" className="w-full h-10 border-info/20 hover:bg-info/5 hover:border-info/50 text-info">
-															<FileText className="h-4 w-4 mr-2" />
-															{language === 'bm' ? 'Penghantaran' : 'Submissions'}
-														</Button>
-													</Link>
-													<Button
-														variant="outline"
-														onClick={() => togglePublish(assessment)}
-														title={assessment.published
-															? (language === 'bm' ? 'Nyahterbit' : 'Unpublish')
-															: (language === 'bm' ? 'Terbitkan' : 'Publish')}
-														className={`w-full h-10 ${assessment.published
-															? "border-warning/20 text-warning hover:bg-warning/5 hover:border-warning/50"
-															: "border-success/20 text-success hover:bg-success/5 hover:border-success/50"}`}
-													>
-														{assessment.published ? (
-															<>
-																<EyeOff className="h-4 w-4 mr-2" />
-																{language === 'bm' ? 'Nyahterbit' : 'Unpublish'}
-															</>
-														) : (
-															<>
+												{/* Dynamic Actions */}
+												{assessment.type === 'assignment' ? (
+													<div className="mt-2">
+														<Link href={`/assessments/${assessment.id}/submit`} className="block w-full">
+															<Button
+																className={`w-full h-10 shadow-sm transition-all ${status === 'past_due'
+																		? 'bg-neutral text-muted-foreground hover:bg-neutral/80'
+																		: (submission ? 'bg-white text-primary border border-primary/20 hover:bg-primary/5 hover:border-primary/50' : '')
+																	}`}
+																variant={status === 'past_due' ? 'secondary' : (submission ? 'outline' : 'default')}
+																disabled={status === 'past_due' && !submission}
+															>
+																{status === 'past_due' ? (
+																	<>
+																		<Eye className="h-4 w-4 mr-2" />
+																		{language === 'bm' ? 'Lihat Semakan' : 'View Review'}
+																	</>
+																) : submission ? (
+																	<>
+																		<Eye className="h-4 w-4 mr-2" />
+																		{language === 'bm' ? 'Lihat / Kemas Kini' : 'View / Update'}
+																	</>
+																) : (
+																	<>
+																		<Upload className="h-4 w-4 mr-2" />
+																		{language === 'bm' ? 'Hantar Tugasan' : 'Submit Assignment'}
+																	</>
+																)}
+															</Button>
+														</Link>
+													</div>
+												) : (
+													// Quiz / Coding Actions
+													<div className="grid grid-cols-1 gap-2 mt-2">
+														{submission ? (
+															<Button
+																variant="outline"
+																className="w-full h-10 border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/40"
+																onClick={() => setSelectedResult(submission)}
+															>
 																<Eye className="h-4 w-4 mr-2" />
-																{language === 'bm' ? 'Terbitkan' : 'Publish'}
-															</>
+																{language === 'bm' ? 'Lihat Keputusan' : 'View Results'}
+															</Button>
+														) : (
+															status === 'past_due' ? (
+																<Button variant="secondary" disabled className="w-full h-10 opacity-70">
+																	{language === 'bm' ? 'Tamat Tempoh' : 'Past Due'}
+																</Button>
+															) : (
+																<Link href={`/assessments/${assessment.id}/take`} className="block w-full">
+																	<Button className="w-full h-10 bg-primary hover:bg-primary/90 text-white shadow-md hover:shadow-lg transition-all">
+																		{status === 'submitted' ? (
+																			<>
+																				<ArrowRight className="h-4 w-4 mr-2" />
+																				{language === 'bm' ? 'Sambung' : 'Resume'}
+																			</>
+																		) : (
+																			<>
+																				<ClipboardCheck className="h-4 w-4 mr-2" />
+																				{language === 'bm' ? 'Mula Penilaian' : 'Take Assessment'}
+																			</>
+																		)}
+																	</Button>
+																</Link>
+															)
 														)}
+													</div>
+												)}
+											</div>
+										) : (
+											// Teacher Actions (unchanged logic, improved style)
+											<div className="grid grid-cols-2 gap-2">
+												<Link href={`/assessments/${assessment.id}/edit`} className="w-full">
+													<Button variant="outline" className="w-full h-9 text-xs border-primary/20 hover:bg-primary/5 hover:border-primary/50 text-primary">
+														<Edit2 className="h-3.5 w-3.5 mr-1.5" />
+														Edit
 													</Button>
-													<Button
-														variant="outline"
-														onClick={() => confirmDelete(assessment.id)}
-														className="w-full h-10 border-destructive/20 text-destructive hover:bg-destructive/5 hover:border-destructive/50"
-													>
-														<Trash2 className="h-4 w-4 mr-2" />
-														{language === 'bm' ? 'Padam' : 'Delete'}
+												</Link>
+												<Link href={`/assessments/${assessment.id}/submissions`} className="w-full">
+													<Button variant="outline" className="w-full h-9 text-xs border-info/20 hover:bg-info/5 hover:border-info/50 text-info">
+														<FileText className="h-3.5 w-3.5 mr-1.5" />
+														Submissions
 													</Button>
-												</div>
-											</>
+												</Link>
+												<Button
+													variant="outline"
+													onClick={() => togglePublish(assessment)}
+													className={`w-full h-9 text-xs ${assessment.published
+														? "border-warning/20 text-warning hover:bg-warning/5 hover:border-warning/50"
+														: "border-success/20 text-success hover:bg-success/5 hover:border-success/50"}`}
+												>
+													{assessment.published ? (
+														<>
+															<EyeOff className="h-3.5 w-3.5 mr-1.5" />
+															Unpublish
+														</>
+													) : (
+														<>
+															<Eye className="h-3.5 w-3.5 mr-1.5" />
+															Publish
+														</>
+													)}
+												</Button>
+												<Button
+													variant="outline"
+													onClick={() => confirmDelete(assessment.id)}
+													className="w-full h-9 text-xs border-destructive/20 text-destructive hover:bg-destructive/5 hover:border-destructive/50"
+												>
+													<Trash2 className="h-3.5 w-3.5 mr-1.5" />
+													Delete
+												</Button>
+											</div>
 										)}
 									</div>
 								</CardContent>

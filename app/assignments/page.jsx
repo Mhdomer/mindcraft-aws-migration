@@ -16,6 +16,7 @@ export default function AssignmentsPage() {
 	const [userRole, setUserRole] = useState(null);
 	const [currentUserId, setCurrentUserId] = useState(null);
 	const [deleteConfirm, setDeleteConfirm] = useState(null);
+	const [submissions, setSubmissions] = useState({});
 	const router = useRouter();
 
 	useEffect(() => {
@@ -57,6 +58,20 @@ export default function AssignmentsPage() {
 				const enrollmentSnapshot = await getDocs(enrollmentsQuery);
 				const enrolledCourseIds = enrollmentSnapshot.docs.map(doc => doc.data().courseId);
 
+				// Fetch submissions
+				const submissionsQuery = query(
+					collection(db, 'submission'),
+					where('studentId', '==', currentUserId)
+				);
+				const submissionSnapshot = await getDocs(submissionsQuery);
+				const subMap = {};
+				submissionSnapshot.docs.forEach(doc => {
+					const data = doc.data();
+					// Store by assignmentId
+					subMap[data.assignmentId] = { id: doc.id, ...data };
+				});
+				setSubmissions(subMap);
+
 				if (enrolledCourseIds.length > 0) {
 					// 2. Fetch published assignments for those courses
 					// Using multiple queries if more than 10 courses, but usually it's few
@@ -72,7 +87,7 @@ export default function AssignmentsPage() {
 						...doc.data(),
 					}));
 
-					// Sort by createdAt in memory to avoid needing a complex composite index immediately
+					// Sort by createdAt in memory
 					loadedAssignments.sort((a, b) => {
 						const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
 						const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
@@ -189,6 +204,31 @@ export default function AssignmentsPage() {
 		return deadlineDate < new Date();
 	}
 
+	function getRelativeTime(deadline) {
+		if (!deadline) return null;
+		const date = deadline.toDate ? deadline.toDate() : new Date(deadline);
+		const now = new Date();
+		const diffMs = date - now;
+		const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+		const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+		if (diffMs < 0) {
+			// Past
+			const absDays = Math.abs(diffDays);
+			if (absDays === 0) return 'Ended today';
+			if (absDays === 1) return 'Ended yesterday';
+			return `Ended ${absDays} days ago`;
+		} else {
+			// Future
+			if (diffHours < 24) {
+				if (diffHours <= 0) return `Due in less than an hour`;
+				return `Due in ${diffHours} hours`;
+			}
+			if (diffDays === 1) return 'Due tomorrow';
+			return `Due in ${diffDays} days`;
+		}
+	}
+
 	function stripHtml(html) {
 		if (!html) return '';
 		// Remove HTML tags and decode entities
@@ -251,86 +291,121 @@ export default function AssignmentsPage() {
 				<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
 					{assignments.map((assignment) => {
 						const deadlinePassed = isDeadlinePassed(assignment.deadline);
+						const submission = submissions[assignment.id];
+
+						// Urgency Logic
+						const deadlineDate = assignment.deadline ? (assignment.deadline.toDate ? assignment.deadline.toDate() : new Date(assignment.deadline)) : null;
+						const now = new Date();
+						const hoursUntilDue = deadlineDate ? (deadlineDate - now) / (1000 * 60 * 60) : 0;
+						const isBefore24h = hoursUntilDue > 0 && hoursUntilDue < 24;
 
 						return (
-							<Card key={assignment.id} className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-border/50 bg-white/50 backdrop-blur-sm rounded-2xl">
+							<Card key={assignment.id} className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-border/50 bg-white/50 backdrop-blur-sm rounded-2xl flex flex-col">
 								<div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-								<CardHeader className="relative border-b border-primary/5 p-6 space-y-4">
+								<CardHeader className="relative border-b border-primary/5 p-6 space-y-3 pb-4">
 									<div className="flex items-start justify-between">
-										<div className="flex-1">
-											<CardTitle className="text-2xl font-bold text-neutralDark leading-tight group-hover:text-primary transition-colors">{assignment.title}</CardTitle>
+										<div className="flex-1 space-y-2">
+											{/* Metadata / Tags */}
 											<div className="flex flex-wrap gap-2">
-												{assignment.status === 'published' ? (
-													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/10 text-success border border-success/20">
-														Published
-													</span>
+												{/* Status Tags */}
+												{isTeacherOrAdmin ? (
+													<>
+														{assignment.status === 'published' ? (
+															<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-success/10 text-success border border-success/20">
+																Published
+															</span>
+														) : (
+															<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-warning/10 text-warning border border-warning/20">
+																Draft
+															</span>
+														)}
+													</>
 												) : (
-													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning/10 text-warning border border-warning/20">
-														Draft
-													</span>
+													// Student Status Tags
+													<>
+														{submission ? (
+															<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-info/10 text-info border border-info/20 gap-1">
+																<CheckCircle className="h-3 w-3" />
+																Submitted
+															</span>
+														) : deadlinePassed ? (
+															<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-destructive/10 text-destructive border border-destructive/20 gap-1">
+																<XCircle className="h-3 w-3" />
+																Closed
+															</span>
+														) : (
+															<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-success/10 text-success border border-success/20 gap-1">
+																<CheckCircle className="h-3 w-3" />
+																Open
+															</span>
+														)}
+													</>
 												)}
-												{assignment.isOpen ? (
-													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-info/10 text-info border border-info/20 gap-1.5">
-														<CheckCircle className="h-3 w-3" />
-														Open
-													</span>
-												) : (
-													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border gap-1.5">
-														<XCircle className="h-3 w-3" />
-														Closed
-													</span>
-												)}
-												{deadlinePassed && (
-													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20 gap-1.5">
-														<AlertCircle className="h-3 w-3" />
-														Past Due
+
+												{/* Course Tag as Metadata */}
+												{assignment.courseTitle && (
+													<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-neutral/10 text-neutralDark/60 border border-neutral/20 max-w-[150px] truncate">
+														{assignment.courseTitle}
 													</span>
 												)}
 											</div>
+
+											<CardTitle className="text-xl font-bold text-neutralDark leading-tight group-hover:text-primary transition-colors line-clamp-2">
+												{assignment.title}
+											</CardTitle>
 										</div>
 									</div>
 								</CardHeader>
-								<CardContent className="relative z-10 space-y-4">
-									{assignment.description && (
-										<p className="text-muted-foreground line-clamp-2 text-sm leading-relaxed">
-											{stripHtml(assignment.description)}
-										</p>
-									)}
-
-									{assignment.courseTitle && (
-										<p className="text-sm text-muted-foreground">
-											Course: {assignment.courseTitle}
-										</p>
-									)}
-
+								<CardContent className="relative z-10 flex-1 flex flex-col p-6 pt-4 space-y-4">
 									{assignment.deadline && (
-										<div className="flex items-center gap-2 text-sm bg-muted/30 p-2 rounded-lg border border-border/50">
-											<Calendar className={`h-4 w-4 ${deadlinePassed ? 'text-destructive' : 'text-muted-foreground'}`} />
-											<div className="flex gap-1.5 items-baseline">
-												<span className={`text-[10px] uppercase font-bold tracking-wider opacity-70 ${deadlinePassed ? 'text-destructive' : 'text-muted-foreground'}`}>
-													Due
+										<div className={`flex items-center gap-3 p-3 rounded-lg border text-xs font-medium transition-colors ${deadlinePassed
+											? 'bg-neutral/5 border-neutral/10 text-muted-foreground' // Muted for past due
+											: isBefore24h
+												? 'bg-warning/10 border-warning/30 text-warning-foreground' // Yellow for urgency
+												: 'bg-white border-border/50 text-muted-foreground' // Default
+											}`}>
+											<Clock className={`h-4 w-4 ${isBefore24h ? 'text-warning' : 'opacity-70'}`} />
+											<div className="flex flex-col">
+												<span className="uppercase tracking-wider text-[10px] opacity-70 mb-0.5">
+													{deadlinePassed ? 'Deadline Passed' : 'Due Date'}
 												</span>
-												<span className={deadlinePassed ? 'text-destructive font-medium' : 'text-muted-foreground'}>
-													{formatDate(assignment.deadline)}
-												</span>
+												<div className="flex items-baseline gap-2">
+													<span>{formatDate(assignment.deadline)}</span>
+													<span className="w-1 h-1 rounded-full bg-current opacity-30" />
+													<span className={isBefore24h ? 'font-bold' : ''}>
+														{getRelativeTime(assignment.deadline)}
+													</span>
+												</div>
 											</div>
 										</div>
 									)}
 
-									<div className="pt-4 border-t border-border/50">
+									{/* Description with Typography Fix */}
+									{assignment.description && (
+										<div className="text-sm">
+											<span className="block text-xs font-bold text-neutralDark/50 uppercase tracking-wider mb-1">
+												Overview
+											</span>
+											<p className="text-muted-foreground line-clamp-3 leading-relaxed">
+												{stripHtml(assignment.description)}
+											</p>
+										</div>
+									)}
+
+									<div className="pt-2 mt-auto">
 										{isTeacherOrAdmin ? (
 											<div className="grid grid-cols-2 gap-3">
 												<Link href={`/assignments/${assignment.id}/edit`} className="w-full">
-													<Button variant="outline" className="w-full h-10 border-primary/20 hover:bg-primary/5 hover:border-primary/50 text-primary">
-														<Edit2 className="h-4 w-4 mr-2" />
+													<Button variant="outline" className="w-full h-9 text-xs border-primary/20 hover:bg-primary/5 hover:border-primary/50 text-primary">
+														<Edit2 className="h-3.5 w-3.5 mr-1.5" />
 														Edit
 													</Button>
 												</Link>
 
 												<Link href={`/assignments/${assignment.id}`} className="w-full">
-													<Button variant="outline" className="w-full h-10 border-neutral-300 hover:bg-neutral-100">
-														<FileText className="h-4 w-4 mr-2" />
-														Submissions
+													<Button variant="outline" className="w-full h-9 text-xs border-neutral-300 hover:bg-neutral-100">
+														<FileText className="h-3.5 w-3.5 mr-1.5" />
+														Subs
 													</Button>
 												</Link>
 
@@ -338,19 +413,19 @@ export default function AssignmentsPage() {
 													variant="outline"
 													onClick={() => togglePublish(assignment)}
 													title={assignment.status === 'published' ? 'Unpublish' : 'Publish'}
-													className={`w-full h-10 ${assignment.status === 'published'
+													className={`w-full h-9 text-xs ${assignment.status === 'published'
 														? "border-warning/20 text-warning hover:bg-warning/5 hover:border-warning/50"
 														: "border-success/20 text-success hover:bg-success/5 hover:border-success/50"}`}
 												>
 													{assignment.status === 'published' ? (
 														<>
-															<EyeOff className="h-4 w-4 mr-2" />
-															Unpublish
+															<EyeOff className="h-3.5 w-3.5 mr-1.5" />
+															Unpub
 														</>
 													) : (
 														<>
-															<Eye className="h-4 w-4 mr-2" />
-															Publish
+															<Eye className="h-3.5 w-3.5 mr-1.5" />
+															Pub
 														</>
 													)}
 												</Button>
@@ -358,19 +433,38 @@ export default function AssignmentsPage() {
 												<Button
 													variant="outline"
 													onClick={() => confirmDelete(assignment.id)}
-													className="w-full h-10 border-destructive/20 text-destructive hover:bg-destructive/5 hover:border-destructive/50"
+													className="w-full h-9 text-xs border-destructive/20 text-destructive hover:bg-destructive/5 hover:border-destructive/50"
 												>
-													<Trash2 className="h-4 w-4 mr-2" />
-													Delete
+													<Trash2 className="h-3.5 w-3.5 mr-1.5" />
+													Del
 												</Button>
 											</div>
 										) : (
-											<Link href={`/assignments/${assignment.id}`} className="block w-full">
-												<Button className="w-full h-11 text-base shadow-md group-hover:shadow-lg transition-all" variant="default">
-													View Details
-													<ArrowRight className="h-5 w-5 ml-2" />
-												</Button>
-											</Link>
+											// Student Actions
+											<div className="w-full">
+												{submission ? (
+													<Link href={`/assignments/${assignment.id}`} className="block w-full">
+														<Button variant="outline" className="w-full h-11 text-base border-primary/20 text-primary hover:bg-primary/5">
+															<FileText className="h-4 w-4 mr-2" />
+															View Submission
+														</Button>
+													</Link>
+												) : !deadlinePassed ? (
+													<Link href={`/assignments/${assignment.id}`} className="block w-full">
+														<Button className="w-full h-11 text-base shadow-md group-hover:shadow-lg transition-all" variant="default">
+															Start Assignment
+															<ArrowRight className="h-4 w-4 ml-2" />
+														</Button>
+													</Link>
+												) : (
+													<Link href={`/assignments/${assignment.id}`} className="block w-full">
+														<Button variant="secondary" className="w-full h-11 text-base text-muted-foreground bg-muted/50 hover:bg-muted">
+															<Eye className="h-4 w-4 mr-2" />
+															View Details
+														</Button>
+													</Link>
+												)}
+											</div>
 										)}
 									</div>
 								</CardContent>
