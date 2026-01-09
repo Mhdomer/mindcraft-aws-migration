@@ -1,9 +1,8 @@
 import '../styles/globals.css';
-import MainLayout from '@/components/MainLayout';
+import ClientLayout from '@/components/ClientLayout';
 import { cookies } from 'next/headers';
-import Sidebar from '@/components/Sidebar';
-import Header from '@/components/Header';
 import { LanguageProvider } from '@/app/contexts/LanguageContext';
+import { AuthProvider } from '@/app/contexts/AuthContext';
 
 export const metadata = {
 	title: 'MindCraft',
@@ -93,19 +92,11 @@ export default async function RootLayout({ children }) {
 			</head>
 			<body className="min-h-screen bg-neutralLight font-sans">
 				<LanguageProvider>
-					<div className="flex min-h-screen">
-						{/* Sidebar - in normal flow, takes up space. Only show for logged in users (not guest) */}
-						{role !== 'guest' && <Sidebar role={role} navItems={navItems} />}
-
-						{/* Main content area */}
-						<div className="flex-1 flex flex-col min-w-0">
-							{/* Header - spans rest of width */}
-							<Header role={role} />
-
-							{/* Main content */}
-							<MainLayout>{children}</MainLayout>
-						</div>
-					</div>
+					<AuthProvider>
+						<ClientLayout role={role} navItems={navItems}>
+							{children}
+						</ClientLayout>
+					</AuthProvider>
 				</LanguageProvider>
 			</body>
 		</html>

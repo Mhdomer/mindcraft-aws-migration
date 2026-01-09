@@ -6,7 +6,7 @@ import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { BookOpen, CheckCircle2, Clock, Award, FileText, ClipboardCheck, TrendingUp, TrendingDown, Calendar, AlertTriangle, Target, Lightbulb, Info, Activity, Printer, Download, LayoutDashboard, ArrowLeft } from 'lucide-react';
+import { BookOpen, CheckCircle2, Clock, Award, FileText, ClipboardCheck, TrendingUp, TrendingDown, Calendar, AlertTriangle, Target, Lightbulb, Info, Activity, Printer, Download, LayoutDashboard, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -59,31 +59,30 @@ export default function ProgressPage() {
 	// US011-05: Dashboard View State
 	const [currentView, setCurrentView] = useState('hub');
 
-	const DashboardBlock = ({ title, description, icon: Icon, onClick, colorClass, gradient }) => (
+	const DashboardBlock = ({ title, description, icon: Icon, onClick, colorClass }) => (
 		<Card
-			className={`cursor-pointer hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 block h-full overflow-hidden border-0 shadow-md ${gradient || 'bg-white'}`}
+			className={`cursor-pointer border-none shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 h-full overflow-hidden bg-white group ring-1 ring-gray-100 hover:ring-primary/20 relative`}
 			onClick={onClick}
 		>
-			<div className="h-full flex flex-col relative">
-				{gradient && (
-					<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2">
-						<Icon className="w-24 h-24 text-white" />
-					</div>
-				)}
-				<CardHeader className={`${gradient ? 'text-white' : ''}`}>
-					<div className="flex items-center gap-3 mb-2">
-						<div className={`p-2 rounded-lg ${gradient ? 'bg-white/20' : 'bg-neutral-100'}`}>
-							<Icon className={`h-6 w-6 ${gradient ? 'text-white' : colorClass}`} />
-						</div>
-					</div>
-					<CardTitle className={`text-lg font-bold ${gradient ? 'text-white' : 'text-neutralDark'}`}>
-						{title}
-					</CardTitle>
-				</CardHeader>
-				<CardContent className={`flex-1 ${gradient ? 'text-white/90' : 'text-muted-foreground'}`}>
-					<p className="text-sm">{description}</p>
-				</CardContent>
-			</div>
+			<div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-gray-50 to-gray-100 rounded-bl-full -mr-10 -mt-10 opacity-50 group-hover:scale-150 transition-transform duration-700 ease-in-out"></div>
+
+			<CardContent className="p-6 relative z-10 flex flex-col h-full">
+				<div className={`p-3 w-fit rounded-xl bg-gray-50 group-hover:bg-white group-hover:shadow-md transition-all duration-300 mb-4 ${colorClass.replace('text-', 'bg-').replace('500', '50')} ${colorClass}`}>
+					<Icon className={`h-9 w-9 ${colorClass}`} />
+				</div>
+
+				<h3 className="text-lg font-bold text-neutralDark mb-2 group-hover:text-primary transition-colors">
+					{title}
+				</h3>
+
+				<p className="text-sm text-muted-foreground leading-relaxed flex-grow">
+					{description}
+				</p>
+
+				<div className="mt-4 flex items-center text-xs font-semibold uppercase tracking-wider text-primary opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+					{language === 'bm' ? 'Lihat Butiran' : 'View Details'} <ArrowRight className="h-3 w-3 ml-1" />
+				</div>
+			</CardContent>
 		</Card>
 	);
 
@@ -715,60 +714,63 @@ export default function ProgressPage() {
 					<div className={currentView !== 'hub' && !isPrinting ? 'print:hidden' : 'mb-16 print:hidden'}>
 						{currentView === 'hub' && (
 							<div className="grid gap-6 md:grid-cols-3">
-								<Card className="border-none shadow-md bg-gradient-to-br from-blue-500 to-blue-600 text-white overflow-hidden relative">
-									<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2">
-										<BookOpen className="w-24 h-24" />
+								<Card className="border-none shadow-md hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-500 to-blue-600 text-white overflow-hidden relative group cursor-pointer hover:-translate-y-1">
+									<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2 group-hover:scale-110 transition-transform duration-500">
+										<BookOpen className="w-[105px] h-[105px]" />
 									</div>
+									<div className="absolute -inset-1 bg-gradient-to-r from-blue-400 to-blue-300 opacity-20 blur group-hover:opacity-40 transition skew-x-12 translate-x-full group-hover:translate-x-[-200%] duration-1000"></div>
 									<CardContent className="pt-6 relative z-10">
 										<div className="flex items-center justify-between">
 											<div>
-												<p className="text-blue-100 font-medium text-sm">
+												<p className="text-blue-100 font-medium text-sm uppercase tracking-wide">
 													{language === 'bm' ? 'Kursus yang Didaftarkan' : 'Enrolled Courses'}
 												</p>
 												<p className="text-4xl font-bold mt-2">{courseProgress.length}</p>
 											</div>
-											<div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
-												<BookOpen className="h-[34px] w-[34px] text-white" />
+											<div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+												<BookOpen className="h-[38px] w-[38px] text-white" />
 											</div>
 										</div>
 									</CardContent>
 								</Card>
-								<Card className="border-none shadow-md bg-gradient-to-br from-emerald-500 to-emerald-600 text-white overflow-hidden relative">
-									<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2">
-										<CheckCircle2 className="w-24 h-24" />
+								<Card className="border-none shadow-md hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white overflow-hidden relative group cursor-pointer hover:-translate-y-1">
+									<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2 group-hover:scale-110 transition-transform duration-500">
+										<CheckCircle2 className="w-[105px] h-[105px]" />
 									</div>
+									<div className="absolute -inset-1 bg-gradient-to-r from-emerald-400 to-emerald-300 opacity-20 blur group-hover:opacity-40 transition skew-x-12 translate-x-full group-hover:translate-x-[-200%] duration-1000"></div>
 									<CardContent className="pt-6 relative z-10">
 										<div className="flex items-center justify-between">
 											<div>
-												<p className="text-emerald-100 font-medium text-sm">
+												<p className="text-emerald-100 font-medium text-sm uppercase tracking-wide">
 													{language === 'bm' ? 'Pelajaran Selesai' : 'Completed Lessons'}
 												</p>
 												<p className="text-4xl font-bold mt-2">
 													{courseProgress.reduce((sum, course) => sum + course.completedLessons, 0)}
 												</p>
 											</div>
-											<div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
-												<CheckCircle2 className="h-[34px] w-[34px] text-white" />
+											<div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+												<CheckCircle2 className="h-[38px] w-[38px] text-white" />
 											</div>
 										</div>
 									</CardContent>
 								</Card>
-								<Card className="border-none shadow-md bg-gradient-to-br from-violet-500 to-violet-600 text-white overflow-hidden relative">
-									<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2">
-										<ClipboardCheck className="w-24 h-24" />
+								<Card className="border-none shadow-md hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-violet-500 to-violet-600 text-white overflow-hidden relative group cursor-pointer hover:-translate-y-1">
+									<div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2 group-hover:scale-110 transition-transform duration-500">
+										<ClipboardCheck className="w-[105px] h-[105px]" />
 									</div>
+									<div className="absolute -inset-1 bg-gradient-to-r from-violet-400 to-violet-300 opacity-20 blur group-hover:opacity-40 transition skew-x-12 translate-x-full group-hover:translate-x-[-200%] duration-1000"></div>
 									<CardContent className="pt-6 relative z-10">
 										<div className="flex items-center justify-between">
 											<div>
-												<p className="text-violet-100 font-medium text-sm">
+												<p className="text-violet-100 font-medium text-sm uppercase tracking-wide">
 													{language === 'bm' ? 'Penilaian Selesai' : 'Assessments Completed'}
 												</p>
 												<p className="text-4xl font-bold mt-2">
 													{courseProgress.reduce((sum, course) => sum + course.assessments.length, 0)}
 												</p>
 											</div>
-											<div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
-												<ClipboardCheck className="h-[34px] w-[34px] text-white" />
+											<div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+												<ClipboardCheck className="h-[38px] w-[38px] text-white" />
 											</div>
 										</div>
 									</CardContent>
@@ -782,11 +784,11 @@ export default function ProgressPage() {
 								<div className="flex items-center gap-4 mb-4">
 									<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
 										{language === 'bm' ? 'Pencapaian Saya' : 'My Achievements'}
-										<Award className="h-6 w-6 text-amber-500" />
+										<Award className="h-[26px] w-[26px] text-amber-500" />
 									</h2>
 									<div className="h-px bg-neutral-200 flex-1" />
 								</div>
-								<div className="grid gap-4 md:grid-cols-3">
+								<div className="grid gap-6 md:grid-cols-3">
 									{achievements.map((achievement) => {
 										const definition = ACHIEVEMENT_DEFINITIONS[achievement.id];
 										if (!definition) return null;
@@ -796,23 +798,28 @@ export default function ProgressPage() {
 										const description = definition.description[language] || definition.description['en'];
 
 										return (
-											<Card key={achievement.id} className="border-none shadow-sm hover:shadow-md transition-shadow bg-white overflow-hidden relative">
-												<div className={`absolute top-0 right-0 p-3 opacity-10 transform translate-x-2 -translate-y-2 ${definition.color.replace('text-', 'bg-').replace('bg-', 'text-')}`}>
-													<Icon className="w-16 h-16" />
+											<Card key={achievement.id} className="border-none shadow-md hover:shadow-xl transition-all duration-300 bg-white overflow-hidden relative group cursor-pointer border-t-4 hover:-translate-y-1 hover:border-t-8 transition-all" style={{ borderColor: definition.color.includes('blue') ? '#3b82f6' : definition.color.includes('amber') ? '#f59e0b' : '#10b981' }}>
+												<div className={`absolute top-0 right-0 p-3 opacity-5 transform translate-x-2 -translate-y-2 group-hover:scale-110 transition-transform duration-500`}>
+													<Icon className="w-[105px] h-[105px]" style={{ color: definition.color.includes('blue') ? '#3b82f6' : definition.color.includes('amber') ? '#f59e0b' : '#10b981' }} />
 												</div>
-												<CardContent className="p-5 relative z-10 flex items-start gap-4">
-													<div className={`p-3 rounded-xl ${definition.color} bg-opacity-20`}>
-														<Icon className={`h-6 w-6 ${definition.color.split(' ')[0]}`} />
+												<CardContent className="p-6 relative z-10 flex flex-col items-start gap-4 h-full">
+													<div className={`p-4 rounded-xl shadow-sm ${definition.color} ring-1 ring-inset ring-black/5 group-hover:scale-105 transition-transform duration-300`}>
+														<Icon className={`h-9 w-9 ${definition.color.split(' ')[0]}`} />
 													</div>
-													<div>
-														<h3 className="font-bold text-neutralDark">{title}</h3>
-														<p className="text-xs text-muted-foreground mt-1 mb-2">{description}</p>
-														{achievement.date && (
-															<span className="text-[10px] bg-neutral-100 px-2 py-0.5 rounded-full text-neutral-500">
+													<div className="flex-1">
+														<h3 className="text-lg font-bold text-neutralDark mb-1">{title}</h3>
+														<p className="text-sm text-muted-foreground mb-4 leading-relaxed">{description}</p>
+													</div>
+													{achievement.date && (
+														<div className="w-full pt-4 border-t border-gray-100 flex items-center gap-2 mt-auto">
+															<span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+																{language === 'bm' ? 'Diperolehi' : 'Earned'}:
+															</span>
+															<span className="text-xs font-medium bg-neutral-100 px-2 py-1 rounded-md text-neutral-600">
 																{formatDate(achievement.date)}
 															</span>
-														)}
-													</div>
+														</div>
+													)}
 												</CardContent>
 											</Card>
 										);
@@ -828,7 +835,7 @@ export default function ProgressPage() {
 								<div className="flex items-center gap-4 mb-6">
 									<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
 										{language === 'bm' ? 'Papan Pemuka Kemajuan' : 'Progress Dashboard'}
-										<LayoutDashboard className="h-6 w-6 text-primary" />
+										<LayoutDashboard className="h-[26px] w-[26px] text-primary" />
 									</h2>
 									<div className="h-px bg-neutral-200 flex-1" />
 								</div>
