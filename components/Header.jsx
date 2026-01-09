@@ -7,76 +7,69 @@ import SignOutButton from '@/app/components/SignOutButton';
 
 import { Button } from './ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useAuth } from '@/app/contexts/AuthContext';
 import NotificationBell from './NotificationBell';
 import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 
-import { User } from 'lucide-react';
+import { User, Menu } from 'lucide-react';
 
-export default function Header({ role: initialRole }) {
+export default function Header({ role: initialRole, toggleSidebar }) {
 	const router = useRouter();
+	// ... (omitting lines for brevity, wait, replacement content must be precise if I use replace_file_content)
+	// I will split this into two replacements or use multi_replace.
+	// One to add import, one to replace button.
 	// ... (omitting lines for brevity, wait, replacement content must be precise if I use replace_file_content)
 	// I will split this into two replacements or use multi_replace.
 	// One to add import, one to replace button.
 	const pathname = usePathname();
 	const { language, setLanguage } = useLanguage();
+	const { userData } = useAuth();
+
 	const [currentRole, setCurrentRole] = useState(initialRole);
 
-	// Listen to auth state changes and refresh the page
+	// Sync local role with AuthContext data
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				// Get user role from Firestore
-				try {
-					const userDocRef = doc(db, 'user', user.uid);
-					const userDoc = await getDoc(userDocRef);
+		if (userData && userData.role && userData.role !== currentRole) {
+			setCurrentRole(userData.role);
+			router.refresh();
+		} else if (!userData && initialRole === 'guest') {
+			setCurrentRole('guest');
+		}
+	}, [userData, currentRole, initialRole, router]);
 
-					if (userDoc.exists()) {
-						const userData = userDoc.data();
-						const newRole = userData.role || 'student';
-
-						// Update role if it changed (using functional update to avoid dependency)
-						setCurrentRole(prevRole => {
-							if (newRole !== prevRole) {
-								// Refresh server component to get updated role
-								router.refresh();
-								return newRole;
-							}
-							return prevRole;
-						});
-					}
-				} catch (error) {
-					console.error('Error fetching user role:', error);
-				}
-			} else {
-				// User signed out
-				setCurrentRole(prevRole => {
-					if (prevRole !== 'guest') {
-						router.refresh();
-						return 'guest';
-					}
-					return prevRole;
-				});
-			}
-		});
-
-		return () => unsubscribe();
-	}, [router]);
+	// Listen to auth state changes and refresh the page - REMOVED (Handled by AuthContext)
 
 	// Update role when prop changes (from server refresh)
 	useEffect(() => {
 		setCurrentRole(initialRole);
 	}, [initialRole]);
 
+	if (pathname === '/login') return null;
+
 	return (
 		<header className="sticky top-0 z-40 bg-white border-b border-border shadow-sm relative w-full h-35">
 			<div className="flex items-center h-full w-full px-6">
 				{/* Logo - visible on mobile OR if guest (since sidebar is hidden for guests) */}
-				{/* Logo - visible on mobile OR if guest (since sidebar is hidden for guests) */}
-				<div className="flex items-center gap-2 mr-auto cursor-pointer">
-					<Link href="/" className="relative transition-transform hover:scale-105 block no-underline">
-						<span className="font-pixel text-4xl font-bold text-primary tracking-wider">MindCraft</span>
+				{/* Sidebar Toggle & Logo */}
+				<div className="flex items-center gap-4 mr-auto">
+					{currentRole !== 'guest' && (
+						<Button variant="ghost" size="icon" onClick={toggleSidebar} className="text-neutralDark hover:bg-neutralLight">
+							<Menu className="h-6 w-6" />
+						</Button>
+					)}
+
+					<Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+						<div className="h-10 w-10 rounded-full overflow-hidden border border-border shadow-sm">
+							<img
+								src="/logoMindCraft.jpg"
+								alt="MindCraft Logo"
+								className="w-full h-full object-cover"
+								onError={(e) => e.target.style.display = 'none'}
+							/>
+						</div>
+						<span className="font-pixel text-3xl font-bold text-primary tracking-wider hidden sm:block">MindCraft</span>
 					</Link>
 				</div>
 

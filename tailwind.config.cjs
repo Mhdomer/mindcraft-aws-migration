@@ -93,8 +93,13 @@ module.exports = {
 			animation: {
 				blob: "blob 7s infinite",
 				float: "float 6s ease-in-out infinite",
+				fadeIn: "fadeIn 0.5s ease-out forwards",
 			},
 			keyframes: {
+				fadeIn: {
+					"0%": { opacity: "0", transform: "translateY(10px)" },
+					"100%": { opacity: "1", transform: "translateY(0)" },
+				},
 				blob: {
 					"0%": {
 						transform: "translate(0px, 0px) scale(1)",
