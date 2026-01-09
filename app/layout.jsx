@@ -30,13 +30,33 @@ function getNavItems(role) {
 	} else if (role === 'teacher') {
 		return [
 			{ href: '/dashboard/teacher', label: 'Dashboard' },
-			{ href: '/dashboard/courses/new', label: 'Create Course' },
-			{ href: '/admin/courses', label: 'Manage Courses' },
-			{ href: '/profile', label: 'Profile' },
-			{ href: '/assessments', label: 'Assessments' },
-			{ href: '/assignments', label: 'Assignments' },
+			{
+				href: '/courses',
+				label: 'Courses',
+				children: [
+					{ href: '/dashboard/courses/new', label: 'Create Course' },
+					{ href: '/admin/courses', label: 'Manage Courses' },
+				],
+			},
+			{
+				href: '/activities',
+				label: 'Activities',
+				children: [
+					{ href: '/assessments', label: 'Assessments' },
+					{ href: '/assignments', label: 'Assignments' },
+					{ href: '/game-levels', label: 'Game Levels' },
+				],
+			},
 			{ href: '/analytics', label: 'Analytics' },
 			{ href: '/forum', label: 'Forum' },
+			{
+				href: '/profile',
+				label: 'Account',
+				children: [
+					{ href: '/profile', label: 'Profile' },
+					{ href: '/settings', label: 'Settings' },
+				],
+			},
 		];
 	} else if (role === 'student') {
 		return [
@@ -90,7 +110,7 @@ export default async function RootLayout({ children }) {
 				<link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
 				<link href="https://fonts.googleapis.com/css2?family=Silkscreen&family=VT323&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet" />
 			</head>
-			<body className="min-h-screen bg-neutralLight font-sans">
+			<body className="min-h-screen bg-neutralLight dark:bg-neutralDark dark:text-white font-sans transition-colors duration-300">
 				<LanguageProvider>
 					<AuthProvider>
 						<ClientLayout role={role} navItems={navItems}>

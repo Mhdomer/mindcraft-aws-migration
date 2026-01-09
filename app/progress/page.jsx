@@ -49,9 +49,9 @@ export default function ProgressPage() {
 	const [showReportModal, setShowReportModal] = useState(false);
 	const [isPrinting, setIsPrinting] = useState(false);
 	const [reportConfig, setReportConfig] = useState({
-		includePerformance: true,
-		includeProgress: true,
-		includeTrend: true,
+		includePerformance: false,
+		includeProgress: false,
+		includeTrend: false,
 		includeStrong: false,
 		includeRisk: false,
 		includeDetails: false
@@ -107,6 +107,11 @@ export default function ProgressPage() {
 
 		return () => unsubscribe();
 	}, []);
+
+	// Scroll to top when view changes
+	useEffect(() => {
+		window.scrollTo(0, 0);
+	}, [currentView]);
 
 	async function loadProgress(userId) {
 		setLoading(true);
@@ -597,6 +602,30 @@ export default function ProgressPage() {
 										</DialogDescription>
 									</DialogHeader>
 									<div className="grid gap-4 py-4">
+										{/* Select All Option */}
+										<div
+											className="flex items-center space-x-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors border-b border-neutral-100 pb-3 mb-1"
+											onClick={() => {
+												const allSelected = Object.values(reportConfig).every(Boolean);
+												setReportConfig({
+													includeDetails: !allSelected,
+													includePerformance: !allSelected,
+													includeProgress: !allSelected,
+													includeRisk: !allSelected,
+													includeTrend: !allSelected,
+													includeStrong: !allSelected,
+												});
+											}}
+										>
+											<Checkbox
+												checked={Object.values(reportConfig).every(Boolean)}
+												className="pointer-events-none h-6 w-6"
+											/>
+											<Label className="cursor-pointer flex-1 font-bold text-neutralDark">
+												{language === 'bm' ? 'Pilih Semua' : 'Select All'}
+											</Label>
+										</div>
+
 										{[
 											{ id: 'includeDetails', label: language === 'bm' ? 'Butiran Kursus' : 'Course Details' },
 											{ id: 'includePerformance', label: language === 'bm' ? 'Prestasi Kursus' : 'Course Performance' },
@@ -622,7 +651,11 @@ export default function ProgressPage() {
 										))}
 									</div>
 									<DialogFooter>
-										<Button onClick={handlePrint} className="gap-2">
+										<Button
+											onClick={handlePrint}
+											className="gap-2"
+											disabled={!Object.values(reportConfig).some(Boolean)}
+										>
 											<Download className="h-4 w-4" />
 											{language === 'bm' ? 'Muat Turun PDF' : 'Download PDF'}
 										</Button>

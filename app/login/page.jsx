@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -242,6 +243,12 @@ export default function LoginPage() {
 								{error}
 							</div>
 						) : null}
+
+						<div className="text-center mt-6 pt-4 border-t-2 border-black/10">
+							<Link href="/" className="font-pixel text-lg text-stone-600 hover:text-stone-900 flex items-center justify-center gap-2 group">
+								<span>&lt;</span> Back to Home
+							</Link>
+						</div>
 					</div>
 				</div>
 			</div>
