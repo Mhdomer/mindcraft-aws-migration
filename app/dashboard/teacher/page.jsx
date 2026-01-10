@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { FileText, BookOpen, ClipboardCheck, Brain, ArrowRight, Sparkles, Plus, GraduationCap } from 'lucide-react';
+import { FileText, BookOpen, ClipboardCheck, Brain, ArrowRight, Sparkles, Plus, GraduationCap, Gamepad2 } from 'lucide-react';
 import { Metric, Flex, Text } from '@tremor/react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useState, useEffect } from 'react';
@@ -173,53 +173,59 @@ export default function TeacherDashboard() {
 
 				{/* Quick Stats */}
 				<div className="grid gap-6 md:grid-cols-3">
-					<Card className="card-hover border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-primary/5 relative overflow-hidden group">
-						<div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-primary/20 transition-all duration-500"></div>
-						<CardHeader className="pb-2 z-10 relative">
-							<Flex justifyContent="start" className="gap-3">
-								<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
-									<BookOpen className="h-5 w-5 text-primary" />
-								</div>
-								<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">My Courses</CardTitle>
-							</Flex>
-						</CardHeader>
-						<CardContent className="z-10 relative">
-							<Metric className="text-4xl font-bold text-neutralDark">{loading ? '-' : stats.courses}</Metric>
-							<Text className="text-sm text-muted-foreground mt-1">Published and draft content</Text>
-						</CardContent>
-					</Card>
+					<Link href="/admin/courses" className="group">
+						<Card className="card-hover border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-primary/5 relative overflow-hidden h-full">
+							<div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-primary/20 transition-all duration-500"></div>
+							<CardHeader className="pb-2 z-10 relative">
+								<Flex justifyContent="start" className="gap-3">
+									<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
+										<BookOpen className="h-5 w-5 text-primary" />
+									</div>
+									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">My Courses</CardTitle>
+								</Flex>
+							</CardHeader>
+							<CardContent className="z-10 relative">
+								<Metric className="text-4xl font-bold text-neutralDark">{loading ? '-' : stats.courses}</Metric>
+								<Text className="text-sm text-muted-foreground mt-1">Published and draft content</Text>
+							</CardContent>
+						</Card>
+					</Link>
 
-					<Card className="card-hover border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-orange-50/50 relative overflow-hidden group">
-						<div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-500/20 transition-all duration-500"></div>
-						<CardHeader className="pb-2 z-10 relative">
-							<Flex justifyContent="start" className="gap-3">
-								<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
-									<ClipboardCheck className="h-5 w-5 text-orange-500" />
-								</div>
-								<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Pending Grades</CardTitle>
-							</Flex>
-						</CardHeader>
-						<CardContent className="z-10 relative">
-							<Metric className="text-4xl font-bold text-neutralDark">{loading ? '-' : stats.pendingGrades}</Metric>
-							<Text className="text-sm text-muted-foreground mt-1">Assignments requiring review</Text>
-						</CardContent>
-					</Card>
+					<Link href="/assignments" className="group">
+						<Card className="card-hover border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-orange-50/50 relative overflow-hidden h-full">
+							<div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-500/20 transition-all duration-500"></div>
+							<CardHeader className="pb-2 z-10 relative">
+								<Flex justifyContent="start" className="gap-3">
+									<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
+										<ClipboardCheck className="h-5 w-5 text-orange-500" />
+									</div>
+									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Pending Grades</CardTitle>
+								</Flex>
+							</CardHeader>
+							<CardContent className="z-10 relative">
+								<Metric className="text-4xl font-bold text-neutralDark">{loading ? '-' : stats.pendingGrades}</Metric>
+								<Text className="text-sm text-muted-foreground mt-1">Assignments requiring review</Text>
+							</CardContent>
+						</Card>
+					</Link>
 
-					<Card className="card-hover border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-sky-50/50 relative overflow-hidden group">
-						<div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-sky-500/20 transition-all duration-500"></div>
-						<CardHeader className="pb-2 z-10 relative">
-							<Flex justifyContent="start" className="gap-3">
-								<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
-									<GraduationCap className="h-5 w-5 text-sky-500" />
-								</div>
-								<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Total Students</CardTitle>
-							</Flex>
-						</CardHeader>
-						<CardContent className="z-10 relative">
-							<Metric className="text-4xl font-bold text-neutralDark">{loading ? '-' : stats.students}</Metric>
-							<Text className="text-sm text-muted-foreground mt-1">Enrolled across all courses</Text>
-						</CardContent>
-					</Card>
+					<Link href="/admin/users" className="group">
+						<Card className="card-hover border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-sky-50/50 relative overflow-hidden h-full">
+							<div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-sky-500/20 transition-all duration-500"></div>
+							<CardHeader className="pb-2 z-10 relative">
+								<Flex justifyContent="start" className="gap-3">
+									<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
+										<GraduationCap className="h-5 w-5 text-sky-500" />
+									</div>
+									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Total Students</CardTitle>
+								</Flex>
+							</CardHeader>
+							<CardContent className="z-10 relative">
+								<Metric className="text-4xl font-bold text-neutralDark">{loading ? '-' : stats.students}</Metric>
+								<Text className="text-sm text-muted-foreground mt-1">Enrolled across all courses</Text>
+							</CardContent>
+						</Card>
+					</Link>
 				</div>
 
 				{/* Quick Actions */}
@@ -280,18 +286,18 @@ export default function TeacherDashboard() {
 							</Card>
 						</Link>
 
-						<Link href="/dashboard/teacher/ai" className="group">
+						<Link href="/game-levels" className="group">
 							<Card className="h-full border-none shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white cursor-pointer group-hover:ring-2 group-hover:ring-purple-500/20">
 								<CardContent className="p-6 flex flex-col items-center text-center gap-4 h-full justify-center">
 									<div className="p-4 bg-purple-100 rounded-full group-hover:bg-purple-200 transition-colors duration-300">
-										<Brain className="h-8 w-8 text-purple-600 group-hover:scale-110 transition-transform duration-300" />
+										<Gamepad2 className="h-8 w-8 text-purple-600 group-hover:scale-110 transition-transform duration-300" />
 									</div>
 									<div>
-										<h3 className="text-lg font-semibold text-neutralDark mb-1">AI Tools</h3>
-										<p className="text-sm text-muted-foreground">Course generation & grading</p>
+										<h3 className="text-lg font-semibold text-neutralDark mb-1">Game Levels</h3>
+										<p className="text-sm text-muted-foreground">Level management</p>
 									</div>
 									<Button size="sm" variant="ghost" className="text-purple-600 mt-2 group-hover:bg-purple-100">
-										Try Now <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+										Manage <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
 									</Button>
 								</CardContent>
 							</Card>
@@ -333,9 +339,11 @@ export default function TeacherDashboard() {
 												})}
 											</p>
 										</div>
-										<Button variant="ghost" size="sm" className="hidden sm:flex">
-											View
-										</Button>
+										<Link href={activity.type === 'enrollment' ? '/admin/users' : '/assignments'}>
+											<Button variant="ghost" size="sm" className="hidden sm:flex">
+												View <ArrowRight className="h-4 w-4 ml-2" />
+											</Button>
+										</Link>
 									</div>
 								))}
 							</div>
@@ -346,9 +354,14 @@ export default function TeacherDashboard() {
 								<Sparkles className="h-8 w-8 text-gray-300" />
 							</div>
 							<h3 className="text-lg font-semibold text-neutralDark mb-2">No data yet</h3>
-							<p className="text-sm text-muted-foreground max-w-sm">
+							<p className="text-sm text-muted-foreground max-w-sm mb-4">
 								When students enroll or submit work, you'll see the activity here. Create your first course to get started!
 							</p>
+							<Link href="/dashboard/courses/new">
+								<Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
+									Create Course <Plus className="h-4 w-4 ml-2" />
+								</Button>
+							</Link>
 						</div>
 					)}
 				</div>

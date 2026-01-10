@@ -220,60 +220,66 @@ export default function StudentDashboard() {
 
                 {/* Progress Overview */}
                 <div className="grid gap-6 md:grid-cols-3">
-                    <Card className="card-hover border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-primary/5 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-primary/20 transition-all duration-500"></div>
-                        <CardHeader className="pb-2 z-10 relative">
-                            <Flex justifyContent="start" className="gap-3">
-                                <div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
-                                    <BookOpen className="h-5 w-5 text-primary" />
-                                </div>
-                                <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Enrolled Courses</CardTitle>
-                            </Flex>
-                        </CardHeader>
-                        <CardContent className="z-10 relative">
-                            <Metric className="text-4xl font-bold text-neutralDark">
-                                {loading ? '-' : enrolledCourses}
-                            </Metric>
-                            <Text className="text-sm text-muted-foreground mt-1">Active learning paths</Text>
-                        </CardContent>
-                    </Card>
+                    <Link href="/courses" className="group">
+                        <Card className="card-hover border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-primary/5 relative overflow-hidden h-full">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-primary/20 transition-all duration-500"></div>
+                            <CardHeader className="pb-2 z-10 relative">
+                                <Flex justifyContent="start" className="gap-3">
+                                    <div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
+                                        <BookOpen className="h-5 w-5 text-primary" />
+                                    </div>
+                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Enrolled Courses</CardTitle>
+                                </Flex>
+                            </CardHeader>
+                            <CardContent className="z-10 relative">
+                                <Metric className="text-4xl font-bold text-neutralDark">
+                                    {loading ? '-' : enrolledCourses}
+                                </Metric>
+                                <Text className="text-sm text-muted-foreground mt-1">Active learning paths</Text>
+                            </CardContent>
+                        </Card>
+                    </Link>
 
-                    <Card className="card-hover border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-indigo-50/50 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-indigo-500/20 transition-all duration-500"></div>
-                        <CardHeader className="pb-2 z-10 relative">
-                            <Flex justifyContent="start" className="gap-3">
-                                <div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
-                                    <TrendingUp className="h-5 w-5 text-indigo-500" />
+                    <Link href="/progress" className="group">
+                        <Card className="card-hover border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-indigo-50/50 relative overflow-hidden h-full">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-indigo-500/20 transition-all duration-500"></div>
+                            <CardHeader className="pb-2 z-10 relative">
+                                <Flex justifyContent="start" className="gap-3">
+                                    <div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
+                                        <TrendingUp className="h-5 w-5 text-indigo-500" />
+                                    </div>
+                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Overall Progress</CardTitle>
+                                </Flex>
+                            </CardHeader>
+                            <CardContent className="z-10 relative">
+                                <div className="flex items-end gap-2">
+                                    <Metric className="text-4xl font-bold text-neutralDark">{overallProgress}%</Metric>
                                 </div>
-                                <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Overall Progress</CardTitle>
-                            </Flex>
-                        </CardHeader>
-                        <CardContent className="z-10 relative">
-                            <div className="flex items-end gap-2">
-                                <Metric className="text-4xl font-bold text-neutralDark">{overallProgress}%</Metric>
-                            </div>
-                            <ProgressBar value={overallProgress} color="indigo" className="mt-3 h-2 rounded-full" />
-                            <Text className="text-sm text-muted-foreground mt-2">Completion rate across all courses</Text>
-                        </CardContent>
-                    </Card>
+                                <ProgressBar value={overallProgress} color="indigo" className="mt-3 h-2 rounded-full" />
+                                <Text className="text-sm text-muted-foreground mt-2">Completion rate across all courses</Text>
+                            </CardContent>
+                        </Card>
+                    </Link>
 
-                    <Card className="card-hover border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-orange-50/50 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-500/20 transition-all duration-500"></div>
-                        <CardHeader className="pb-2 z-10 relative">
-                            <Flex justifyContent="start" className="gap-3">
-                                <div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
-                                    <FileQuestion className="h-5 w-5 text-orange-500" />
-                                </div>
-                                <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Pending Tasks</CardTitle>
-                            </Flex>
-                        </CardHeader>
-                        <CardContent className="z-10 relative">
-                            <Metric className="text-4xl font-bold text-neutralDark">
-                                {loading ? '-' : pendingTasks}
-                            </Metric>
-                            <Text className="text-sm text-muted-foreground mt-1">Assessments & assignments to do</Text>
-                        </CardContent>
-                    </Card>
+                    <Link href="/assessments" className="group">
+                        <Card className="card-hover border-none shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-orange-50/50 relative overflow-hidden h-full">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-500/20 transition-all duration-500"></div>
+                            <CardHeader className="pb-2 z-10 relative">
+                                <Flex justifyContent="start" className="gap-3">
+                                    <div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
+                                        <FileQuestion className="h-5 w-5 text-orange-500" />
+                                    </div>
+                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Pending Tasks</CardTitle>
+                                </Flex>
+                            </CardHeader>
+                            <CardContent className="z-10 relative">
+                                <Metric className="text-4xl font-bold text-neutralDark">
+                                    {loading ? '-' : pendingTasks}
+                                </Metric>
+                                <Text className="text-sm text-muted-foreground mt-1">Assessments & assignments to do</Text>
+                            </CardContent>
+                        </Card>
+                    </Link>
                 </div>
 
                 {/* Action Cards */}

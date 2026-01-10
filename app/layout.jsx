@@ -21,11 +21,15 @@ function getNavItems(role) {
 			{ href: '/admin/register', label: 'Register Users' },
 			{ href: '/admin/users', label: 'Manage Users' },
 			{ href: '/admin/courses', label: 'Manage Courses' },
-			{ href: '/admin/settings', label: 'Settings' },
-			{ href: '/assignments', label: 'Assignments' },
-			{ href: '/profile', label: 'Profile' },
-			{ href: '/analytics', label: 'Analytics' },
 			{ href: '/forum', label: 'Forum' },
+			{
+				href: '/profile',
+				label: 'Account',
+				children: [
+					{ href: '/profile', label: 'Profile' },
+					{ href: '/admin/settings', label: 'Settings' },
+				],
+			},
 		];
 	} else if (role === 'teacher') {
 		return [

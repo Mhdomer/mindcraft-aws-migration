@@ -9,7 +9,7 @@ import CourseManagement from './CourseManagement';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
+import { Search, Sparkles } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 
 export default function AdminCoursesPage() {
@@ -78,7 +78,7 @@ export default function AdminCoursesPage() {
 				const userData = userDoc.data();
 				const currentRole = userData.role;
 				const currentUserId = user.uid;
-				
+
 				setRole(currentRole);
 				setUserId(currentUserId);
 
@@ -180,18 +180,18 @@ export default function AdminCoursesPage() {
 
 	const filteredDraftCourses = normalizedSearch
 		? draftCourses.filter((course) => {
-				const title = (course.title || '').toLowerCase();
-				const description = (course.description || '').toLowerCase();
-				return title.includes(normalizedSearch) || description.includes(normalizedSearch);
-		  })
+			const title = (course.title || '').toLowerCase();
+			const description = (course.description || '').toLowerCase();
+			return title.includes(normalizedSearch) || description.includes(normalizedSearch);
+		})
 		: draftCourses;
 
 	const filteredPublishedCourses = normalizedSearch
 		? publishedCourses.filter((course) => {
-				const title = (course.title || '').toLowerCase();
-				const description = (course.description || '').toLowerCase();
-				return title.includes(normalizedSearch) || description.includes(normalizedSearch);
-		  })
+			const title = (course.title || '').toLowerCase();
+			const description = (course.description || '').toLowerCase();
+			return title.includes(normalizedSearch) || description.includes(normalizedSearch);
+		})
 		: publishedCourses;
 
 	function handleCourseDeleted(courseId) {
@@ -218,83 +218,99 @@ export default function AdminCoursesPage() {
 	}
 
 	return (
-		<div className="space-y-8">
-			{/* Page Header */}
-			<div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-				<div className="space-y-2">
-					<h1 className="text-h1 text-neutralDark">{t.pageTitle}</h1>
-					<p className="text-body text-muted-foreground">{t.pageDescription}</p>
-					<div className="mt-2 max-w-md relative">
-						<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-neutralDark" />
-						<Input
-							value={searchTerm}
-							onChange={(e) => setSearchTerm(e.target.value)}
-							placeholder={t.searchPlaceholder}
-							className="w-full pl-10"
-						/>
-					</div>
-				</div>
-				<a href="/dashboard/courses/new" className="self-start md:self-auto">
-					<Button size="lg">{t.createCourse}</Button>
-				</a>
-			</div>
+		<div className="-m-6 md:-m-8 lg:-m-10 min-h-screen relative overflow-hidden p-6 md:p-10">
+			{/* Premium Background Design */}
+			<div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-teal-50/30 to-white z-0 pointer-events-none"></div>
+			<div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-emerald-100/40 rounded-full blur-[80px] pointer-events-none z-0"></div>
+			<div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-sky-100/40 rounded-full blur-[80px] pointer-events-none z-0"></div>
 
-			{/* Draft Courses */}
-			<div>
-				<div className="flex items-center justify-between mb-6">
-					<h2 className="text-h2 text-neutralDark">{t.draftCourses}</h2>
-					<span className="px-3 py-1 rounded-full bg-warning/10 text-warning text-caption font-medium">
-						{filteredDraftCourses.length} {filteredDraftCourses.length === 1 ? t.draft : t.drafts}
-					</span>
-				</div>
-				{filteredDraftCourses.length === 0 ? (
-					<Card>
-						<CardContent className="pt-6">
-							<p className="text-body text-muted-foreground text-center py-8">{t.noDraftCourses}</p>
-						</CardContent>
-					</Card>
-				) : (
-					<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-						{filteredDraftCourses.map((course) => (
-							<CourseManagement
-								key={course.id}
-								course={course}
-								currentUserId={userId}
-								currentRole={role}
-								onDeleted={handleCourseDeleted}
+			<div className="max-w-6xl mx-auto relative z-10 space-y-8 animate-fadeIn">
+				{/* Page Header */}
+				<div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+					<div>
+						<h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent inline-flex items-center gap-2">
+							{t.pageTitle} <Sparkles className="h-6 w-6 text-yellow-400" />
+						</h1>
+						<p className="text-muted-foreground mt-2 text-lg">
+							{t.pageDescription}
+						</p>
+						<div className="mt-6 max-w-md relative group">
+							<div className="absolute inset-0 bg-emerald-200/20 rounded-lg blur-md group-hover:bg-emerald-200/30 transition-all opacity-0 group-hover:opacity-100"></div>
+							<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-neutral-400 group-hover:text-emerald-500 transition-colors z-10" />
+							<Input
+								value={searchTerm}
+								onChange={(e) => setSearchTerm(e.target.value)}
+								placeholder={t.searchPlaceholder}
+								className="w-full pl-10 bg-white/60 backdrop-blur-sm border-neutral-200 focus:border-emerald-500 focus:ring-emerald-500 transition-all relative z-10 h-11"
 							/>
-						))}
+						</div>
 					</div>
-				)}
-			</div>
+					<a href="/dashboard/courses/new" className="self-start md:self-auto">
+						<Button size="lg" className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg hover:shadow-emerald-200 hover:-translate-y-0.5 transition-all duration-300">
+							{t.createCourse}
+						</Button>
+					</a>
+				</div>
 
-			{/* Published Courses */}
-			<div>
-				<div className="flex items-center justify-between mb-6">
-					<h2 className="text-h2 text-neutralDark">{t.publishedCourses}</h2>
-					<span className="px-3 py-1 rounded-full bg-success/10 text-success text-caption font-medium">
-						{filteredPublishedCourses.length} {filteredPublishedCourses.length === 1 ? t.course : t.courses}
-					</span>
-				</div>
-				{filteredPublishedCourses.length === 0 ? (
-					<Card>
-						<CardContent className="pt-6">
-							<p className="text-body text-muted-foreground text-center py-8">{t.noPublishedCourses}</p>
-						</CardContent>
-					</Card>
-				) : (
-					<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-						{filteredPublishedCourses.map((course) => (
-							<CourseManagement
-								key={course.id}
-								course={course}
-								currentUserId={userId}
-								currentRole={role}
-								onDeleted={handleCourseDeleted}
-							/>
-						))}
+				{/* Draft Courses */}
+				<div>
+					<div className="flex items-center justify-between mb-6">
+						<h2 className="text-2xl font-bold text-neutralDark flex items-center gap-2">
+							{t.draftCourses}
+							<div className="h-1 w-1 rounded-full bg-neutral-300"></div>
+						</h2>
+						<span className="px-3 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200 text-xs font-semibold shadow-sm">
+							{filteredDraftCourses.length} {filteredDraftCourses.length === 1 ? t.draft : t.drafts}
+						</span>
 					</div>
-				)}
+					{filteredDraftCourses.length === 0 ? (
+						<div className="bg-white/40 backdrop-blur-sm border border-white/60 rounded-xl p-12 text-center">
+							<p className="text-lg text-muted-foreground font-medium">{t.noDraftCourses}</p>
+						</div>
+					) : (
+						<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+							{filteredDraftCourses.map((course) => (
+								<CourseManagement
+									key={course.id}
+									course={course}
+									currentUserId={userId}
+									currentRole={role}
+									onDeleted={handleCourseDeleted}
+								/>
+							))}
+						</div>
+					)}
+				</div>
+
+				{/* Published Courses */}
+				<div>
+					<div className="flex items-center justify-between mb-6">
+						<h2 className="text-2xl font-bold text-neutralDark flex items-center gap-2">
+							{t.publishedCourses}
+							<div className="h-1 w-1 rounded-full bg-neutral-300"></div>
+						</h2>
+						<span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold shadow-sm">
+							{filteredPublishedCourses.length} {filteredPublishedCourses.length === 1 ? t.course : t.courses}
+						</span>
+					</div>
+					{filteredPublishedCourses.length === 0 ? (
+						<div className="bg-white/40 backdrop-blur-sm border border-white/60 rounded-xl p-12 text-center">
+							<p className="text-lg text-muted-foreground font-medium">{t.noPublishedCourses}</p>
+						</div>
+					) : (
+						<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+							{filteredPublishedCourses.map((course) => (
+								<CourseManagement
+									key={course.id}
+									course={course}
+									currentUserId={userId}
+									currentRole={role}
+									onDeleted={handleCourseDeleted}
+								/>
+							))}
+						</div>
+					)}
+				</div>
 			</div>
 		</div>
 	);
