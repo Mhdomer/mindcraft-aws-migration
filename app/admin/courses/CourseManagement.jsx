@@ -156,48 +156,50 @@ export default function CourseManagement({ course, currentUserId, currentRole, o
 	}
 
 	return (
-		<Card className="card-hover">
-			<CardHeader>
+		<Card className="border-none shadow-md hover:shadow-xl transition-all duration-300 bg-white/80 backdrop-blur-md overflow-hidden group">
+			<CardHeader className="pb-3">
 				<div className="flex items-start justify-between gap-3">
 					<div className="flex-1 min-w-0">
-						<CardTitle className="text-h3 mb-2 line-clamp-2">{course.title}</CardTitle>
-						<CardDescription className="line-clamp-2 mb-4">
+						<CardTitle className="text-xl font-bold bg-gradient-to-br from-neutral-800 to-neutral-600 bg-clip-text text-transparent mb-2 line-clamp-2 group-hover:from-emerald-700 group-hover:to-teal-600 transition-all duration-300">
+							{course.title}
+						</CardTitle>
+						<CardDescription className="line-clamp-2 mb-2 text-neutral-500">
 							{course.description || 'No description provided'}
 						</CardDescription>
 					</div>
-					<span className={`px-3 py-1 rounded-full text-caption font-medium whitespace-nowrap ${
-						course.status === 'published' 
-							? 'bg-success/10 text-success' 
-							: 'bg-warning/10 text-warning'
-					}`}>
+					<span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap border shadow-sm ${course.status === 'published'
+						? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+						: 'bg-yellow-50 text-yellow-700 border-yellow-200'
+						}`}>
 						{course.status === 'published' ? 'Published' : 'Draft'}
 					</span>
 				</div>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				<div className="text-caption text-muted-foreground space-y-1">
+				<div className="text-sm text-muted-foreground space-y-2 bg-white/50 p-3 rounded-lg border border-white/60">
 					<div className="flex items-center gap-2">
-						<span className="font-medium">Author:</span>
-						<span>{course.authorName || 'Unknown'}</span>
+						<span className="font-semibold text-neutral-700 min-w-[70px]">Author:</span>
+						<span className="text-neutral-600">{course.authorName || 'Unknown'}</span>
 					</div>
 					<div className="flex items-center gap-2">
-						<span className="font-medium">Created:</span>
-						<span>{course.createdAt?.toDate ? course.createdAt.toDate().toLocaleDateString() : 'N/A'}</span>
+						<span className="font-semibold text-neutral-700 min-w-[70px]">Created:</span>
+						<span className="text-neutral-600">{course.createdAt?.toDate ? course.createdAt.toDate().toLocaleDateString() : 'N/A'}</span>
 					</div>
 					{course.status === 'published' && course.updatedAt && (
 						<div className="flex items-center gap-2">
-							<span className="font-medium">Published:</span>
-							<span>{course.updatedAt?.toDate ? course.updatedAt.toDate().toLocaleDateString() : 'N/A'}</span>
+							<span className="font-semibold text-neutral-700 min-w-[70px]">Published:</span>
+							<span className="text-neutral-600">{course.updatedAt?.toDate ? course.updatedAt.toDate().toLocaleDateString() : 'N/A'}</span>
 						</div>
 					)}
 				</div>
-				<div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border">
+
+				<div className="flex items-center gap-2 flex-wrap pt-4 border-t border-neutral-100 mt-2">
 					{course.status === 'draft' && canEdit && (
 						<Button
 							onClick={handlePublish}
 							disabled={loading}
 							size="sm"
-							className="flex-1 sm:flex-none"
+							className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
 						>
 							Publish
 						</Button>
@@ -208,17 +210,17 @@ export default function CourseManagement({ course, currentUserId, currentRole, o
 							disabled={loading}
 							variant="outline"
 							size="sm"
-							className="border-warning text-warning hover:bg-warning/10 flex-1 sm:flex-none"
+							className="border-yellow-200 text-yellow-700 hover:bg-yellow-50 hover:text-yellow-800 flex-1 sm:flex-none bg-yellow-50/50"
 						>
 							Unpublish
 						</Button>
 					)}
 					{canEdit && (
-						<a href={`/dashboard/courses/${course.id}/edit`}>
+						<a href={`/dashboard/courses/${course.id}/edit`} className="flex-1 sm:flex-none">
 							<Button
-								variant="outline"
+								variant="secondary"
 								size="sm"
-								className="flex-1 sm:flex-none"
+								className="w-full bg-neutral-100 hover:bg-white hover:shadow-md text-neutral-700 border border-transparent hover:border-neutral-200"
 							>
 								Edit
 							</Button>
@@ -228,17 +230,17 @@ export default function CourseManagement({ course, currentUserId, currentRole, o
 						<Button
 							onClick={handleDelete}
 							disabled={loading}
-							variant="destructive"
+							variant="ghost"
 							size="sm"
-							className="flex-1 sm:flex-none"
+							className="flex-1 sm:flex-none text-red-500 hover:text-red-700 hover:bg-red-50"
 						>
 							Delete
 						</Button>
 					)}
 				</div>
 				{error && (
-					<div className="p-3 rounded-lg bg-error/10 border border-error/20">
-						<p className="text-caption text-error">{error}</p>
+					<div className="p-3 rounded-lg bg-red-50 border border-red-100 animate-slideIn">
+						<p className="text-xs font-medium text-red-600">{error}</p>
 					</div>
 				)}
 			</CardContent>

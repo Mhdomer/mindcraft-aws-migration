@@ -49,13 +49,13 @@ export default function Header({ role: initialRole, toggleSidebar }) {
 	if (pathname === '/login') return null;
 
 	return (
-		<header className="sticky top-0 z-40 bg-white border-b border-border shadow-sm relative w-full h-35">
+		<header className="sticky top-0 z-40 bg-white dark:bg-neutralDark border-b border-border dark:border-neutral-800 shadow-sm relative w-full h-35 transition-colors duration-300">
 			<div className="flex items-center h-full w-full px-6">
 				{/* Logo - visible on mobile OR if guest (since sidebar is hidden for guests) */}
 				{/* Sidebar Toggle & Logo */}
 				<div className="flex items-center gap-4 mr-auto">
 					{currentRole !== 'guest' && (
-						<Button variant="ghost" size="icon" onClick={toggleSidebar} className="text-neutralDark hover:bg-neutralLight">
+						<Button variant="ghost" size="icon" onClick={toggleSidebar} className="text-neutralDark dark:text-neutral-200 hover:bg-neutralLight dark:hover:bg-neutral-800">
 							<Menu className="h-6 w-6" />
 						</Button>
 					)}
@@ -94,7 +94,7 @@ export default function Header({ role: initialRole, toggleSidebar }) {
 									variant="ghost"
 									size="sm"
 									onClick={() => setLanguage(language === 'en' ? 'bm' : 'en')}
-									className="font-bold text-neutralDark hover:bg-neutralLight px-2 min-w-[3rem]"
+									className="font-bold text-neutralDark dark:text-neutral-200 hover:bg-neutralLight dark:hover:bg-neutral-800 px-2 min-w-[3rem]"
 									title={language === 'en' ? 'Switch to Bahasa Melayu' : 'Tukar ke Bahasa Inggeris'}
 								>
 									{language === 'en' ? 'EN' : 'BM'}

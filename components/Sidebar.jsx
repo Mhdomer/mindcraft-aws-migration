@@ -32,6 +32,42 @@ import {
 	Backpack
 } from 'lucide-react';
 
+
+
+import { useLanguage } from '@/app/contexts/LanguageContext';
+
+const translations = {
+	'bm': {
+		'Dashboard': 'Papan Pemuka',
+		'Courses': 'Kursus',
+		'Activities': 'Aktiviti',
+		'Progress': 'Kemajuan',
+		'Forum': 'Forum',
+		'AI Assistant': 'Pembantu AI',
+		'Account': 'Akaun',
+		'Profile': 'Profil',
+		'Settings': 'Tetapan',
+		'Assessments': 'Penilaian',
+		'Assignments': 'Tugasan',
+		'Game Levels': 'Tahap Permainan',
+		'Explore Courses': 'Cari Kursus',
+		'My Courses': 'Kursus Saya',
+		'Create Course': 'Cipta Kursus',
+		'Register Users': 'Daftar Pengguna',
+		'Manage Users': 'Urus Pengguna',
+		'Manage Courses': 'Urus Kursus',
+		'Recommendations': 'Cadangan',
+		'Coding Help': 'Bantuan Pengekodan',
+		'Explain Concept': 'Jelaskan Konsep',
+		'Guest': 'Tetamu',
+		'student': 'Pelajar',
+		'teacher': 'Cikgu',
+		'admin': 'Pentadbir',
+		'Home': 'Utama',
+		'Sign In': 'Log Masuk',
+	}
+};
+
 const iconMap = {
 	'Dashboard': LayoutDashboard,
 	'Register Users': UserPlus,
@@ -57,10 +93,19 @@ const iconMap = {
 	'Recommendations': Brain,
 	'AI Assistant': Brain,
 	'Game Levels': Gamepad2,
+	'Activities': Gamepad2,
 };
 
 export default function Sidebar({ role: initialRole, navItems: initialNavItems }) {
 	const pathname = usePathname();
+	const { language } = useLanguage();
+
+	const t = (text) => {
+		if (language === 'bm' && translations['bm'][text]) {
+			return translations['bm'][text];
+		}
+		return text;
+	};
 
 	if (pathname === '/') return null;
 
@@ -143,7 +188,7 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 	}, [pathname]);
 
 	return (
-		<aside className="flex flex-col h-full w-full bg-white border-r border-border shadow-sm">
+		<aside className="flex flex-col h-full w-full bg-white dark:bg-neutralDark border-r border-border dark:border-neutral-800 shadow-sm transition-colors duration-300">
 			{/* Logo/Brand - REMOVED (Moved to Header) */}
 			{/* Added spacer if needed or just start with profile */}
 			<div className="h-4"></div>
@@ -187,8 +232,8 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 				)}
 
 				{/* Role Badge */}
-				<span className="inline-flex items-center px-3 py-1 rounded-lg text-caption font-medium bg-neutralLight text-neutralDark capitalize">
-					{currentRole === 'guest' ? 'Guest' : currentRole}
+				<span className="inline-flex items-center px-3 py-1 rounded-lg text-caption font-medium bg-neutralLight dark:bg-neutral-800 text-neutralDark dark:text-neutral-200 capitalize transition-colors duration-300">
+					{t(currentRole === 'guest' ? 'Guest' : currentRole)}
 				</span>
 			</div>
 
@@ -248,14 +293,14 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 											'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-body font-medium transition-all duration-200 min-w-0',
 											isActive
 												? 'bg-primary text-white shadow-sm'
-												: 'text-neutralDark hover:bg-neutralLight'
+												: 'text-neutralDark dark:text-neutral-300 hover:bg-neutralLight dark:hover:bg-neutral-800'
 										)}
 									>
-										{Icon && <Icon className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-white' : 'text-neutralDark')} />}
-										<span className="flex-1 min-w-0 overflow-visible whitespace-normal text-left">{item.label}</span>
+										{Icon && <Icon className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-white' : 'text-neutralDark dark:text-neutral-400')} />}
+										<span className="flex-1 min-w-0 overflow-visible whitespace-normal text-left">{t(item.label)}</span>
 									</Link>
 									<div
-										className={`ml-4 mt-1 space-y-2 border-l-2 border-border/50 pl-3 pr-2 bg-neutralLight/80 rounded-lg overflow-hidden transition-all duration-500 ease-in-out ${expandedItems.has(item.href)
+										className={`ml-4 mt-1 space-y-2 border-l-2 border-border/50 dark:border-neutral-700/50 pl-3 pr-2 bg-neutralLight/80 dark:bg-neutral-800/80 rounded-lg overflow-hidden transition-all duration-500 ease-in-out ${expandedItems.has(item.href)
 											? 'max-h-[500px] opacity-100 py-3'
 											: 'max-h-0 opacity-0 py-0'
 											}`}
@@ -272,18 +317,18 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 															'flex items-center gap-3 px-3 py-2 rounded-lg text-body transition-all duration-300 min-w-0',
 															isSubActive
 																? 'bg-primary/10 text-primary font-medium'
-																: 'text-neutralDark hover:bg-neutralLight'
+																: 'text-neutralDark dark:text-neutral-300 hover:bg-neutralLight dark:hover:bg-neutral-800'
 														)}
 													>
 														{SubIcon && (
 															<SubIcon
 																className={cn(
 																	'h-5 w-5 flex-shrink-0',
-																	isSubActive ? 'text-primary' : 'text-neutralDark'
+																	isSubActive ? 'text-primary' : 'text-neutralDark dark:text-neutral-400'
 																)}
 															/>
 														)}
-														<span className="flex-1 min-w-0 overflow-visible whitespace-normal">{subItem.label}</span>
+														<span className="flex-1 min-w-0 overflow-visible whitespace-normal">{t(subItem.label)}</span>
 													</Link>
 												);
 											})}
@@ -297,11 +342,11 @@ export default function Sidebar({ role: initialRole, navItems: initialNavItems }
 										'flex items-center gap-3 px-3 py-2.5 rounded-lg text-body font-medium transition-all duration-200 min-w-0',
 										isActive
 											? 'bg-primary text-white shadow-sm'
-											: 'text-neutralDark hover:bg-neutralLight'
+											: 'text-neutralDark dark:text-neutral-300 hover:bg-neutralLight dark:hover:bg-neutral-800'
 									)}
 								>
-									{Icon && <Icon className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-white' : 'text-neutralDark')} />}
-									<span className="flex-1 min-w-0 overflow-visible whitespace-normal">{item.label}</span>
+									{Icon && <Icon className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-white' : 'text-neutralDark dark:text-neutral-400')} />}
+									<span className="flex-1 min-w-0 overflow-visible whitespace-normal">{t(item.label)}</span>
 								</Link>
 							)}
 						</div>
