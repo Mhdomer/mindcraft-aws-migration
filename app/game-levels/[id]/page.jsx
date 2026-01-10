@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { auth } from '@/firebase';
+import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -173,26 +174,57 @@ export default function GameLevelPage() {
 	}, [router]);
 
 	useEffect(() => {
-		if (gameId && GAME_DATA[gameId]) {
-			const data = GAME_DATA[gameId];
-			setGameData(data);
+		const loadGameData = async () => {
+			if (!gameId) return;
 
-			// Initialize game state based on type
-			if (data.type === 'puzzle') {
-				const shuffled = [...data.puzzle.parts].sort(() => Math.random() - 0.5);
-				setPuzzleParts(shuffled);
-				setPuzzleOrder(shuffled.map((_, i) => i));
-			} else if (data.type === 'drag-drop') {
-				setDroppedItems([]);
-			} else if (data.type === 'code-preview') {
-				setCode('');
-				setQueryResults([]);
-				setQueryError('');
+			// First try to fetch from Firestore
+			try {
+				const gameDoc = await getDoc(doc(db, 'gameLevel', gameId));
+				if (gameDoc.exists()) {
+					const data = gameDoc.data();
+					setGameData(data);
+
+					// Initialize game state based on type
+					if (data.type === 'puzzle' && data.puzzle) {
+						const shuffled = [...data.puzzle.parts].sort(() => Math.random() - 0.5);
+						setPuzzleParts(shuffled);
+						setPuzzleOrder(shuffled.map((_, i) => i));
+					} else if (data.type === 'drag-drop' && data.dragDrop) {
+						setDroppedItems([]);
+					} else if (data.type === 'code-preview' && data.codePreview) {
+						setCode('');
+						setQueryResults([]);
+						setQueryError('');
+					}
+					setLoading(false);
+					return;
+				}
+			} catch (error) {
+				console.error('Error fetching game from Firestore:', error);
 			}
-		} else if (gameId) {
-			// Game not found
+
+			// Fallback to hardcoded data
+			if (GAME_DATA[gameId]) {
+				const data = GAME_DATA[gameId];
+				setGameData(data);
+
+				// Initialize game state based on type
+				if (data.type === 'puzzle') {
+					const shuffled = [...data.puzzle.parts].sort(() => Math.random() - 0.5);
+					setPuzzleParts(shuffled);
+					setPuzzleOrder(shuffled.map((_, i) => i));
+				} else if (data.type === 'drag-drop') {
+					setDroppedItems([]);
+				} else if (data.type === 'code-preview') {
+					setCode('');
+					setQueryResults([]);
+					setQueryError('');
+				}
+			}
 			setLoading(false);
-		}
+		};
+
+		loadGameData();
 	}, [gameId]);
 
 	const handlePuzzleReorder = (fromIndex, toIndex) => {

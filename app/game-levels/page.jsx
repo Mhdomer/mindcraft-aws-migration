@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Gamepad2, Target, BookOpen, Puzzle, MousePointerClick, Code, Sparkles, Trophy } from 'lucide-react';
+import { Gamepad2, Target, BookOpen, Puzzle, MousePointerClick, Code, Sparkles, Trophy, Edit, Trash2, Plus } from 'lucide-react';
 
 // Game level types
 const GAME_TYPES = {
@@ -110,8 +110,10 @@ const getDifficultyColor = (difficulty) => {
 export default function GameLevelsPage() {
 	const router = useRouter();
 	const [user, setUser] = useState(null);
+	const [userRole, setUserRole] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [gameLevels, setGameLevels] = useState(sampleGameLevels);
+	const [deletingId, setDeletingId] = useState(null);
 
 	useEffect(() => {
 		const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -120,13 +122,47 @@ export default function GameLevelsPage() {
 				return;
 			}
 			setUser(currentUser);
-			setLoading(false);
 
-			// TODO: Fetch game levels from Firestore
-			// const levelsQuery = query(collection(db, 'gameLevel'), where('published', '==', true));
-			// const levelsSnapshot = await getDocs(levelsQuery);
-			// const levels = levelsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-			// setGameLevels(levels);
+			// Get user role
+			try {
+				const userDoc = await getDoc(doc(db, 'user', currentUser.uid));
+				if (userDoc.exists()) {
+					setUserRole(userDoc.data().role);
+				}
+			} catch (error) {
+				console.error('Error fetching user role:', error);
+			}
+
+			// Fetch game levels from Firestore
+			try {
+				// Fetch all levels from Firestore (both published and unpublished)
+				const levelsSnapshot = await getDocs(collection(db, 'gameLevel'));
+				const firestoreLevels = levelsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+				// Combine Firestore levels with sample data
+				// Use a Map to avoid duplicates based on ID
+				const levelsMap = new Map();
+				
+				// Add sample levels first
+				sampleGameLevels.forEach((level) => {
+					levelsMap.set(level.id, level);
+				});
+				
+				// Add/override with Firestore levels
+				firestoreLevels.forEach((level) => {
+					levelsMap.set(level.id, level);
+				});
+
+				// Convert map to array
+				const allLevels = Array.from(levelsMap.values());
+				setGameLevels(allLevels);
+			} catch (error) {
+				console.error('Error fetching game levels:', error);
+				// Fallback to sample data on error
+				setGameLevels(sampleGameLevels);
+			}
+
+			setLoading(false);
 		});
 
 		return () => unsubscribe();
@@ -134,6 +170,64 @@ export default function GameLevelsPage() {
 
 	const handlePlayGame = (level) => {
 		router.push(`/game-levels/${level.id}`);
+	};
+
+	const handleEdit = (e, level) => {
+		e.stopPropagation();
+		router.push(`/game-levels/${level.id}/edit`);
+	};
+
+	const handleDelete = async (e, level) => {
+		e.stopPropagation();
+		
+		// Only allow deletion of Firestore levels (not sample levels)
+		if (!level.createdBy) {
+			alert('Cannot delete sample game levels. Only levels created by teachers can be deleted.');
+			return;
+		}
+
+		// Check permissions
+		if (userRole !== 'admin' && userRole !== 'teacher') {
+			alert('You do not have permission to delete game levels.');
+			return;
+		}
+
+		if (userRole === 'teacher' && level.createdBy !== user.uid) {
+			alert('You can only delete game levels that you created.');
+			return;
+		}
+
+		if (!confirm(`Are you sure you want to delete "${level.title}"? This action cannot be undone.`)) {
+			return;
+		}
+
+		setDeletingId(level.id);
+		try {
+			await deleteDoc(doc(db, 'gameLevel', level.id));
+			// Remove from local state
+			setGameLevels(gameLevels.filter((l) => l.id !== level.id));
+		} catch (error) {
+			console.error('Error deleting game level:', error);
+			alert('Failed to delete game level: ' + error.message);
+		} finally {
+			setDeletingId(null);
+		}
+	};
+
+	const canEdit = (level) => {
+		if (userRole !== 'admin' && userRole !== 'teacher') return false;
+		if (userRole === 'admin') return true;
+		// Teachers can only edit their own levels
+		return level.createdBy === user?.uid;
+	};
+
+	const canDelete = (level) => {
+		if (userRole !== 'admin' && userRole !== 'teacher') return false;
+		// Cannot delete sample levels
+		if (!level.createdBy) return false;
+		if (userRole === 'admin') return true;
+		// Teachers can only delete their own levels
+		return level.createdBy === user?.uid;
 	};
 
 	if (loading) {
@@ -147,16 +241,24 @@ export default function GameLevelsPage() {
 	return (
 		<div className="space-y-8 max-w-6xl mx-auto px-4 py-8">
 			{/* Header */}
-			<div className="flex items-center gap-3">
-				<div className="p-4 bg-primary/10 rounded-lg">
-					<Gamepad2 className="h-12 w-12 text-primary" />
+			<div className="flex items-center justify-between gap-4">
+				<div className="flex items-center gap-3 flex-1">
+					<div className="p-4 bg-primary/10 rounded-lg">
+						<Gamepad2 className="h-12 w-12 text-primary" />
+					</div>
+					<div>
+						<h1 className="text-h1 text-neutralDark mb-1">Game Levels Library</h1>
+						<p className="text-body text-muted-foreground">
+							Interactive, fun database learning games. Practice SQL, design, and query skills with instant feedback!
+						</p>
+					</div>
 				</div>
-				<div>
-					<h1 className="text-h1 text-neutralDark mb-1">Game Levels Library</h1>
-					<p className="text-body text-muted-foreground">
-						Interactive, fun database learning games. Practice SQL, design, and query skills with instant feedback!
-					</p>
-				</div>
+				{(userRole === 'teacher' || userRole === 'admin') && (
+					<Button onClick={() => router.push('/game-levels/new')} className="flex items-center gap-2">
+						<Plus className="h-5 w-5" />
+						Create New
+					</Button>
+				)}
 			</div>
 
 			{/* Stats Bar */}
@@ -202,12 +304,40 @@ export default function GameLevelsPage() {
 			<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 				{gameLevels.map((level) => {
 					const TypeIcon = getGameTypeIcon(level.type);
+					const showEdit = canEdit(level);
+					const showDelete = canDelete(level);
 					return (
 						<Card
 							key={level.id}
-							className="border-l-4 border-l-primary/70 hover:shadow-lg transition-all duration-200 cursor-pointer group"
+							className="border-l-4 border-l-primary/70 hover:shadow-lg transition-all duration-200 cursor-pointer group relative"
 							onClick={() => handlePlayGame(level)}
 						>
+							{/* Edit/Delete buttons for teachers */}
+							{(showEdit || showDelete) && (
+								<div className="absolute top-3 right-3 flex gap-2 z-10" onClick={(e) => e.stopPropagation()}>
+									{showEdit && (
+										<Button
+											variant="ghost"
+											onClick={(e) => handleEdit(e, level)}
+											className="h-10 w-10 p-0 bg-white/90 hover:bg-white shadow-md border border-border/50"
+											title="Edit"
+										>
+											<Edit className="h-5 w-5" />
+										</Button>
+									)}
+									{showDelete && (
+										<Button
+											variant="ghost"
+											onClick={(e) => handleDelete(e, level)}
+											disabled={deletingId === level.id}
+											className="h-10 w-10 p-0 bg-white/90 hover:bg-red-50 hover:text-red-600 shadow-md border border-border/50"
+											title="Delete"
+										>
+											<Trash2 className="h-5 w-5" />
+										</Button>
+									)}
+								</div>
+							)}
 							<CardHeader>
 								<div className="flex items-start justify-between gap-2">
 									<div className="flex-1 space-y-2">
