@@ -32,6 +32,7 @@ function getNavItems(role) {
 			{ href: '/dashboard/teacher', label: 'Dashboard' },
 			{ href: '/dashboard/courses/new', label: 'Create Course' },
 			{ href: '/admin/courses', label: 'Manage Courses' },
+			{ href: '/game-levels', label: 'Game Levels' },
 			{ href: '/profile', label: 'Profile' },
 			{ href: '/assessments', label: 'Assessments' },
 			{ href: '/assignments', label: 'Assignments' },
