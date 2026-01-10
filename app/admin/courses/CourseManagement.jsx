@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where, writeBatch, limit } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,7 +31,7 @@ export default function CourseManagement({ course, currentUserId, currentRole, o
 			await Promise.all(
 				moduleIds.map(async (moduleId) => {
 					const snap = await getDocs(
-						query(collection(db, 'lesson'), where('moduleId', '==', moduleId))
+						query(collection(db, 'lesson'), where('moduleId', '==', moduleId), limit(1))
 					);
 					return snap.size > 0;
 				})

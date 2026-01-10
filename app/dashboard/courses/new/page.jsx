@@ -100,6 +100,20 @@ export default function NewCoursePage() {
 			return;
 		}
 
+		// If user wants to publish immediately, enforce at least 1 module + 1 lesson (from builder state)
+		if (publish) {
+			const hasModule = Array.isArray(modules) && modules.length > 0;
+			const hasLesson =
+				Array.isArray(modules) &&
+				modules.some((m) => Array.isArray(m?.lessons) && m.lessons.length > 0);
+
+			if (!hasModule || !hasLesson) {
+				setError(t.publishNeedsContent);
+				setSubmitting(false);
+				return;
+			}
+		}
+
 		// Check if user is authenticated
 		const user = auth.currentUser;
 		if (!user) {
@@ -134,6 +148,7 @@ export default function NewCoursePage() {
 			}
 
 			// Create course in Firestore
+			// If publishing immediately, create as draft first, then publish after modules/lessons are created successfully.
 			const courseData = {
 				title: title.trim(),
 				description: description?.trim() || '',
@@ -214,6 +229,14 @@ export default function NewCoursePage() {
 						}
 					}
 				}
+			}
+
+			// Publish only after content is created
+			if (publish) {
+				await updateDoc(doc(db, 'course', newCourseId), {
+					status: 'published',
+					updatedAt: serverTimestamp(),
+				});
 			}
 			
 			// If user chose publish, update status to published only after content is created
