@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, getCountFromServer } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { query, collection, where, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ArrowRight, BookOpen, Download, FileText, File, ShieldCheck, List, Eye, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Download, FileText, File, ShieldCheck, List, Eye, X, CheckCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -18,7 +18,7 @@ export default function LessonPage() {
 	const params = useParams();
 	const router = useRouter();
 	const { id: courseId, moduleId, lessonId } = params;
-	
+
 	const [lesson, setLesson] = useState(null);
 	const [module, setModule] = useState(null);
 	const [course, setCourse] = useState(null);
@@ -43,12 +43,14 @@ export default function LessonPage() {
 	const [accessChecked, setAccessChecked] = useState(false);
 	const [viewingMaterial, setViewingMaterial] = useState(null);
 	const [textContent, setTextContent] = useState({});
+	const [isCompleted, setIsCompleted] = useState(false);
+	const [completing, setCompleting] = useState(false);
 
 	useEffect(() => {
 		// Track signed-in user for material downloads and check access
 		const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
 			setUser(currentUser);
-			
+
 			if (currentUser && courseId) {
 				// Get user role
 				try {
@@ -56,7 +58,7 @@ export default function LessonPage() {
 					if (userDoc.exists()) {
 						const role = userDoc.data().role;
 						setUserRole(role);
-						
+
 						// For students, check enrollment
 						if (role === 'student') {
 							try {
@@ -64,6 +66,12 @@ export default function LessonPage() {
 								const enrollmentDoc = await getDoc(doc(db, 'enrollment', enrollmentId));
 								const enrolled = enrollmentDoc.exists();
 								setIsEnrolled(enrolled);
+
+								if (enrolled) {
+									const data = enrollmentDoc.data();
+									const completedLessons = data.progress?.completedLessons || [];
+									setIsCompleted(completedLessons.includes(lessonId));
+								}
 								console.log('Enrollment check:', { enrollmentId, enrolled, courseId, userId: currentUser.uid });
 							} catch (err) {
 								console.error('Error checking enrollment:', err);
@@ -144,11 +152,11 @@ export default function LessonPage() {
 		}
 	}, [courseId, moduleId, lessonId]);
 
-	const nextLesson = currentLessonIndex >= 0 && currentLessonIndex < allLessons.length - 1 
-		? allLessons[currentLessonIndex + 1] 
+	const nextLesson = currentLessonIndex >= 0 && currentLessonIndex < allLessons.length - 1
+		? allLessons[currentLessonIndex + 1]
 		: null;
-	const prevLesson = currentLessonIndex > 0 
-		? allLessons[currentLessonIndex - 1] 
+	const prevLesson = currentLessonIndex > 0
+		? allLessons[currentLessonIndex - 1]
 		: null;
 
 	// Extract table of contents after content is rendered
@@ -192,7 +200,7 @@ export default function LessonPage() {
 
 		function handleScroll() {
 			const scrollPosition = window.scrollY + 100; // Offset for fixed header
-			
+
 			for (let i = tableOfContents.length - 1; i >= 0; i--) {
 				const section = document.getElementById(tableOfContents[i].id);
 				if (section && section.offsetTop <= scrollPosition) {
@@ -223,25 +231,25 @@ export default function LessonPage() {
 	function htmlToText(html) {
 		const tempDiv = document.createElement('div');
 		tempDiv.innerHTML = html;
-		
+
 		// Replace line breaks
 		tempDiv.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
-		
+
 		// Replace headings with newlines and bold
 		tempDiv.querySelectorAll('h1, h2, h3').forEach(h => {
 			h.replaceWith(`\n\n${h.textContent}\n\n`);
 		});
-		
+
 		// Replace paragraphs with newlines
 		tempDiv.querySelectorAll('p').forEach(p => {
 			p.replaceWith(`${p.textContent}\n\n`);
 		});
-		
+
 		// Replace list items
 		tempDiv.querySelectorAll('li').forEach(li => {
 			li.replaceWith(`• ${li.textContent}\n`);
 		});
-		
+
 		// Replace tables
 		tempDiv.querySelectorAll('table').forEach(table => {
 			let tableText = '\n';
@@ -251,25 +259,25 @@ export default function LessonPage() {
 			});
 			table.replaceWith(tableText + '\n');
 		});
-		
+
 		// Get text and clean up
 		let text = tempDiv.textContent || tempDiv.innerText || '';
 		text = text.replace(/\n{3,}/g, '\n\n'); // Replace multiple newlines with double
 		text = text.trim();
-		
+
 		return text;
 	}
 
 	// Download as TXT
 	async function downloadAsTXT() {
 		if (!lesson || !lesson.contentHtml) return;
-		
+
 		setDownloading(true);
 		try {
 			const text = htmlToText(lesson.contentHtml);
 			const header = `${lesson.title}\n${course ? `Course: ${course.title}\n` : ''}${module ? `Module: ${module.title}\n` : ''}\n${'='.repeat(50)}\n\n`;
 			const fullText = header + text;
-			
+
 			const blob = new Blob([fullText], { type: 'text/plain' });
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
@@ -290,11 +298,11 @@ export default function LessonPage() {
 	// Download as PDF
 	async function downloadAsPDF() {
 		if (!lesson || !contentRef.current) return;
-		
+
 		setDownloading(true);
 		try {
 			const element = contentRef.current;
-			
+
 			// Create canvas from content
 			const canvas = await html2canvas(element, {
 				scale: 2,
@@ -302,21 +310,21 @@ export default function LessonPage() {
 				backgroundColor: '#ffffff',
 				logging: false,
 			});
-			
+
 			const imgData = canvas.toDataURL('image/png');
-			
+
 			// Calculate PDF dimensions
 			const imgWidth = canvas.width;
 			const imgHeight = canvas.height;
 			const pdfWidth = 210; // A4 width in mm
 			const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
-			
+
 			// Create PDF
 			const pdf = new jsPDF('p', 'mm', 'a4');
 			const pageHeight = pdf.internal.pageSize.height;
 			let heightLeft = pdfHeight;
 			let position = 0;
-			
+
 			// Add header
 			pdf.setFontSize(18);
 			pdf.text(lesson.title, 10, 15);
@@ -330,11 +338,11 @@ export default function LessonPage() {
 			}
 			position = 35;
 			heightLeft = pdfHeight;
-			
+
 			// Add content image
 			pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
 			heightLeft -= pageHeight;
-			
+
 			// Add new pages if content is longer than one page
 			while (heightLeft > 0) {
 				position = heightLeft - pdfHeight;
@@ -342,7 +350,7 @@ export default function LessonPage() {
 				pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
 				heightLeft -= pageHeight;
 			}
-			
+
 			// Save PDF
 			pdf.save(`${lesson.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
 		} catch (err) {
@@ -366,7 +374,7 @@ export default function LessonPage() {
 		if (!material || !material.type) return false;
 		const type = material.type.toLowerCase();
 		const name = (material.name || '').toLowerCase();
-		
+
 		// PDFs can be viewed in iframe
 		if (type.includes('pdf') || name.endsWith('.pdf')) return 'pdf';
 		// Images can be displayed
@@ -375,7 +383,7 @@ export default function LessonPage() {
 		if (type.includes('video') || /\.(mp4|mpeg|webm)$/i.test(name)) return 'video';
 		// Text files can be displayed
 		if (type.includes('text') || name.endsWith('.txt')) return 'text';
-		
+
 		return false;
 	}
 
@@ -413,6 +421,100 @@ export default function LessonPage() {
 			}
 		}
 	}, [lesson]);
+
+
+
+	async function handleComplete() {
+		if (!user || !isEnrolled) return;
+
+		setCompleting(true);
+		try {
+			const enrollmentId = `${user.uid}_${courseId}`;
+			const enrollmentRef = doc(db, 'enrollment', enrollmentId);
+			const newStatus = !isCompleted;
+
+			// 1. Update the completedLessons array
+			if (newStatus) {
+				await updateDoc(enrollmentRef, {
+					'progress.completedLessons': arrayUnion(lessonId),
+					updatedAt: serverTimestamp()
+				});
+			} else {
+				await updateDoc(enrollmentRef, {
+					'progress.completedLessons': arrayRemove(lessonId),
+					updatedAt: serverTimestamp()
+				});
+			}
+
+			// 2. Calculate accurate progress
+			// Get total lessons count for the course
+			const lessonsQuery = query(collection(db, 'lesson'), where('moduleId', 'in', course.modules));
+			// Note: 'in' query supports max 10 items. If course has >10 modules, this breaks. 
+			// Safer approach: Query lessons by finding all modules first? 
+			// better: Iterate modules or assume 'courseId' is on lesson (it might not be on all lessons if not denormalized).
+			// Let's check if 'courseId' is in lesson schema from previous file reads? 
+			// In 'addLesson' (app/dashboard/modules/[id]/page.jsx), we saw: lessonData = { moduleId, ... }. It didn't explicitly show courseId.
+			// But wait, in 'app/dashboard/student/page.jsx', we queried assessments by 'courseId'.
+
+			// Let's assume for now we must count via modules.
+			// Since we might not have 'courseId' on lessons, we rely on the course.modules array.
+			// If course.modules is large, we might need to batch. 
+			// SIMPLIFICATION: fetching all modules is actually done in 'CourseDetailPage'.
+			// Let's try to count by querying lessons for each module.
+			// Or... if we assume we have course.modules IDs.
+
+			// Let's try a different approach:
+			// We can get current progress from the enrollment doc we just updated.
+			// And we can estimate total.
+
+			// ACTUALLY, checking the file `app/dashboard/modules/[id]/page.jsx` (from context), 
+			// when adding a lesson, it didn't seem to add courseId.
+			// BUT checking `app/courses/[id]/page.jsx`, it fetches lessons by moduleId.
+
+			// Best bet for Total Count:
+			// Fetch all modules for this course, sum their lesson arrays.
+			// We can load modules from 'course.modules'.
+
+			let totalLessonsCount = 0;
+			if (course && course.modules) {
+				const modulePromises = course.modules.map(mid => getDoc(doc(db, 'module', mid)));
+				const moduleDocs = await Promise.all(modulePromises);
+				totalLessonsCount = moduleDocs.reduce((acc, mDoc) => {
+					if (mDoc.exists()) {
+						const mData = mDoc.data();
+						return acc + (mData.lessons ? mData.lessons.length : 0);
+					}
+					return acc;
+				}, 0);
+			}
+
+			// 3. Get updated completion count
+			const updatedEnrollmentDoc = await getDoc(enrollmentRef);
+			if (updatedEnrollmentDoc.exists()) {
+				const data = updatedEnrollmentDoc.data();
+				const completedLessons = data.progress?.completedLessons || [];
+				const completedCount = completedLessons.length;
+
+				// Calculate percentage
+				const progressPercent = totalLessonsCount > 0
+					? Math.round((completedCount / totalLessonsCount) * 100)
+					: 0;
+
+				// Update progress percentage
+				await updateDoc(enrollmentRef, {
+					'progress.overallProgress': Math.min(progressPercent, 100)
+				});
+			}
+
+			setIsCompleted(newStatus);
+
+		} catch (err) {
+			console.error('Error updating lesson progress:', err);
+			alert('Failed to update progress. Please try again.');
+		} finally {
+			setCompleting(false);
+		}
+	}
 
 	// this is for downloading lesson materials from storage
 	async function handleDownload(material) {
@@ -518,100 +620,104 @@ export default function LessonPage() {
 	return (
 		<div className="relative">
 			<div className="max-w-4xl mx-auto space-y-6">
-			{/* Breadcrumb Navigation */}
-			<div className="flex items-center gap-2 text-caption text-muted-foreground">
-				<Link href="/courses" className="hover:text-neutralDark transition-colors">
-					Courses
-				</Link>
-				<span>/</span>
-				{course && (
-					<>
-						<Link href={`/courses/${courseId}`} className="hover:text-neutralDark transition-colors">
-							{course.title}
-						</Link>
-						<span>/</span>
-					</>
-				)}
-				{module && (
-					<>
-						<span>{module.title}</span>
-						<span>/</span>
-					</>
-				)}
-				<span className="text-neutralDark">{lesson.title}</span>
-			</div>
-
-			{/* Lesson Content */}
-			<Card>
-				<CardHeader>
-					<div className="flex items-center justify-between">
-						<CardTitle className="text-h2">{lesson.title}</CardTitle>
-						<div className="flex items-center gap-2">
-							{/* Download Dropdown */}
-							{lesson.contentHtml && (
-								<div className="relative" ref={downloadMenuRef}>
-									<Button 
-										variant="outline" 
-										size="sm" 
-										disabled={downloading}
-										onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-										className="flex items-center gap-2"
-									>
-										<Download className="h-6 w-6 text-neutralDark flex-shrink-0" />
-										{downloading ? 'Downloading...' : 'Download'}
-									</Button>
-									{showDownloadMenu && (
-										<div className="absolute right-0 top-full mt-1 min-w-[200px] bg-white border border-border rounded-lg shadow-lg z-50">
-											<button
-												onClick={() => {
-													downloadAsPDF();
-													setShowDownloadMenu(false);
-												}}
-												disabled={downloading}
-												className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-neutralLight transition-colors rounded-t-lg disabled:opacity-50 disabled:cursor-not-allowed"
-											>
-												<FileText className="h-6 w-6 text-primary flex-shrink-0" />
-												<span className="text-body">Download as PDF</span>
-											</button>
-											<button
-												onClick={() => {
-													downloadAsTXT();
-													setShowDownloadMenu(false);
-												}}
-												disabled={downloading}
-												className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-neutralLight transition-colors rounded-b-lg disabled:opacity-50 disabled:cursor-not-allowed"
-											>
-												<File className="h-6 w-6 text-primary flex-shrink-0" />
-												<span className="text-body">Download as TXT</span>
-											</button>
-										</div>
-									)}
-								</div>
-							)}
-							<Link href={`/courses/${courseId}`}>
-								<Button variant="ghost" size="sm">
-									<ArrowLeft className="h-5 w-5 mr-2 text-neutralDark" />
-									Back to Course
-								</Button>
+				{/* Breadcrumb Navigation */}
+				<div className="flex items-center gap-2 text-caption text-muted-foreground">
+					<Link href="/courses" className="hover:text-neutralDark transition-colors">
+						Courses
+					</Link>
+					<span>/</span>
+					{course && (
+						<>
+							<Link href={`/courses/${courseId}`} className="hover:text-neutralDark transition-colors">
+								{course.title}
 							</Link>
-						</div>
-					</div>
-				</CardHeader>
-				<CardContent className="prose max-w-none">
-					{lesson.contentHtml ? (
-						<div 
-							ref={contentRef}
-							dangerouslySetInnerHTML={{ __html: lesson.contentHtml }}
-							className="text-body text-neutralDark lesson-content"
-						/>
-					) : (
-						<p className="text-body text-muted-foreground">No content available for this lesson yet.</p>
+							<span>/</span>
+						</>
 					)}
-				</CardContent>
-			</Card>
+					{module && (
+						<>
+							<span>{module.title}</span>
+							<span>/</span>
+						</>
+					)}
+					<span className="text-neutralDark">{lesson.title}</span>
+				</div>
 
-			{/* Style for lesson content */}
-			<style jsx global>{`
+				{/* Lesson Content */}
+				<Card>
+					<CardHeader>
+						<div className="flex items-center justify-between">
+							<CardTitle className="text-h2 flex items-center gap-3">
+								{lesson.title}
+							</CardTitle>
+							<div className="flex items-center gap-2">
+
+
+								{/* Download Dropdown */}
+								{lesson.contentHtml && (
+									<div className="relative" ref={downloadMenuRef}>
+										<Button
+											variant="outline"
+											size="sm"
+											disabled={downloading}
+											onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+											className="flex items-center gap-2"
+										>
+											<Download className="h-6 w-6 text-neutralDark flex-shrink-0" />
+											{downloading ? 'Downloading...' : 'Download'}
+										</Button>
+										{showDownloadMenu && (
+											<div className="absolute right-0 top-full mt-1 min-w-[200px] bg-white border border-border rounded-lg shadow-lg z-50">
+												<button
+													onClick={() => {
+														downloadAsPDF();
+														setShowDownloadMenu(false);
+													}}
+													disabled={downloading}
+													className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-neutralLight transition-colors rounded-t-lg disabled:opacity-50 disabled:cursor-not-allowed"
+												>
+													<FileText className="h-6 w-6 text-primary flex-shrink-0" />
+													<span className="text-body">Download as PDF</span>
+												</button>
+												<button
+													onClick={() => {
+														downloadAsTXT();
+														setShowDownloadMenu(false);
+													}}
+													disabled={downloading}
+													className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-neutralLight transition-colors rounded-b-lg disabled:opacity-50 disabled:cursor-not-allowed"
+												>
+													<File className="h-6 w-6 text-primary flex-shrink-0" />
+													<span className="text-body">Download as TXT</span>
+												</button>
+											</div>
+										)}
+									</div>
+								)}
+								<Link href={`/courses/${courseId}`}>
+									<Button variant="ghost" size="sm">
+										<ArrowLeft className="h-5 w-5 mr-2 text-neutralDark" />
+										Back to Course
+									</Button>
+								</Link>
+							</div>
+						</div>
+					</CardHeader>
+					<CardContent className="prose max-w-none">
+						{lesson.contentHtml ? (
+							<div
+								ref={contentRef}
+								dangerouslySetInnerHTML={{ __html: lesson.contentHtml }}
+								className="text-body text-neutralDark lesson-content"
+							/>
+						) : (
+							<p className="text-body text-muted-foreground">No content available for this lesson yet.</p>
+						)}
+					</CardContent>
+				</Card>
+
+				{/* Style for lesson content */}
+				<style jsx global>{`
 				.lesson-content h1 {
 					font-size: 2rem;
 					font-weight: 600;
@@ -764,170 +870,182 @@ export default function LessonPage() {
 				}
 			`}</style>
 
-			{/* Lesson Materials */}
-			{lesson.materials && lesson.materials.length > 0 && (
-				<Card>
-					<CardHeader className="flex flex-col gap-1">
-						<CardTitle className="text-h4 flex items-center gap-2">
-							<Download className="h-8 w-8 text-primary" />
-							Lesson materials
-						</CardTitle>
-						<p className="text-caption text-muted-foreground flex items-center gap-1">
-							<ShieldCheck className="h-5 w-5 text-primary" />
-							Files stay private to signed-in students.
-						</p>
-						{downloadMessage && (
-							<p className="text-caption text-emerald-600">{downloadMessage}</p>
-						)}
-					</CardHeader>
-					<CardContent className="space-y-4">
-						{lesson.materials.map(material => {
-							const viewType = canViewInline(material);
-							return (
-								<div key={material.id || material.url} className="space-y-2">
-									{viewType === 'pdf' && (
-										<div className="border border-border rounded-lg overflow-hidden">
-											<div className="bg-muted/40 px-4 py-2 border-b border-border flex items-center justify-between">
-												<p className="text-body font-medium text-neutralDark">{material.name || 'PDF Document'}</p>
-												<Button
-													variant="ghost"
-													size="sm"
-													onClick={() => handleDownload(material)}
-													disabled={!user || downloadStatus[material.id] === 'checking'}
-												>
-													<Download className="h-5 w-5 mr-1" />
-													Download
-												</Button>
-											</div>
-											<iframe
-												src={material.url}
-												className="w-full h-[600px] border-0"
-												title={material.name}
-											/>
-										</div>
-									)}
-									{viewType === 'image' && (
-										<div className="border border-border rounded-lg overflow-hidden">
-											<div className="bg-muted/40 px-4 py-2 border-b border-border flex items-center justify-between">
-												<p className="text-body font-medium text-neutralDark">{material.name || 'Image'}</p>
-												<Button
-													variant="ghost"
-													size="sm"
-													onClick={() => handleDownload(material)}
-													disabled={!user || downloadStatus[material.id] === 'checking'}
-												>
-													<Download className="h-5 w-5 mr-1" />
-													Download
-												</Button>
-											</div>
-											<div className="flex items-center justify-center bg-black/5 p-4">
-												<img
+				{/* Lesson Materials */}
+				{lesson.materials && lesson.materials.length > 0 && (
+					<Card>
+						<CardHeader className="flex flex-col gap-1">
+							<CardTitle className="text-h4 flex items-center gap-2">
+								<Download className="h-8 w-8 text-primary" />
+								Lesson materials
+							</CardTitle>
+							<p className="text-caption text-muted-foreground flex items-center gap-1">
+								<ShieldCheck className="h-5 w-5 text-primary" />
+								Files stay private to signed-in students.
+							</p>
+							{downloadMessage && (
+								<p className="text-caption text-emerald-600">{downloadMessage}</p>
+							)}
+						</CardHeader>
+						<CardContent className="space-y-4">
+							{lesson.materials.map(material => {
+								const viewType = canViewInline(material);
+								return (
+									<div key={material.id || material.url} className="space-y-2">
+										{viewType === 'pdf' && (
+											<div className="border border-border rounded-lg overflow-hidden">
+												<div className="bg-muted/40 px-4 py-2 border-b border-border flex items-center justify-between">
+													<p className="text-body font-medium text-neutralDark">{material.name || 'PDF Document'}</p>
+													<Button
+														variant="ghost"
+														size="sm"
+														onClick={() => handleDownload(material)}
+														disabled={!user || downloadStatus[material.id] === 'checking'}
+													>
+														<Download className="h-5 w-5 mr-1" />
+														Download
+													</Button>
+												</div>
+												<iframe
 													src={material.url}
-													alt={material.name}
-													className="max-w-full max-h-[600px] object-contain rounded"
+													className="w-full h-[600px] border-0"
+													title={material.name}
 												/>
 											</div>
-										</div>
-									)}
-									{viewType === 'video' && (
-										<div className="border border-border rounded-lg overflow-hidden">
-											<div className="bg-muted/40 px-4 py-2 border-b border-border flex items-center justify-between">
-												<p className="text-body font-medium text-neutralDark">{material.name || 'Video'}</p>
+										)}
+										{viewType === 'image' && (
+											<div className="border border-border rounded-lg overflow-hidden">
+												<div className="bg-muted/40 px-4 py-2 border-b border-border flex items-center justify-between">
+													<p className="text-body font-medium text-neutralDark">{material.name || 'Image'}</p>
+													<Button
+														variant="ghost"
+														size="sm"
+														onClick={() => handleDownload(material)}
+														disabled={!user || downloadStatus[material.id] === 'checking'}
+													>
+														<Download className="h-5 w-5 mr-1" />
+														Download
+													</Button>
+												</div>
+												<div className="flex items-center justify-center bg-black/5 p-4">
+													<img
+														src={material.url}
+														alt={material.name}
+														className="max-w-full max-h-[600px] object-contain rounded"
+													/>
+												</div>
+											</div>
+										)}
+										{viewType === 'video' && (
+											<div className="border border-border rounded-lg overflow-hidden">
+												<div className="bg-muted/40 px-4 py-2 border-b border-border flex items-center justify-between">
+													<p className="text-body font-medium text-neutralDark">{material.name || 'Video'}</p>
+													<Button
+														variant="ghost"
+														size="sm"
+														onClick={() => handleDownload(material)}
+														disabled={!user || downloadStatus[material.id] === 'checking'}
+													>
+														<Download className="h-5 w-5 mr-1" />
+														Download
+													</Button>
+												</div>
+												<div className="flex items-center justify-center bg-black p-4">
+													<video
+														src={material.url}
+														controls
+														className="max-w-full max-h-[600px] rounded"
+													>
+														Your browser does not support the video tag.
+													</video>
+												</div>
+											</div>
+										)}
+										{viewType === 'text' && (
+											<div className="border border-border rounded-lg overflow-hidden">
+												<div className="bg-muted/40 px-4 py-2 border-b border-border flex items-center justify-between">
+													<p className="text-body font-medium text-neutralDark">{material.name || 'Text File'}</p>
+													<Button
+														variant="ghost"
+														size="sm"
+														onClick={() => handleDownload(material)}
+														disabled={!user || downloadStatus[material.id] === 'checking'}
+													>
+														<Download className="h-5 w-5 mr-1" />
+														Download
+													</Button>
+												</div>
+												<div className="bg-black text-green-400 p-4 rounded font-mono text-sm overflow-auto max-h-[400px]">
+													<pre className="whitespace-pre-wrap">{textContent[material.id] || 'Loading text content...'}</pre>
+												</div>
+											</div>
+										)}
+										{!viewType && (
+											<div className="flex items-center justify-between rounded-md border border-border bg-muted/40 p-3">
+												<div className="space-y-1">
+													<p className="text-body font-medium text-neutralDark">{material.name || 'Lesson file'}</p>
+													<p className="text-caption text-muted-foreground">
+														{material.type || 'file'} {material.size ? `• ${formatFileSize(material.size)}` : ''}
+													</p>
+												</div>
 												<Button
-													variant="ghost"
+													variant="outline"
 													size="sm"
 													onClick={() => handleDownload(material)}
 													disabled={!user || downloadStatus[material.id] === 'checking'}
 												>
 													<Download className="h-5 w-5 mr-1" />
-													Download
+													{downloadStatus[material.id] === 'checking' ? 'Checking...' : 'Download'}
 												</Button>
 											</div>
-											<div className="flex items-center justify-center bg-black p-4">
-												<video
-													src={material.url}
-													controls
-													className="max-w-full max-h-[600px] rounded"
-												>
-													Your browser does not support the video tag.
-												</video>
-											</div>
-										</div>
-									)}
-									{viewType === 'text' && (
-										<div className="border border-border rounded-lg overflow-hidden">
-											<div className="bg-muted/40 px-4 py-2 border-b border-border flex items-center justify-between">
-												<p className="text-body font-medium text-neutralDark">{material.name || 'Text File'}</p>
-												<Button
-													variant="ghost"
-													size="sm"
-													onClick={() => handleDownload(material)}
-													disabled={!user || downloadStatus[material.id] === 'checking'}
-												>
-													<Download className="h-5 w-5 mr-1" />
-													Download
-												</Button>
-											</div>
-											<div className="bg-black text-green-400 p-4 rounded font-mono text-sm overflow-auto max-h-[400px]">
-												<pre className="whitespace-pre-wrap">{textContent[material.id] || 'Loading text content...'}</pre>
-											</div>
-										</div>
-									)}
-									{!viewType && (
-										<div className="flex items-center justify-between rounded-md border border-border bg-muted/40 p-3">
-											<div className="space-y-1">
-												<p className="text-body font-medium text-neutralDark">{material.name || 'Lesson file'}</p>
-												<p className="text-caption text-muted-foreground">
-													{material.type || 'file'} {material.size ? `• ${formatFileSize(material.size)}` : ''}
-												</p>
-											</div>
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() => handleDownload(material)}
-												disabled={!user || downloadStatus[material.id] === 'checking'}
-											>
-												<Download className="h-5 w-5 mr-1" />
-												{downloadStatus[material.id] === 'checking' ? 'Checking...' : 'Download'}
-											</Button>
-										</div>
-									)}
-								</div>
-							);
-						})}
-					</CardContent>
-				</Card>
-			)}
-
-			{/* Lesson Navigation */}
-			<div className="flex items-center justify-between pt-4 border-t border-border">
-				{prevLesson ? (
-					<Link href={`/courses/${courseId}/modules/${moduleId}/lessons/${prevLesson.id}`}>
-						<Button variant="outline">
-							<ArrowLeft className="h-5 w-5 mr-2 text-neutralDark" />
-							Previous Lesson
-						</Button>
-					</Link>
-				) : (
-					<div></div>
+										)}
+									</div>
+								);
+							})}
+						</CardContent>
+					</Card>
 				)}
 
-				{nextLesson ? (
-					<Link href={`/courses/${courseId}/modules/${moduleId}/lessons/${nextLesson.id}`}>
-						<Button>
-							Next Lesson
-							<ArrowRight className="h-5 w-5 ml-2 text-white" />
+				{/* Lesson Navigation */}
+				<div className="flex items-center justify-between pt-4 border-t border-border">
+					{prevLesson ? (
+						<Link href={`/courses/${courseId}/modules/${moduleId}/lessons/${prevLesson.id}`}>
+							<Button variant="outline">
+								<ArrowLeft className="h-5 w-5 mr-2 text-neutralDark" />
+								Previous Lesson
+							</Button>
+						</Link>
+					) : (
+						<div></div>
+					)}
+
+					{nextLesson && (
+						<Link href={`/courses/${courseId}/modules/${moduleId}/lessons/${nextLesson.id}`}>
+							<Button>
+								Next Lesson
+								<ArrowRight className="h-5 w-5 ml-2 text-white" />
+							</Button>
+						</Link>
+					)}
+
+					{isEnrolled && userRole === 'student' ? (
+						<Button
+							onClick={handleComplete}
+							disabled={completing}
+							variant={isCompleted ? "outline" : "default"}
+							className={!isCompleted ? "bg-green-600 hover:bg-green-700 text-white min-w-[200px]" : "border-green-600 text-green-600 hover:bg-green-50 min-w-[200px]"}
+						>
+							{completing ? 'Updating...' : (isCompleted ? 'Mark as Incomplete' : 'Mark as Complete')}
+							<CheckCircle className="h-5 w-5 ml-2" />
 						</Button>
-					</Link>
-				) : (
-					<Link href={`/courses/${courseId}`}>
-						<Button variant="outline">
-							Complete Module
-							<BookOpen className="h-5 w-5 ml-2 text-neutralDark" />
-						</Button>
-					</Link>
-				)}
-			</div>
+					) : (
+						<Link href={`/courses/${courseId}`}>
+							<Button variant="outline">
+								Back to Course
+								<BookOpen className="h-5 w-5 ml-2 text-neutralDark" />
+							</Button>
+						</Link>
+					)}
+				</div>
 			</div>
 
 			{/* Floating Table of Contents Sidebar */}
@@ -953,11 +1071,10 @@ export default function LessonPage() {
 								<button
 									key={item.id}
 									onClick={() => scrollToSection(item.id)}
-									className={`block w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-										activeSection === item.id
-											? 'bg-primary text-white font-medium'
-											: 'text-muted-foreground hover:bg-neutralLight hover:text-neutralDark'
-									}`}
+									className={`block w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${activeSection === item.id
+										? 'bg-primary text-white font-medium'
+										: 'text-muted-foreground hover:bg-neutralLight hover:text-neutralDark'
+										}`}
 									style={{ paddingLeft: `${(item.level - 1) * 0.75 + 0.75}rem` }}
 								>
 									{item.text}
@@ -997,7 +1114,7 @@ export default function LessonPage() {
 								<X className="h-5 w-5" />
 							</Button>
 						</div>
-						
+
 						{/* Content */}
 						<div className="flex-1 overflow-auto p-4">
 							{canViewInline(viewingMaterial) === 'pdf' && (
@@ -1044,7 +1161,7 @@ export default function LessonPage() {
 								</div>
 							)}
 						</div>
-						
+
 						{/* Footer */}
 						<div className="flex items-center justify-between p-4 border-t border-border">
 							<p className="text-caption text-muted-foreground">

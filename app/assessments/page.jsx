@@ -630,548 +630,556 @@ export default function AssessmentsPage() {
 		: assessments;
 
 	return (
-		<div className="space-y-8">
-			{/* Page Header */}
-			<div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-2 border-b border-border/40">
-				<div className="space-y-2">
-					<h1 className="text-4xl font-extrabold tracking-tight text-neutralDark bg-gradient-to-r from-neutralDark to-neutral-600 bg-clip-text">
-						{language === 'bm' ? 'Penilaian' : 'Assessments'}
-					</h1>
-					<p className="text-lg text-muted-foreground max-w-2xl">
-						{userRole === 'student'
-							? (language === 'bm' ? 'Lihat dan hantar tugasan anda' : 'View and submit your assignments')
-							: (language === 'bm' ? 'Urus penilaian dan lihat penghantaran' : 'Manage assessments and view submissions')}
-					</p>
-				</div>
-				{userRole !== 'student' && (
-					<Link href="/assessments/new">
-						<Button size="lg" className="shadow-lg hover:shadow-primary/20 hover:scale-105 transition-all duration-300">
-							<Plus className="h-5 w-5 mr-2" />
-							{language === 'bm' ? 'Cipta Penilaian' : 'Create Assessment'}
-						</Button>
-					</Link>
-				)}
-			</div>
+		<div className="-m-6 md:-m-8 lg:-m-10 min-h-screen relative overflow-hidden p-6 md:p-10">
+			{/* Premium Background Design */}
+			<div className="absolute inset-0 bg-gradient-to-br from-sky-50 via-indigo-50/30 to-white z-0 pointer-events-none"></div>
+			<div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
+			<div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
+			<div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-cyan-100/30 rounded-full blur-[80px] pointer-events-none z-0"></div>
 
-			{/* Assessments List */}
-			{userRole === 'student' && (
-				<div className="flex gap-4 border-b border-border/40 pb-1 mb-6">
-					{['todo', 'in_progress', 'completed'].map(tab => (
-						<button
-							key={tab}
-							onClick={() => setActiveTab(tab)}
-							className={`pb-3 px-1 text-sm font-bold tracking-wide transition-all relative ${activeTab === tab
+			<div className="space-y-8 relative z-10 animate-fadeIn">
+				{/* Page Header */}
+				<div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-2 border-b border-border/40">
+					<div className="space-y-2">
+						<h1 className="text-4xl font-extrabold tracking-tight text-neutralDark bg-gradient-to-r from-neutralDark to-neutral-600 bg-clip-text">
+							{language === 'bm' ? 'Penilaian' : 'Assessments'}
+						</h1>
+						<p className="text-lg text-muted-foreground max-w-2xl">
+							{userRole === 'student'
+								? (language === 'bm' ? 'Lihat dan hantar tugasan anda' : 'View and submit your assignments')
+								: (language === 'bm' ? 'Urus penilaian dan lihat penghantaran' : 'Manage assessments and view submissions')}
+						</p>
+					</div>
+					{userRole !== 'student' && (
+						<Link href="/assessments/new">
+							<Button size="lg" className="shadow-lg hover:shadow-primary/20 hover:scale-105 transition-all duration-300">
+								<Plus className="h-5 w-5 mr-2" />
+								{language === 'bm' ? 'Cipta Penilaian' : 'Create Assessment'}
+							</Button>
+						</Link>
+					)}
+				</div>
+
+				{/* Assessments List */}
+				{userRole === 'student' && (
+					<div className="flex gap-4 border-b border-border/40 pb-1 mb-6">
+						{['todo', 'in_progress', 'completed'].map(tab => (
+							<button
+								key={tab}
+								onClick={() => setActiveTab(tab)}
+								className={`pb-3 px-1 text-sm font-bold tracking-wide transition-all relative ${activeTab === tab
 									? 'text-primary'
 									: 'text-muted-foreground hover:text-foreground'
-								}`}
-						>
-							{tab === 'todo' && (language === 'bm' ? 'Untuk Dilakukan' : 'To Do')}
-							{tab === 'in_progress' && (language === 'bm' ? 'Dalam Proses' : 'In Progress')}
-							{tab === 'completed' && (language === 'bm' ? 'Selesai' : 'Completed')}
-							{activeTab === tab && (
-								<span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-full" />
-							)}
-						</button>
-					))}
-				</div>
-			)}
+									}`}
+							>
+								{tab === 'todo' && (language === 'bm' ? 'Untuk Dilakukan' : 'To Do')}
+								{tab === 'in_progress' && (language === 'bm' ? 'Dalam Proses' : 'In Progress')}
+								{tab === 'completed' && (language === 'bm' ? 'Selesai' : 'Completed')}
+								{activeTab === tab && (
+									<span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-full" />
+								)}
+							</button>
+						))}
+					</div>
+				)}
 
-			{displayAssessments.length === 0 ? (
-				<Card className="bg-white/50 backdrop-blur-sm border-dashed border-2">
-					<CardContent className="py-16 text-center">
-						<div className="bg-primary/5 p-4 rounded-full w-fit mx-auto mb-4">
-							<ClipboardCheck className="h-8 w-8 text-primary/50" />
-						</div>
-						<p className="text-lg text-muted-foreground font-medium">
-							{userRole === 'student'
-								? (language === 'bm' ? 'Tiada penilaian dalam kategori ini.' : 'No assessments in this category.')
-								: (language === 'bm' ? 'Tiada penilaian tersedia lagi.' : 'No assessments available yet.')}
-						</p>
-					</CardContent>
-				</Card>
-			) : (
-				<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
-					{displayAssessments.map((assessment) => {
-						const submission = submissions[assessment.id];
-						const status = userRole === 'student' ? getAssessmentStatus(assessment, submission) : null;
+				{displayAssessments.length === 0 ? (
+					<Card className="bg-white/50 backdrop-blur-sm border-dashed border-2">
+						<CardContent className="py-16 text-center">
+							<div className="bg-primary/5 p-4 rounded-full w-fit mx-auto mb-4">
+								<ClipboardCheck className="h-8 w-8 text-primary/50" />
+							</div>
+							<p className="text-lg text-muted-foreground font-medium">
+								{userRole === 'student'
+									? (language === 'bm' ? 'Tiada penilaian dalam kategori ini.' : 'No assessments in this category.')
+									: (language === 'bm' ? 'Tiada penilaian tersedia lagi.' : 'No assessments available yet.')}
+							</p>
+						</CardContent>
+					</Card>
+				) : (
+					<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
+						{displayAssessments.map((assessment) => {
+							const submission = submissions[assessment.id];
+							const status = userRole === 'student' ? getAssessmentStatus(assessment, submission) : null;
 
-						// Deadline logic
-						const deadlineDate = assessment.config?.endDate
-							? (assessment.config.endDate.toDate ? assessment.config.endDate.toDate() : new Date(assessment.config.endDate))
-							: null;
-						const deadlinePassed = deadlineDate ? deadlineDate < new Date() : false;
-						const timeLeft = !deadlinePassed && deadlineDate ? getTimeLeft(deadlineDate) : null;
+							// Deadline logic
+							const deadlineDate = assessment.config?.endDate
+								? (assessment.config.endDate.toDate ? assessment.config.endDate.toDate() : new Date(assessment.config.endDate))
+								: null;
+							const deadlinePassed = deadlineDate ? deadlineDate < new Date() : false;
+							const timeLeft = !deadlinePassed && deadlineDate ? getTimeLeft(deadlineDate) : null;
 
-						return (
-							<Card key={assessment.id} className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-border/50 bg-white/50 backdrop-blur-sm rounded-2xl flex flex-col">
-								<div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+							return (
+								<Card key={assessment.id} className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-border/50 bg-white/50 backdrop-blur-sm rounded-2xl flex flex-col">
+									<div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-								{/* Card Header */}
-								<CardHeader className="relative border-b border-primary/5 p-5 space-y-3 pb-4">
-									<div className="flex items-start justify-between gap-3">
-										<div className="flex-1 space-y-1">
-											{/* Metadata Badges */}
-											<div className="flex flex-wrap gap-2 mb-2">
-												<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
-													{assessment.type || 'Quiz'}
-												</span>
-												{deadlinePassed && (
-													<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-neutral/10 text-muted-foreground border border-neutral/20">
-														{language === 'bm' ? 'Tamat' : 'Ended'}
+									{/* Card Header */}
+									<CardHeader className="relative border-b border-primary/5 p-5 space-y-3 pb-4">
+										<div className="flex items-start justify-between gap-3">
+											<div className="flex-1 space-y-1">
+												{/* Metadata Badges */}
+												<div className="flex flex-wrap gap-2 mb-2">
+													<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+														{assessment.type || 'Quiz'}
 													</span>
-												)}
-												{!deadlinePassed && timeLeft && (
-													<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-warning/10 text-warning border border-warning/20">
-														{timeLeft}
-													</span>
-												)}
-											</div>
-
-											<CardTitle className="text-xl font-bold text-neutralDark leading-tight group-hover:text-primary transition-colors line-clamp-2">
-												{assessment.title}
-											</CardTitle>
-										</div>
-									</div>
-
-									{/* Compact Timeline */}
-									{(assessment.config?.startDate || assessment.config?.endDate) && (
-										<div className="flex items-center gap-3 text-xs text-muted-foreground bg-white/50 p-2 rounded-lg border border-black/5">
-											{assessment.config.startDate && (
-												<div className="flex items-center gap-1.5">
-													<Calendar className="h-3.5 w-3.5 opacity-70" />
-													<span>{formatDate(assessment.config.startDate).split(',')[0]}</span>
-												</div>
-											)}
-											{assessment.config.startDate && assessment.config.endDate && (
-												<span className="text-muted-foreground/30">|</span>
-											)}
-											{assessment.config.endDate && (
-												<div className={`flex items-center gap-1.5 ${deadlinePassed ? 'text-destructive font-medium' : ''}`}>
-													<Clock className="h-3.5 w-3.5 opacity-70" />
-													<span>{formatDate(assessment.config.endDate)}</span>
-												</div>
-											)}
-										</div>
-									)}
-								</CardHeader>
-
-								{/* Card Content */}
-								<CardContent className="relative z-10 flex-1 flex flex-col p-5 pt-4 space-y-4">
-									{assessment.description && (
-										<p className="text-muted-foreground line-clamp-2 text-sm leading-relaxed">
-											{stripHtml(assessment.description)}
-										</p>
-									)}
-
-									<div className="mt-auto pt-2">
-										{userRole === 'student' ? (
-											<div className="space-y-3">
-												{/* Progress / Score Visualization */}
-												{submission && submission.score !== undefined && (
-													<div className="space-y-2">
-														{(() => {
-															const percentage = submission.totalPoints > 0
-																? (submission.score / submission.totalPoints) * 100
-																: 0;
-															const passingPercentage = assessment.config?.passingPercentage ?? 40;
-															const passed = percentage >= passingPercentage;
-															const isPerfect = percentage === 100;
-
-															// Color Logic
-															let statusColor = passed ? 'bg-success text-success' : 'bg-destructive text-destructive';
-															if (isPerfect) statusColor = 'bg-yellow-500 text-yellow-600'; // Gold-ish
-
-															return (
-																<div className="space-y-2">
-																	<div className="flex justify-between items-end">
-																		<span className={`text-xs font-bold uppercase tracking-wider ${passed ? (isPerfect ? 'text-yellow-600' : 'text-success') : 'text-destructive'}`}>
-																			{passed
-																				? (language === 'bm' ? 'LULUS' : 'PASSED')
-																				: (language === 'bm' ? 'GAGAL' : 'FAILED')
-																			}
-																		</span>
-																		<span className={`text-xl font-black ${passed ? (isPerfect ? 'text-yellow-600' : 'text-success') : 'text-destructive'}`}>
-																			{percentage.toFixed(0)}%
-																		</span>
-																	</div>
-
-																	{/* Custom Progress Bar with Pass Mark */}
-																	<div className="relative h-2.5 w-full bg-black/5 rounded-full overflow-hidden">
-																		{/* Pass Mark Indicator Line */}
-																		<div
-																			className="absolute top-0 bottom-0 w-0.5 bg-black/20 z-10"
-																			style={{ left: `${passingPercentage}%` }}
-																			title={`Pass Mark: ${passingPercentage}%`}
-																		/>
-																		<div
-																			className={`h-full transition-all duration-1000 ease-out rounded-full ${passed ? (isPerfect ? 'bg-yellow-500' : 'bg-success') : 'bg-destructive'}`}
-																			style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
-																		/>
-																	</div>
-																</div>
-															);
-														})()}
-													</div>
-												)}
-
-												{/* Dynamic Actions */}
-												{assessment.type === 'assignment' ? (
-													<div className="mt-2">
-														<Link href={`/assessments/${assessment.id}/submit`} className="block w-full">
-															<Button
-																className={`w-full h-10 shadow-sm transition-all ${status === 'past_due'
-																		? 'bg-neutral text-muted-foreground hover:bg-neutral/80'
-																		: (submission ? 'bg-white text-primary border border-primary/20 hover:bg-primary/5 hover:border-primary/50' : '')
-																	}`}
-																variant={status === 'past_due' ? 'secondary' : (submission ? 'outline' : 'default')}
-																disabled={status === 'past_due' && !submission}
-															>
-																{status === 'past_due' ? (
-																	<>
-																		<Eye className="h-4 w-4 mr-2" />
-																		{language === 'bm' ? 'Lihat Semakan' : 'View Review'}
-																	</>
-																) : submission ? (
-																	<>
-																		<Eye className="h-4 w-4 mr-2" />
-																		{language === 'bm' ? 'Lihat / Kemas Kini' : 'View / Update'}
-																	</>
-																) : (
-																	<>
-																		<Upload className="h-4 w-4 mr-2" />
-																		{language === 'bm' ? 'Hantar Tugasan' : 'Submit Assignment'}
-																	</>
-																)}
-															</Button>
-														</Link>
-													</div>
-												) : (
-													// Quiz / Coding Actions
-													<div className="grid grid-cols-1 gap-2 mt-2">
-														{submission ? (
-															<Button
-																variant="outline"
-																className="w-full h-10 border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/40"
-																onClick={() => setSelectedResult(submission)}
-															>
-																<Eye className="h-4 w-4 mr-2" />
-																{language === 'bm' ? 'Lihat Keputusan' : 'View Results'}
-															</Button>
-														) : (
-															status === 'past_due' ? (
-																<Button variant="secondary" disabled className="w-full h-10 opacity-70">
-																	{language === 'bm' ? 'Tamat Tempoh' : 'Past Due'}
-																</Button>
-															) : (
-																<Link href={`/assessments/${assessment.id}/take`} className="block w-full">
-																	<Button className="w-full h-10 bg-primary hover:bg-primary/90 text-white shadow-md hover:shadow-lg transition-all">
-																		{status === 'submitted' ? (
-																			<>
-																				<ArrowRight className="h-4 w-4 mr-2" />
-																				{language === 'bm' ? 'Sambung' : 'Resume'}
-																			</>
-																		) : (
-																			<>
-																				<ClipboardCheck className="h-4 w-4 mr-2" />
-																				{language === 'bm' ? 'Mula Penilaian' : 'Take Assessment'}
-																			</>
-																		)}
-																	</Button>
-																</Link>
-															)
-														)}
-													</div>
-												)}
-											</div>
-										) : (
-											// Teacher Actions (unchanged logic, improved style)
-											<div className="grid grid-cols-2 gap-2">
-												<Link href={`/assessments/${assessment.id}/edit`} className="w-full">
-													<Button variant="outline" className="w-full h-9 text-xs border-primary/20 hover:bg-primary/5 hover:border-primary/50 text-primary">
-														<Edit2 className="h-3.5 w-3.5 mr-1.5" />
-														Edit
-													</Button>
-												</Link>
-												<Link href={`/assessments/${assessment.id}/submissions`} className="w-full">
-													<Button variant="outline" className="w-full h-9 text-xs border-info/20 hover:bg-info/5 hover:border-info/50 text-info">
-														<FileText className="h-3.5 w-3.5 mr-1.5" />
-														Submissions
-													</Button>
-												</Link>
-												<Button
-													variant="outline"
-													onClick={() => togglePublish(assessment)}
-													className={`w-full h-9 text-xs ${assessment.published
-														? "border-warning/20 text-warning hover:bg-warning/5 hover:border-warning/50"
-														: "border-success/20 text-success hover:bg-success/5 hover:border-success/50"}`}
-												>
-													{assessment.published ? (
-														<>
-															<EyeOff className="h-3.5 w-3.5 mr-1.5" />
-															Unpublish
-														</>
-													) : (
-														<>
-															<Eye className="h-3.5 w-3.5 mr-1.5" />
-															Publish
-														</>
+													{deadlinePassed && (
+														<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-neutral/10 text-muted-foreground border border-neutral/20">
+															{language === 'bm' ? 'Tamat' : 'Ended'}
+														</span>
 													)}
-												</Button>
-												<Button
-													variant="outline"
-													onClick={() => confirmDelete(assessment.id)}
-													className="w-full h-9 text-xs border-destructive/20 text-destructive hover:bg-destructive/5 hover:border-destructive/50"
-												>
-													<Trash2 className="h-3.5 w-3.5 mr-1.5" />
-													Delete
-												</Button>
+													{!deadlinePassed && timeLeft && (
+														<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-warning/10 text-warning border border-warning/20">
+															{timeLeft}
+														</span>
+													)}
+												</div>
+
+												<CardTitle className="text-xl font-bold text-neutralDark leading-tight group-hover:text-primary transition-colors line-clamp-2">
+													{assessment.title}
+												</CardTitle>
+											</div>
+										</div>
+
+										{/* Compact Timeline */}
+										{(assessment.config?.startDate || assessment.config?.endDate) && (
+											<div className="flex items-center gap-3 text-xs text-muted-foreground bg-white/50 p-2 rounded-lg border border-black/5">
+												{assessment.config.startDate && (
+													<div className="flex items-center gap-1.5">
+														<Calendar className="h-3.5 w-3.5 opacity-70" />
+														<span>{formatDate(assessment.config.startDate).split(',')[0]}</span>
+													</div>
+												)}
+												{assessment.config.startDate && assessment.config.endDate && (
+													<span className="text-muted-foreground/30">|</span>
+												)}
+												{assessment.config.endDate && (
+													<div className={`flex items-center gap-1.5 ${deadlinePassed ? 'text-destructive font-medium' : ''}`}>
+														<Clock className="h-3.5 w-3.5 opacity-70" />
+														<span>{formatDate(assessment.config.endDate)}</span>
+													</div>
+												)}
 											</div>
 										)}
-									</div>
-								</CardContent>
-							</Card>
-						);
-					})}
-				</div>
-			)}
+									</CardHeader>
 
-			{/* Delete Confirmation Modal */}
-			{deleteConfirm && (
-				<div
-					className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-					onClick={(e) => {
-						if (e.target === e.currentTarget) {
-							setDeleteConfirm(null);
-						}
-					}}
-					onKeyDown={(e) => {
-						if (e.key === 'Escape') {
-							setDeleteConfirm(null);
-						}
-					}}
-					tabIndex={-1}
-				>
-					<Card className="max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-						<CardHeader>
-							<CardTitle className="text-h3 text-destructive flex items-center gap-2">
-								<AlertCircle className="h-6 w-6" />
-								{language === 'bm' ? 'Sahkan Padam' : 'Confirm Delete'}
-							</CardTitle>
-							<CardDescription>
-								{language === 'bm'
-									? 'Adakah anda pasti mahu memadam penilaian ini? Tindakan ini tidak boleh dibatalkan.'
-									: 'Are you sure you want to delete this assessment? This action cannot be undone.'}
-							</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-								<p className="text-sm font-medium text-destructive">
-									{language === 'bm' ? 'Penilaian:' : 'Assessment:'} {deleteConfirm.title}
-								</p>
-								{deleteConfirm.submissionCount > 0 && (
-									<div className="mt-2 text-xs bg-white/50 p-2 rounded">
-										<p className="font-bold flex items-center gap-1">
-											<AlertCircle className="h-3 w-3" />
-											{language === 'bm' ? 'AMARAN:' : 'WARNING:'}
-										</p>
-										<p>
+									{/* Card Content */}
+									<CardContent className="relative z-10 flex-1 flex flex-col p-5 pt-4 space-y-4">
+										{assessment.description && (
+											<p className="text-muted-foreground line-clamp-2 text-sm leading-relaxed">
+												{stripHtml(assessment.description)}
+											</p>
+										)}
+
+										<div className="mt-auto pt-2">
+											{userRole === 'student' ? (
+												<div className="space-y-3">
+													{/* Progress / Score Visualization */}
+													{submission && submission.score !== undefined && (
+														<div className="space-y-2">
+															{(() => {
+																const percentage = submission.totalPoints > 0
+																	? (submission.score / submission.totalPoints) * 100
+																	: 0;
+																const passingPercentage = assessment.config?.passingPercentage ?? 40;
+																const passed = percentage >= passingPercentage;
+																const isPerfect = percentage === 100;
+
+																// Color Logic
+																let statusColor = passed ? 'bg-success text-success' : 'bg-destructive text-destructive';
+																if (isPerfect) statusColor = 'bg-yellow-500 text-yellow-600'; // Gold-ish
+
+																return (
+																	<div className="space-y-2">
+																		<div className="flex justify-between items-end">
+																			<span className={`text-xs font-bold uppercase tracking-wider ${passed ? (isPerfect ? 'text-yellow-600' : 'text-success') : 'text-destructive'}`}>
+																				{passed
+																					? (language === 'bm' ? 'LULUS' : 'PASSED')
+																					: (language === 'bm' ? 'GAGAL' : 'FAILED')
+																				}
+																			</span>
+																			<span className={`text-xl font-black ${passed ? (isPerfect ? 'text-yellow-600' : 'text-success') : 'text-destructive'}`}>
+																				{percentage.toFixed(0)}%
+																			</span>
+																		</div>
+
+																		{/* Custom Progress Bar with Pass Mark */}
+																		<div className="relative h-2.5 w-full bg-black/5 rounded-full overflow-hidden">
+																			{/* Pass Mark Indicator Line */}
+																			<div
+																				className="absolute top-0 bottom-0 w-0.5 bg-black/20 z-10"
+																				style={{ left: `${passingPercentage}%` }}
+																				title={`Pass Mark: ${passingPercentage}%`}
+																			/>
+																			<div
+																				className={`h-full transition-all duration-1000 ease-out rounded-full ${passed ? (isPerfect ? 'bg-yellow-500' : 'bg-success') : 'bg-destructive'}`}
+																				style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
+																			/>
+																		</div>
+																	</div>
+																);
+															})()}
+														</div>
+													)}
+
+													{/* Dynamic Actions */}
+													{assessment.type === 'assignment' ? (
+														<div className="mt-2">
+															<Link href={`/assessments/${assessment.id}/submit`} className="block w-full">
+																<Button
+																	className={`w-full h-10 shadow-sm transition-all ${status === 'past_due'
+																		? 'bg-neutral text-muted-foreground hover:bg-neutral/80'
+																		: (submission ? 'bg-white text-primary border border-primary/20 hover:bg-primary/5 hover:border-primary/50' : '')
+																		}`}
+																	variant={status === 'past_due' ? 'secondary' : (submission ? 'outline' : 'default')}
+																	disabled={status === 'past_due' && !submission}
+																>
+																	{status === 'past_due' ? (
+																		<>
+																			<Eye className="h-4 w-4 mr-2" />
+																			{language === 'bm' ? 'Lihat Semakan' : 'View Review'}
+																		</>
+																	) : submission ? (
+																		<>
+																			<Eye className="h-4 w-4 mr-2" />
+																			{language === 'bm' ? 'Lihat / Kemas Kini' : 'View / Update'}
+																		</>
+																	) : (
+																		<>
+																			<Upload className="h-4 w-4 mr-2" />
+																			{language === 'bm' ? 'Hantar Tugasan' : 'Submit Assignment'}
+																		</>
+																	)}
+																</Button>
+															</Link>
+														</div>
+													) : (
+														// Quiz / Coding Actions
+														<div className="grid grid-cols-1 gap-2 mt-2">
+															{submission ? (
+																<Button
+																	variant="outline"
+																	className="w-full h-10 border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/40"
+																	onClick={() => setSelectedResult(submission)}
+																>
+																	<Eye className="h-4 w-4 mr-2" />
+																	{language === 'bm' ? 'Lihat Keputusan' : 'View Results'}
+																</Button>
+															) : (
+																status === 'past_due' ? (
+																	<Button variant="secondary" disabled className="w-full h-10 opacity-70">
+																		{language === 'bm' ? 'Tamat Tempoh' : 'Past Due'}
+																	</Button>
+																) : (
+																	<Link href={`/assessments/${assessment.id}/take`} className="block w-full">
+																		<Button className="w-full h-10 bg-primary hover:bg-primary/90 text-white shadow-md hover:shadow-lg transition-all">
+																			{status === 'submitted' ? (
+																				<>
+																					<ArrowRight className="h-4 w-4 mr-2" />
+																					{language === 'bm' ? 'Sambung' : 'Resume'}
+																				</>
+																			) : (
+																				<>
+																					<ClipboardCheck className="h-4 w-4 mr-2" />
+																					{language === 'bm' ? 'Mula Penilaian' : 'Take Assessment'}
+																				</>
+																			)}
+																		</Button>
+																	</Link>
+																)
+															)}
+														</div>
+													)}
+												</div>
+											) : (
+												// Teacher Actions (unchanged logic, improved style)
+												<div className="grid grid-cols-2 gap-2">
+													<Link href={`/assessments/${assessment.id}/edit`} className="w-full">
+														<Button variant="outline" className="w-full h-9 text-xs border-primary/20 hover:bg-primary/5 hover:border-primary/50 text-primary">
+															<Edit2 className="h-3.5 w-3.5 mr-1.5" />
+															Edit
+														</Button>
+													</Link>
+													<Link href={`/assessments/${assessment.id}/submissions`} className="w-full">
+														<Button variant="outline" className="w-full h-9 text-xs border-info/20 hover:bg-info/5 hover:border-info/50 text-info">
+															<FileText className="h-3.5 w-3.5 mr-1.5" />
+															Submissions
+														</Button>
+													</Link>
+													<Button
+														variant="outline"
+														onClick={() => togglePublish(assessment)}
+														className={`w-full h-9 text-xs ${assessment.published
+															? "border-warning/20 text-warning hover:bg-warning/5 hover:border-warning/50"
+															: "border-success/20 text-success hover:bg-success/5 hover:border-success/50"}`}
+													>
+														{assessment.published ? (
+															<>
+																<EyeOff className="h-3.5 w-3.5 mr-1.5" />
+																Unpublish
+															</>
+														) : (
+															<>
+																<Eye className="h-3.5 w-3.5 mr-1.5" />
+																Publish
+															</>
+														)}
+													</Button>
+													<Button
+														variant="outline"
+														onClick={() => confirmDelete(assessment.id)}
+														className="w-full h-9 text-xs border-destructive/20 text-destructive hover:bg-destructive/5 hover:border-destructive/50"
+													>
+														<Trash2 className="h-3.5 w-3.5 mr-1.5" />
+														Delete
+													</Button>
+												</div>
+											)}
+										</div>
+									</CardContent>
+								</Card>
+							);
+						})}
+					</div>
+				)}
+
+				{/* Delete Confirmation Modal */}
+				{deleteConfirm && (
+					<div
+						className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+						onClick={(e) => {
+							if (e.target === e.currentTarget) {
+								setDeleteConfirm(null);
+							}
+						}}
+						onKeyDown={(e) => {
+							if (e.key === 'Escape') {
+								setDeleteConfirm(null);
+							}
+						}}
+						tabIndex={-1}
+					>
+						<Card className="max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+							<CardHeader>
+								<CardTitle className="text-h3 text-destructive flex items-center gap-2">
+									<AlertCircle className="h-6 w-6" />
+									{language === 'bm' ? 'Sahkan Padam' : 'Confirm Delete'}
+								</CardTitle>
+								<CardDescription>
+									{language === 'bm'
+										? 'Adakah anda pasti mahu memadam penilaian ini? Tindakan ini tidak boleh dibatalkan.'
+										: 'Are you sure you want to delete this assessment? This action cannot be undone.'}
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+									<p className="text-sm font-medium text-destructive">
+										{language === 'bm' ? 'Penilaian:' : 'Assessment:'} {deleteConfirm.title}
+									</p>
+									{deleteConfirm.submissionCount > 0 && (
+										<div className="mt-2 text-xs bg-white/50 p-2 rounded">
+											<p className="font-bold flex items-center gap-1">
+												<AlertCircle className="h-3 w-3" />
+												{language === 'bm' ? 'AMARAN:' : 'WARNING:'}
+											</p>
+											<p>
+												{language === 'bm'
+													? `Terdapat ${deleteConfirm.submissionCount} penghantaran pelajar.`
+													: `There are ${deleteConfirm.submissionCount} student submissions.`}
+											</p>
+											<p className="mt-1">
+												{language === 'bm'
+													? 'Memadam penilaian ini akan menghapus semua data dan penghantaran pelajar secara kekal.'
+													: 'Deleting this assessment will permanently remove all associated student data and submissions.'}
+											</p>
+										</div>
+									)}
+								</div>
+								<div className="flex gap-3 justify-end">
+									<Button
+										variant="outline"
+										onClick={() => setDeleteConfirm(null)}
+									>
+										{language === 'bm' ? 'Batal' : 'Cancel'}
+									</Button>
+									<Button
+										variant="destructive"
+										onClick={() => handleDelete(deleteConfirm.assessmentId)}
+									>
+										<Trash2 className="h-4 w-4 mr-2" />
+										{language === 'bm' ? 'Padam' : 'Delete'}
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					</div>
+				)}
+
+				{/* Submit Confirmation Modal */}
+				{submitConfirm && (
+					<div
+						className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+						onClick={(e) => {
+							if (e.target === e.currentTarget) {
+								setSubmitConfirm(null);
+							}
+						}}
+						onKeyDown={(e) => {
+							if (e.key === 'Escape') {
+								setSubmitConfirm(null);
+							}
+						}}
+						tabIndex={-1}
+					>
+						<Card className="max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+							<CardHeader>
+								<CardTitle className="text-h3 text-primary flex items-center gap-2">
+									<CheckCircle className="h-6 w-6" />
+									{language === 'bm' ? 'Sahkan Hantar' : 'Confirm Submit'}
+								</CardTitle>
+								<CardDescription>
+									{language === 'bm'
+										? 'Adakah anda pasti mahu menghantar tugasan ini?'
+										: 'Are you sure you want to submit this assignment?'}
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
+									<p className="text-sm font-medium text-primary mb-2">
+										{language === 'bm' ? 'Tugasan:' : 'Assignment:'} {submitConfirm.title}
+									</p>
+									<p className="text-xs text-muted-foreground">
+										{language === 'bm'
+											? `Anda akan menghantar ${submitConfirm.fileCount} ${submitConfirm.fileCount === 1 ? 'fail' : 'fail'}.`
+											: `You will submit ${submitConfirm.fileCount} ${submitConfirm.fileCount === 1 ? 'file' : 'files'}.`}
+									</p>
+								</div>
+								{submissions[submitConfirm.assessmentId] && (
+									<div className="p-3 bg-warning/10 border border-warning/20 rounded-lg">
+										<p className="text-xs text-warning flex items-center gap-2">
+											<AlertCircle className="h-4 w-4" />
 											{language === 'bm'
-												? `Terdapat ${deleteConfirm.submissionCount} penghantaran pelajar.`
-												: `There are ${deleteConfirm.submissionCount} student submissions.`}
-										</p>
-										<p className="mt-1">
-											{language === 'bm'
-												? 'Memadam penilaian ini akan menghapus semua data dan penghantaran pelajar secara kekal.'
-												: 'Deleting this assessment will permanently remove all associated student data and submissions.'}
+												? 'Anda telah menghantar tugasan ini sebelum ini. Menghantar semula akan menggantikan penghantaran sebelumnya.'
+												: 'You have already submitted this assignment. Resubmitting will replace your previous submission.'}
 										</p>
 									</div>
 								)}
-							</div>
-							<div className="flex gap-3 justify-end">
-								<Button
-									variant="outline"
-									onClick={() => setDeleteConfirm(null)}
-								>
-									{language === 'bm' ? 'Batal' : 'Cancel'}
-								</Button>
-								<Button
-									variant="destructive"
-									onClick={() => handleDelete(deleteConfirm.assessmentId)}
-								>
-									<Trash2 className="h-4 w-4 mr-2" />
-									{language === 'bm' ? 'Padam' : 'Delete'}
-								</Button>
-							</div>
-						</CardContent>
-					</Card>
-				</div>
-			)}
-
-			{/* Submit Confirmation Modal */}
-			{submitConfirm && (
-				<div
-					className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-					onClick={(e) => {
-						if (e.target === e.currentTarget) {
-							setSubmitConfirm(null);
-						}
-					}}
-					onKeyDown={(e) => {
-						if (e.key === 'Escape') {
-							setSubmitConfirm(null);
-						}
-					}}
-					tabIndex={-1}
-				>
-					<Card className="max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-						<CardHeader>
-							<CardTitle className="text-h3 text-primary flex items-center gap-2">
-								<CheckCircle className="h-6 w-6" />
-								{language === 'bm' ? 'Sahkan Hantar' : 'Confirm Submit'}
-							</CardTitle>
-							<CardDescription>
-								{language === 'bm'
-									? 'Adakah anda pasti mahu menghantar tugasan ini?'
-									: 'Are you sure you want to submit this assignment?'}
-							</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
-								<p className="text-sm font-medium text-primary mb-2">
-									{language === 'bm' ? 'Tugasan:' : 'Assignment:'} {submitConfirm.title}
-								</p>
-								<p className="text-xs text-muted-foreground">
-									{language === 'bm'
-										? `Anda akan menghantar ${submitConfirm.fileCount} ${submitConfirm.fileCount === 1 ? 'fail' : 'fail'}.`
-										: `You will submit ${submitConfirm.fileCount} ${submitConfirm.fileCount === 1 ? 'file' : 'files'}.`}
-								</p>
-							</div>
-							{submissions[submitConfirm.assessmentId] && (
-								<div className="p-3 bg-warning/10 border border-warning/20 rounded-lg">
-									<p className="text-xs text-warning flex items-center gap-2">
-										<AlertCircle className="h-4 w-4" />
-										{language === 'bm'
-											? 'Anda telah menghantar tugasan ini sebelum ini. Menghantar semula akan menggantikan penghantaran sebelumnya.'
-											: 'You have already submitted this assignment. Resubmitting will replace your previous submission.'}
-									</p>
+								<div className="flex gap-3 justify-end">
+									<Button
+										variant="outline"
+										onClick={() => setSubmitConfirm(null)}
+									>
+										{language === 'bm' ? 'Batal' : 'Cancel'}
+									</Button>
+									<Button
+										onClick={() => handleSubmit(submitConfirm.assessmentId)}
+										disabled={submitting[submitConfirm.assessmentId]}
+									>
+										{submitting[submitConfirm.assessmentId] ? (
+											<>
+												<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+												{language === 'bm' ? 'Menghantar...' : 'Submitting...'}
+											</>
+										) : (
+											<>
+												<Upload className="h-4 w-4 mr-2" />
+												{language === 'bm' ? 'Hantar' : 'Submit'}
+											</>
+										)}
+									</Button>
 								</div>
-							)}
-							<div className="flex gap-3 justify-end">
-								<Button
-									variant="outline"
-									onClick={() => setSubmitConfirm(null)}
-								>
-									{language === 'bm' ? 'Batal' : 'Cancel'}
-								</Button>
-								<Button
-									onClick={() => handleSubmit(submitConfirm.assessmentId)}
-									disabled={submitting[submitConfirm.assessmentId]}
-								>
-									{submitting[submitConfirm.assessmentId] ? (
-										<>
-											<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-											{language === 'bm' ? 'Menghantar...' : 'Submitting...'}
-										</>
-									) : (
-										<>
-											<Upload className="h-4 w-4 mr-2" />
-											{language === 'bm' ? 'Hantar' : 'Submit'}
-										</>
-									)}
-								</Button>
-							</div>
-						</CardContent>
-					</Card>
-				</div>
-			)}
+							</CardContent>
+						</Card>
+					</div>
+				)}
 
-			{/* Submit Success Modal */}
-			{submitSuccess && (
-				<div
-					className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-					onClick={(e) => {
-						if (e.target === e.currentTarget) {
-							setSubmitSuccess(null);
-						}
-					}}
-					onKeyDown={(e) => {
-						if (e.key === 'Escape') {
-							setSubmitSuccess(null);
-						}
-					}}
-					tabIndex={-1}
-				>
-					<Card className="max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-						<CardHeader>
-							<CardTitle className="text-h3 text-success flex items-center gap-2">
-								<CheckCircle className="h-6 w-6" />
-								{language === 'bm' ? 'Berjaya!' : 'Success!'}
-							</CardTitle>
-							<CardDescription>
-								{submitSuccess.message}
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<div className="flex justify-end">
-								<Button
-									onClick={() => setSubmitSuccess(null)}
-									className="bg-success hover:opacity-90"
-								>
-									{language === 'bm' ? 'OK' : 'OK'}
-								</Button>
-							</div>
-						</CardContent>
-					</Card>
-				</div>
-			)}
+				{/* Submit Success Modal */}
+				{submitSuccess && (
+					<div
+						className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+						onClick={(e) => {
+							if (e.target === e.currentTarget) {
+								setSubmitSuccess(null);
+							}
+						}}
+						onKeyDown={(e) => {
+							if (e.key === 'Escape') {
+								setSubmitSuccess(null);
+							}
+						}}
+						tabIndex={-1}
+					>
+						<Card className="max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+							<CardHeader>
+								<CardTitle className="text-h3 text-success flex items-center gap-2">
+									<CheckCircle className="h-6 w-6" />
+									{language === 'bm' ? 'Berjaya!' : 'Success!'}
+								</CardTitle>
+								<CardDescription>
+									{submitSuccess.message}
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<div className="flex justify-end">
+									<Button
+										onClick={() => setSubmitSuccess(null)}
+										className="bg-success hover:opacity-90"
+									>
+										{language === 'bm' ? 'OK' : 'OK'}
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					</div>
+				)}
 
-			{/* Submit Error Modal */}
-			{submitError && (
-				<div
-					className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-					onClick={(e) => {
-						if (e.target === e.currentTarget) {
-							setSubmitError(null);
-						}
-					}}
-					onKeyDown={(e) => {
-						if (e.key === 'Escape') {
-							setSubmitError(null);
-						}
-					}}
-					tabIndex={-1}
-				>
-					<Card className="max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-						<CardHeader>
-							<CardTitle className="text-h3 text-destructive flex items-center gap-2">
-								<AlertCircle className="h-6 w-6" />
-								{language === 'bm' ? 'Ralat' : 'Error'}
-							</CardTitle>
-							<CardDescription>
-								{submitError.message}
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<div className="flex justify-end">
-								<Button
-									variant="destructive"
-									onClick={() => setSubmitError(null)}
-								>
-									{language === 'bm' ? 'OK' : 'OK'}
-								</Button>
-							</div>
-						</CardContent>
-					</Card>
-				</div>
-			)}
+				{/* Submit Error Modal */}
+				{submitError && (
+					<div
+						className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+						onClick={(e) => {
+							if (e.target === e.currentTarget) {
+								setSubmitError(null);
+							}
+						}}
+						onKeyDown={(e) => {
+							if (e.key === 'Escape') {
+								setSubmitError(null);
+							}
+						}}
+						tabIndex={-1}
+					>
+						<Card className="max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+							<CardHeader>
+								<CardTitle className="text-h3 text-destructive flex items-center gap-2">
+									<AlertCircle className="h-6 w-6" />
+									{language === 'bm' ? 'Ralat' : 'Error'}
+								</CardTitle>
+								<CardDescription>
+									{submitError.message}
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<div className="flex justify-end">
+									<Button
+										variant="destructive"
+										onClick={() => setSubmitError(null)}
+									>
+										{language === 'bm' ? 'OK' : 'OK'}
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					</div>
+				)}
 
-			{/* Result Details Modal */}
-			<ResultDetailsModal
-				isOpen={!!selectedResult}
-				onClose={() => setSelectedResult(null)}
-				submission={selectedResult}
-				passingPercentage={assessments.find(a => a.id === selectedResult?.assessmentId)?.config?.passingPercentage ?? 40}
-			/>
+				{/* Result Details Modal */}
+				<ResultDetailsModal
+					isOpen={!!selectedResult}
+					onClose={() => setSelectedResult(null)}
+					submission={selectedResult}
+					passingPercentage={assessments.find(a => a.id === selectedResult?.assessmentId)?.config?.passingPercentage ?? 40}
+				/>
+			</div>
 		</div>
 	);
 }
