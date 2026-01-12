@@ -15,7 +15,7 @@ export default function CourseDetailPage() {
 	const params = useParams();
 	const router = useRouter();
 	const courseId = params.id;
-	
+
 	const [course, setCourse] = useState(null);
 	const [modules, setModules] = useState([]);
 	const [lessons, setLessons] = useState({}); // moduleId -> lessons[]
@@ -25,6 +25,8 @@ export default function CourseDetailPage() {
 	const [role, setRole] = useState(null);
 	const [isEnrolled, setIsEnrolled] = useState(false);
 	const [enrollmentLoading, setEnrollmentLoading] = useState(true);
+	const [completedLessons, setCompletedLessons] = useState(new Set());
+	const [overallProgress, setOverallProgress] = useState(0);
 
 	useEffect(() => {
 		const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -43,6 +45,13 @@ export default function CourseDetailPage() {
 							const enrollmentDoc = await getDoc(enrollmentRef);
 							const enrolled = enrollmentDoc.exists();
 							setIsEnrolled(enrolled);
+
+							if (enrolled) {
+								const data = enrollmentDoc.data();
+								setCompletedLessons(new Set(data.progress?.completedLessons || []));
+								setOverallProgress(data.progress?.overallProgress || 0);
+							}
+
 							console.log('Enrollment check:', { enrollmentId, enrolled, courseId, userId: user.uid });
 						} catch (err) {
 							console.error('Error checking enrollment:', err);
@@ -88,7 +97,7 @@ export default function CourseDetailPage() {
 						// Fetch modules directly from Firestore
 						const { getDoc } = await import('firebase/firestore');
 						const loadedModules = [];
-						
+
 						for (const moduleId of courseData.modules) {
 							try {
 								const moduleDoc = await getDoc(doc(db, 'module', moduleId));
@@ -102,11 +111,11 @@ export default function CourseDetailPage() {
 								console.error(`Error loading module ${moduleId}:`, moduleErr);
 							}
 						}
-						
+
 						// Sort by order
 						loadedModules.sort((a, b) => (a.order || 0) - (b.order || 0));
 						setModules(loadedModules);
-						
+
 						// Load lessons for each module
 						const lessonsMap = {};
 						for (const module of loadedModules) {
@@ -180,12 +189,12 @@ export default function CourseDetailPage() {
 		try {
 			// Use client-side Firestore to create enrollment (has auth context)
 			const { doc, getDoc, setDoc, serverTimestamp } = await import('firebase/firestore');
-			
+
 			// Check if already enrolled
 			const enrollmentId = `${userId}_${courseId}`;
 			const enrollmentRef = doc(db, 'enrollment', enrollmentId);
 			const enrollmentDoc = await getDoc(enrollmentRef);
-			
+
 			if (enrollmentDoc.exists()) {
 				setError('You are already enrolled in this course');
 				setIsEnrolled(true);
@@ -213,6 +222,14 @@ export default function CourseDetailPage() {
 			});
 
 			setIsEnrolled(true);
+
+			// Load current progress
+			if (enrollmentDoc.exists()) {
+				const data = enrollmentDoc.data();
+				setCompletedLessons(new Set(data.progress?.completedLessons || []));
+				setOverallProgress(data.progress?.overallProgress || 0);
+			}
+
 			// State is already updated, no need to reload
 		} catch (err) {
 			console.error('Enrollment error:', err);
@@ -275,10 +292,21 @@ export default function CourseDetailPage() {
 						</Button>
 					)}
 					{isEnrolled && (
-						<span className="px-4 py-2 rounded-lg bg-success/10 text-success text-caption font-medium flex items-center gap-2">
-							<CheckCircle2 className="h-4 w-4" />
-							Enrolled
-						</span>
+						<div className="flex flex-col items-end gap-2">
+							<span className="px-4 py-2 rounded-lg bg-success/10 text-success text-caption font-medium flex items-center gap-2">
+								<CheckCircle2 className="h-4 w-4" />
+								Enrolled
+							</span>
+							<div className="w-48 text-right">
+								<div className="text-xs text-muted-foreground mb-1">Course Progress: {overallProgress}%</div>
+								<div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+									<div
+										className="h-full bg-success transition-all duration-500"
+										style={{ width: `${overallProgress}%` }}
+									/>
+								</div>
+							</div>
+						</div>
 					)}
 				</div>
 				{error && (
@@ -295,7 +323,7 @@ export default function CourseDetailPage() {
 					{modules.map((module, moduleIndex) => {
 						const moduleLessons = lessons[module.id] || [];
 						const isModuleLocked = isStudent && !isEnrolled && moduleIndex > 0;
-						
+
 						return (
 							<Card key={module.id} className={isModuleLocked ? 'opacity-60' : ''}>
 								<CardHeader>
@@ -309,7 +337,24 @@ export default function CourseDetailPage() {
 												</div>
 											)}
 											<div>
-												<CardTitle className="text-h3">{module.title}</CardTitle>
+												<div className="flex items-center gap-3">
+													<CardTitle className="text-h3">{module.title}</CardTitle>
+													{moduleLessons.length > 0 && (
+														moduleLessons.every(l => completedLessons.has(l.id)) ? (
+															<span className="px-2 py-0.5 rounded-full bg-success/10 text-success text-xs font-medium flex items-center gap-1">
+																<CheckCircle2 className="h-3 w-3" />
+																Completed
+															</span>
+														) : (
+															isEnrolled && (
+																<span className="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium flex items-center gap-1">
+																	<Clock className="h-3 w-3" />
+																	Incomplete
+																</span>
+															)
+														)
+													)}
+												</div>
 												{moduleLessons.length > 0 && (
 													<CardDescription className="mt-1">
 														{moduleLessons.length} {moduleLessons.length === 1 ? 'lesson' : 'lessons'}
@@ -324,23 +369,28 @@ export default function CourseDetailPage() {
 										<div className="space-y-2">
 											{moduleLessons.map((lesson, lessonIndex) => {
 												const isLessonLocked = isModuleLocked || (isStudent && !isEnrolled);
-												
+
 												return (
 													<Link
 														key={lesson.id}
 														href={isLessonLocked ? '#' : `/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`}
-														className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${
-															isLessonLocked
-																? 'border-border bg-neutralLight cursor-not-allowed opacity-60'
-																: 'border-border hover:border-primary hover:bg-primary/5 cursor-pointer'
-														}`}
+														className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${isLessonLocked
+															? 'border-border bg-neutralLight cursor-not-allowed opacity-60'
+															: 'border-border hover:border-primary hover:bg-primary/5 cursor-pointer'
+															}`}
 													>
 														{isLessonLocked ? (
 															<Lock className="h-5 w-5 text-muted-foreground flex-shrink-0" />
 														) : (
-															<div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-caption font-medium flex-shrink-0">
-																{lessonIndex + 1}
-															</div>
+															isEnrolled && completedLessons.has(lesson.id) ? (
+																<div className="flex items-center justify-center w-6 h-6 rounded-full bg-success/10 text-success flex-shrink-0">
+																	<CheckCircle2 className="h-4 w-4" />
+																</div>
+															) : (
+																<div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-caption font-medium flex-shrink-0">
+																	{lessonIndex + 1}
+																</div>
+															)
 														)}
 														<div className="flex-1 min-w-0">
 															<h4 className="text-body font-medium text-neutralDark">{lesson.title}</h4>

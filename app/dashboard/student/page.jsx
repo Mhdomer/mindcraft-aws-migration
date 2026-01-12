@@ -135,24 +135,22 @@ export default function StudentDashboard() {
             // Set recent assessments (pending ones, limit to 3)
             setRecentAssessments(pendingAssessments.slice(0, 3));
 
-            // Calculate overall progress
-            const totalTasks = allAssessments.length + allAssignments.length;
+            // Calculate overall progress from all enrollments
+            // We now use the pre-calculated stats in the enrollment object which updates when lessons are completed
+            let totalProgressSum = 0;
+            let activeEnrollmentsCount = 0;
 
-            // Count unique completed tasks that are part of the currently enrolled courses
-            const validSubmittedAssessmentIds = new Set(
-                submissions
-                    .filter(s => s.assessmentId && allAssessments.some(a => a.id === s.assessmentId))
-                    .map(s => s.assessmentId)
-            );
-            const validSubmittedAssignmentIds = new Set(
-                submissions
-                    .filter(s => s.assignmentId && allAssignments.some(a => a.id === s.assignmentId))
-                    .map(s => s.assignmentId)
-            );
+            enrollments.forEach(enrollment => {
+                if (enrollment.progress && typeof enrollment.progress.overallProgress === 'number') {
+                    totalProgressSum += enrollment.progress.overallProgress;
+                    activeEnrollmentsCount++;
+                }
+            });
 
-            const completedTasks = validSubmittedAssessmentIds.size + validSubmittedAssignmentIds.size;
-            const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-            setOverallProgress(Math.min(progress, 100)); // Ensure it never exceeds 100%
+            // If we have enrollments but no progress data yet, fallback to 0 or assessments logic if preferred
+            // But for now let's rely on the enrollment progress which we started updating
+            const avgProgress = activeEnrollmentsCount > 0 ? Math.round(totalProgressSum / activeEnrollmentsCount) : 0;
+            setOverallProgress(Math.min(avgProgress, 100)); // Ensure it never exceeds 100%
 
             // Load recommendations preview
             loadRecommendationsPreview();

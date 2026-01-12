@@ -148,16 +148,17 @@ export default function TeacherDashboard() {
 	return (
 		<div className="-m-6 md:-m-8 lg:-m-10 min-h-full relative overflow-hidden">
 			{/* Premium Background Design */}
-			<div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-teal-50/30 to-white z-0 pointer-events-none"></div>
-			<div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-emerald-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
-			<div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-sky-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
+			<div className="absolute inset-0 bg-gradient-to-br from-sky-50 via-indigo-50/30 to-white z-0 pointer-events-none"></div>
+			<div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
+			<div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
+			<div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-cyan-100/30 rounded-full blur-[80px] pointer-events-none z-0"></div>
 
 			<div className="space-y-10 animate-fadeIn p-6 md:p-8 lg:p-10 relative z-10 w-full max-w-7xl mx-auto">
 				{/* Page Header */}
 				<div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 					<div>
 						<h1 className="text-h1 text-neutralDark flex items-center gap-3">
-							<span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
+							<span className="bg-gradient-to-r from-primary to-emerald-600 bg-clip-text text-transparent">
 								{userName ? `Welcome back, ${userName}` : 'Teacher Dashboard'}
 							</span>
 							<Sparkles className="h-6 w-6 text-yellow-400 animate-pulse hidden md:block" />
