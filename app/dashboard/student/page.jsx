@@ -7,33 +7,57 @@ import { useAuth } from '@/app/contexts/AuthContext';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
 import Link from 'next/link';
-import { BookOpen, FileQuestion, TrendingUp, Brain, ArrowRight, FileText, ClipboardCheck, Gamepad2, ChevronDown, ChevronUp, Lightbulb, AlertCircle, CheckCircle, Sparkles } from 'lucide-react';
+import { BookOpen, FileQuestion, TrendingUp, Brain, ArrowRight, FileText, ClipboardCheck, Gamepad2, ChevronDown, ChevronUp, Lightbulb, AlertCircle, CheckCircle, Loader2, Sparkles } from 'lucide-react';
+import { useLanguage } from '@/app/contexts/LanguageContext';
 import { Metric, Flex, Text, ProgressBar } from '@tremor/react';
 
 export default function StudentDashboard() {
-    const { user, userData } = useAuth();
+	const { user, userData } = useAuth();
+	const { language } = useLanguage();
 
-    const [loading, setLoading] = useState(true);
-    const [userName, setUserName] = useState('');
-    const [enrolledCourses, setEnrolledCourses] = useState(0);
-    const [pendingTasks, setPendingTasks] = useState(0);
-    const [overallProgress, setOverallProgress] = useState(0);
-    const [recentAssessments, setRecentAssessments] = useState([]);
-    const [recentCourses, setRecentCourses] = useState([]);
-    const [recommendations, setRecommendations] = useState([]);
-    const [expandedRecIndex, setExpandedRecIndex] = useState(null);
+	const [loading, setLoading] = useState(true);
+	const [userName, setUserName] = useState('');
+	const [enrolledCourses, setEnrolledCourses] = useState(0);
+	const [pendingTasks, setPendingTasks] = useState(0);
+	const [overallProgress, setOverallProgress] = useState(0);
+	const [recentAssessments, setRecentAssessments] = useState([]);
+	const [recentCourses, setRecentCourses] = useState([]);
+	const [recommendations, setRecommendations] = useState([]);
+	const [recommendationsLoading, setRecommendationsLoading] = useState(true);
+	const [expandedRecIndex, setExpandedRecIndex] = useState(null);
 
-    useEffect(() => {
-        if (user) {
-            setUserName(user.displayName || userData?.name || '');
-            loadDashboardData(user.uid);
-        } else if (!user && !userData) {
-            // If we know auth check is done (loading is false in context, but here loading is local dashboard loading)
-            // effectively if no user, we stop loading dashboard
-            if (userData === null) setLoading(false);
-        }
-    }, [user, userData]);
+	const tooltips = {
+		en: {
+			myCourses: 'View all your enrolled courses and continue learning',
+			assessments: 'Take quizzes and exams to test your knowledge',
+			assignments: 'View and submit your assignments',
+			progress: 'Track your learning progress and achievements',
+			aiAssistant: 'Get help from AI assistant for concepts and questions',
+			gameLevels: 'Play interactive learning games',
+		},
+		bm: {
+			myCourses: 'Lihat semua kursus yang anda daftar dan teruskan pembelajaran',
+			assessments: 'Ambil kuiz dan peperiksaan untuk menguji pengetahuan anda',
+			assignments: 'Lihat dan hantar tugasan anda',
+			progress: 'Jejaki kemajuan pembelajaran dan pencapaian anda',
+			aiAssistant: 'Dapatkan bantuan daripada pembantu AI untuk konsep dan soalan',
+			gameLevels: 'Main permainan pembelajaran interaktif',
+		},
+	};
+	const t = tooltips[language] || tooltips.en;
+
+	useEffect(() => {
+		if (user) {
+			setUserName(user.displayName || userData?.name || '');
+			loadDashboardData(user.uid);
+		} else if (!user && !userData) {
+			// If we know auth check is done (loading is false in context, but here loading is local dashboard loading)
+			// effectively if no user, we stop loading dashboard
+			if (userData === null) setLoading(false);
+		}
+	}, [user, userData]);
 
     async function loadDashboardData(userId) {
         setLoading(true);
@@ -153,7 +177,7 @@ export default function StudentDashboard() {
             setOverallProgress(Math.min(avgProgress, 100)); // Ensure it never exceeds 100%
 
             // Load recommendations preview
-            loadRecommendationsPreview();
+            loadRecommendationsPreview(userId);
         } catch (err) {
             console.error('Error loading dashboard data:', err);
         } finally {
@@ -161,31 +185,53 @@ export default function StudentDashboard() {
         }
     }
 
-    async function loadRecommendationsPreview() {
-        if (!user?.uid) return;
+    async function loadRecommendationsPreview(userId) {
+        if (!userId) {
+            setRecommendationsLoading(false);
+            return;
+        }
 
+        setRecommendationsLoading(true);
         try {
-            // Fetch recommendations client-side to avoid server permission issues
-            const response = await fetch('/api/ai/recommendations', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
+            // Use the same static recommendations as the main page for consistency
+            // Get one of each priority: high, medium, low
+            const staticRecommendations = [
+                {
+                    id: 'db-normalization',
+                    title: 'Database Normalization',
+                    priority: 'high',
+                    why: 'Normalization is fundamental to database design. Understanding how to organize data into well-structured tables reduces redundancy and improves data integrity.',
+                    overview: 'Learn about the different normal forms (1NF, 2NF, 3NF, BCNF) and how to apply them to your database designs.',
+                    topics: ['First Normal Form (1NF)', 'Second Normal Form (2NF)', 'Third Normal Form (3NF)', 'Boyce-Codd Normal Form (BCNF)', 'Practical examples'],
+                    actionPath: '/courses'
                 },
-                body: JSON.stringify({ language: 'en' }),
-                credentials: 'include', // Include cookies for authentication
-            });
+                {
+                    id: 'indexing-strategies',
+                    title: 'Database Indexing Strategies',
+                    priority: 'medium',
+                    why: 'Proper indexing dramatically improves query performance. Understanding when and how to create indexes is critical.',
+                    overview: 'Explore different types of indexes and learn when to create indexes for optimal performance.',
+                    topics: ['Types of indexes', 'Composite indexes', 'Index maintenance', 'Query optimization', 'Index monitoring'],
+                    actionPath: '/courses'
+                },
+                {
+                    id: 'stored-procedures',
+                    title: 'Stored Procedures & Functions',
+                    priority: 'low',
+                    why: 'Stored procedures and functions encapsulate business logic in the database, improving performance and maintainability.',
+                    overview: 'Learn to create, use, and optimize stored procedures and functions.',
+                    topics: ['Creating stored procedures', 'Input and output parameters', 'User-defined functions', 'Error handling in procedures', 'Performance considerations'],
+                    actionPath: '/courses'
+                },
+            ];
 
-            if (response.ok) {
-                const data = await response.json();
-                setRecommendations((data.recommendations || []).slice(0, 3)); // Show only first 3
-            } else {
-                // If API fails, just show empty state - don't crash
-                setRecommendations([]);
-            }
+            // One of each priority: high, medium, low
+            setRecommendations(staticRecommendations);
         } catch (err) {
             console.error('Error loading recommendations:', err);
-            // Silently fail - recommendations are optional
             setRecommendations([]);
+        } finally {
+            setRecommendationsLoading(false);
         }
     }
 
@@ -298,7 +344,7 @@ export default function StudentDashboard() {
                                         <p className="text-sm text-muted-foreground">Access your learning materials</p>
                                     </div>
                                     <Button size="sm" variant="ghost" className="text-primary mt-2 group-hover:bg-primary/10">
-                                        View Courses <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        View Courses <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -317,7 +363,7 @@ export default function StudentDashboard() {
                                         </p>
                                     </div>
                                     <Button size="sm" variant="ghost" className="text-orange-600 mt-2 group-hover:bg-orange-100">
-                                        View Assessments <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        View Assessments <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -334,7 +380,7 @@ export default function StudentDashboard() {
                                         <p className="text-sm text-muted-foreground">Submit your homework</p>
                                     </div>
                                     <Button size="sm" variant="ghost" className="text-blue-600 mt-2 group-hover:bg-blue-100">
-                                        View Assignments <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        View Assignments <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -351,7 +397,7 @@ export default function StudentDashboard() {
                                         <p className="text-sm text-muted-foreground">Track your performance</p>
                                     </div>
                                     <Button size="sm" variant="ghost" className="text-green-600 mt-2 group-hover:bg-green-100">
-                                        View Stats <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        View Stats <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -433,7 +479,7 @@ export default function StudentDashboard() {
                                                 <div className="flex-1 min-w-0">
                                                     <h4 className="font-semibold text-neutralDark truncate group-hover:text-primary transition-colors">{course.title}</h4>
                                                 </div>
-                                                <ChevronDown className="h-4 w-4 text-gray-300 -rotate-90 group-hover:text-primary transition-colors" />
+                                                <ChevronDown className="h-5 w-5 text-gray-300 -rotate-90 group-hover:text-primary transition-colors" />
                                             </div>
                                         </Link>
                                     ))}
@@ -448,7 +494,7 @@ export default function StudentDashboard() {
                                     <div className="h-6 w-1 bg-purple-500 rounded-full"></div>
                                     <h2 className="text-h2 text-neutralDark flex items-center gap-2">
                                         AI Insights
-                                        <Sparkles className="h-4 w-4 text-purple-500" />
+                                        <Sparkles className="h-5 w-5 text-purple-500" />
                                     </h2>
                                 </div>
                                 <Link href="/ai">
@@ -464,18 +510,26 @@ export default function StudentDashboard() {
                                         const isExpanded = expandedRecIndex === index;
                                         const getPriorityIcon = (priority) => {
                                             switch (priority) {
-                                                case 'high': return <AlertCircle className="h-5 w-5 text-red-500" />;
-                                                case 'medium': return <TrendingUp className="h-5 w-5 text-yellow-500" />;
-                                                case 'low': return <CheckCircle className="h-5 w-5 text-green-500" />;
-                                                default: return <Lightbulb className="h-5 w-5 text-purple-500" />;
+                                                case 'high': return <AlertCircle className="h-6 w-6 text-red-500" />;
+                                                case 'medium': return <TrendingUp className="h-6 w-6 text-yellow-500" />;
+                                                case 'low': return <CheckCircle className="h-6 w-6 text-green-500" />;
+                                                default: return <Lightbulb className="h-6 w-6 text-purple-500" />;
+                                            }
+                                        };
+                                        const getPriorityBorderColor = (priority) => {
+                                            switch (priority) {
+                                                case 'high': return 'border-l-red-500';
+                                                case 'medium': return 'border-l-yellow-500';
+                                                case 'low': return 'border-l-green-500';
+                                                default: return 'border-l-purple-500';
                                             }
                                         };
 
                                         return (
                                             <div
-                                                key={index}
+                                                key={rec.id || index}
                                                 className={`
-													bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer
+													bg-white rounded-xl border-l-4 ${getPriorityBorderColor(rec.priority)} border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer
 													${isExpanded ? 'ring-2 ring-purple-100' : ''}
 												`}
                                                 onClick={() => setExpandedRecIndex(isExpanded ? null : index)}
@@ -487,23 +541,80 @@ export default function StudentDashboard() {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center justify-between">
                                                             <h3 className="text-sm font-semibold text-neutralDark">{rec.title}</h3>
-                                                            {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                                                            {isExpanded ? <ChevronUp className="h-5 w-5 text-gray-400" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
                                                         </div>
-                                                        {(isExpanded) && (
-                                                            <div className="mt-3 text-sm text-muted-foreground border-t border-gray-50 pt-3 animate-fadeIn">
-                                                                <p className="mb-3">{rec.description}</p>
-                                                                {rec.action?.path && (
+                                                        {isExpanded && (
+                                                            <div className={`mt-3 text-sm text-muted-foreground border-t pt-3 animate-fadeIn space-y-3 ${
+                                                                rec.priority === 'high' ? 'border-red-500/20' :
+                                                                rec.priority === 'medium' ? 'border-yellow-500/20' :
+                                                                rec.priority === 'low' ? 'border-green-500/20' : 'border-gray-50'
+                                                            }`}>
+                                                                <div>
+                                                                    <h4 className={`text-xs font-semibold mb-1 flex items-center gap-1 ${
+                                                                        rec.priority === 'high' ? 'text-red-700 dark:text-red-400' :
+                                                                        rec.priority === 'medium' ? 'text-yellow-700 dark:text-yellow-400' :
+                                                                        rec.priority === 'low' ? 'text-green-700 dark:text-green-400' : 'text-neutralDark'
+                                                                    }`}>
+                                                                        <Lightbulb className={`h-4 w-4 ${
+                                                                            rec.priority === 'high' ? 'text-red-500' :
+                                                                            rec.priority === 'medium' ? 'text-yellow-500' :
+                                                                            rec.priority === 'low' ? 'text-green-500' : 'text-primary'
+                                                                        }`} />
+                                                                        Why This Matters
+                                                                    </h4>
+                                                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                                                        {rec.why}
+                                                                    </p>
+                                                                </div>
+                                                                <div>
+                                                                    <h4 className={`text-xs font-semibold mb-1 flex items-center gap-1 ${
+                                                                        rec.priority === 'high' ? 'text-red-700 dark:text-red-400' :
+                                                                        rec.priority === 'medium' ? 'text-yellow-700 dark:text-yellow-400' :
+                                                                        rec.priority === 'low' ? 'text-green-700 dark:text-green-400' : 'text-neutralDark'
+                                                                    }`}>
+                                                                        <BookOpen className={`h-4 w-4 ${
+                                                                            rec.priority === 'high' ? 'text-red-500' :
+                                                                            rec.priority === 'medium' ? 'text-yellow-500' :
+                                                                            rec.priority === 'low' ? 'text-green-500' : 'text-primary'
+                                                                        }`} />
+                                                                        Overview
+                                                                    </h4>
+                                                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                                                        {rec.overview}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="flex gap-2 pt-2">
                                                                     <Button
                                                                         size="sm"
-                                                                        className="w-full bg-purple-50 hover:bg-purple-100 text-purple-700 border-none"
+                                                                        className={
+                                                                            rec.priority === 'high' ? 'bg-red-500 hover:bg-red-600 text-white' :
+                                                                            rec.priority === 'medium' ? 'bg-yellow-500 hover:bg-yellow-600 text-white' :
+                                                                            rec.priority === 'low' ? 'bg-green-500 hover:bg-green-600 text-white' : ''
+                                                                        }
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
-                                                                            window.location.href = rec.action.path;
+                                                                            window.location.href = rec.actionPath || '/courses';
                                                                         }}
                                                                     >
-                                                                        {rec.action.label || 'View'} <ArrowRight className="h-3 w-3 ml-2" />
+                                                                        Explore Courses
+                                                                        <ArrowRight className="h-5 w-5 ml-1" />
                                                                     </Button>
-                                                                )}
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className={
+                                                                            rec.priority === 'high' ? 'border-red-500 text-red-500 hover:bg-red-50' :
+                                                                            rec.priority === 'medium' ? 'border-yellow-500 text-yellow-500 hover:bg-yellow-50' :
+                                                                            rec.priority === 'low' ? 'border-green-500 text-green-500 hover:bg-green-50' : ''
+                                                                        }
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            window.location.href = `/ai/explain?topic=${encodeURIComponent(`Database topic: ${rec.title}`)}`;
+                                                                        }}
+                                                                    >
+                                                                        Ask AI
+                                                                    </Button>
+                                                                </div>
                                                             </div>
                                                         )}
                                                     </div>

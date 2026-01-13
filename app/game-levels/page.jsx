@@ -8,7 +8,9 @@ import { collection, getDocs, query, where, doc, getDoc, deleteDoc } from 'fireb
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip } from '@/components/ui/tooltip';
 import { Gamepad2, Target, BookOpen, Puzzle, MousePointerClick, Code, Sparkles, Trophy, Edit, Trash2, Plus } from 'lucide-react';
+import { useLanguage } from '@/app/contexts/LanguageContext';
 
 // Game level types
 const GAME_TYPES = {
@@ -109,11 +111,22 @@ const getDifficultyColor = (difficulty) => {
 
 export default function GameLevelsPage() {
 	const router = useRouter();
+	const { language } = useLanguage();
 	const [user, setUser] = useState(null);
 	const [userRole, setUserRole] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [gameLevels, setGameLevels] = useState(sampleGameLevels);
 	const [deletingId, setDeletingId] = useState(null);
+
+	const tooltips = {
+		en: {
+			playNow: 'Click to start this interactive learning game',
+		},
+		bm: {
+			playNow: 'Klik untuk memulakan permainan pembelajaran interaktif ini',
+		},
+	};
+	const t = tooltips[language] || tooltips.en;
 
 	useEffect(() => {
 		const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -270,7 +283,7 @@ export default function GameLevelsPage() {
 								<p className="text-sm text-muted-foreground">Total Games</p>
 								<p className="text-2xl font-bold text-neutralDark">{gameLevels.length}</p>
 							</div>
-							<Sparkles className="h-8 w-8 text-primary" />
+							<Sparkles className="h-10 w-10 text-primary" />
 						</div>
 					</CardContent>
 				</Card>
@@ -283,7 +296,7 @@ export default function GameLevelsPage() {
 									{gameLevels.reduce((sum, level) => sum + level.points, 0)}
 								</p>
 							</div>
-							<Trophy className="h-8 w-8 text-green-500" />
+							<Trophy className="h-10 w-10 text-green-500" />
 						</div>
 					</CardContent>
 				</Card>
@@ -294,7 +307,7 @@ export default function GameLevelsPage() {
 								<p className="text-sm text-muted-foreground">Game Types</p>
 								<p className="text-2xl font-bold text-neutralDark">3</p>
 							</div>
-							<Code className="h-8 w-8 text-blue-500" />
+							<Code className="h-10 w-10 text-blue-500" />
 						</div>
 					</CardContent>
 				</Card>
@@ -342,7 +355,7 @@ export default function GameLevelsPage() {
 								<div className="flex items-start justify-between gap-2">
 									<div className="flex-1 space-y-2">
 										<div className="flex items-center gap-2">
-											<TypeIcon className="h-5 w-5 text-primary" />
+											<TypeIcon className="h-6 w-6 text-primary" />
 											<CardTitle className="text-h3 text-neutralDark group-hover:text-primary transition-colors">
 												{level.title}
 											</CardTitle>
@@ -350,7 +363,7 @@ export default function GameLevelsPage() {
 										<div className="flex items-center gap-2 flex-wrap">
 											<Badge className={getDifficultyColor(level.difficulty)}>{level.difficulty}</Badge>
 											<Badge variant="outline" className="text-xs">
-												<Target className="h-3 w-3 mr-1" />
+												<Target className="h-4 w-4 mr-1" />
 												{level.points} pts
 											</Badge>
 											<Badge variant="outline" className="text-xs">
@@ -365,13 +378,15 @@ export default function GameLevelsPage() {
 									{level.description}
 								</CardDescription>
 								<div className="flex items-center gap-2 text-sm text-muted-foreground">
-									<BookOpen className="h-4 w-4" />
+									<BookOpen className="h-5 w-5" />
 									<span>{level.topic}</span>
 								</div>
-								<Button className="w-full group-hover:bg-primary group-hover:text-white transition-colors">
-									<Gamepad2 className="h-6 w-6 mr-2" />
-									Play Now
-								</Button>
+								<Tooltip content={t.playNow}>
+									<Button className="w-full group-hover:bg-primary group-hover:text-white transition-colors">
+										<Gamepad2 className="h-6 w-6 mr-2" />
+										Play Now
+									</Button>
+								</Tooltip>
 							</CardContent>
 						</Card>
 					);

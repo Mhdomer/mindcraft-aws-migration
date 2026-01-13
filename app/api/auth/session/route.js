@@ -12,9 +12,18 @@ export async function POST(request) {
 		const res = NextResponse.json({ ok: true });
 		
 		// Set cookies for server-side role checks
-		res.cookies.set('user_id', uid, { httpOnly: true, path: '/', maxAge: 60 * 60 * 24 });
-		res.cookies.set('user_email', email, { httpOnly: true, path: '/', maxAge: 60 * 60 * 24 });
-		res.cookies.set('user_role', role, { httpOnly: true, path: '/', maxAge: 60 * 60 * 24 });
+		// Use sameSite: 'lax' for better compatibility and secure: true in production
+		const cookieOptions = {
+			httpOnly: true,
+			path: '/',
+			maxAge: 60 * 60 * 24, // 24 hours
+			sameSite: 'lax',
+			secure: process.env.NODE_ENV === 'production',
+		};
+		
+		res.cookies.set('user_id', uid, cookieOptions);
+		res.cookies.set('user_email', email, cookieOptions);
+		res.cookies.set('user_role', role, cookieOptions);
 		
 		// For students, trigger recommendation generation in background (non-blocking)
 		if (role === 'student') {

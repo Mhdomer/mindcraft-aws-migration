@@ -332,17 +332,17 @@ export default function AssignmentsPage() {
 														<>
 															{submission ? (
 																<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-info/10 text-info border border-info/20 gap-1">
-																	<CheckCircle className="h-3 w-3" />
+																	<CheckCircle className="h-4 w-4" />
 																	Submitted
 																</span>
 															) : deadlinePassed ? (
 																<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-destructive/10 text-destructive border border-destructive/20 gap-1">
-																	<XCircle className="h-3 w-3" />
+																	<XCircle className="h-4 w-4" />
 																	Closed
 																</span>
 															) : (
 																<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-success/10 text-success border border-success/20 gap-1">
-																	<CheckCircle className="h-3 w-3" />
+																	<CheckCircle className="h-4 w-4" />
 																	Open
 																</span>
 															)}
@@ -371,7 +371,7 @@ export default function AssignmentsPage() {
 													? 'bg-warning/10 border-warning/30 text-warning-foreground' // Yellow for urgency
 													: 'bg-white border-border/50 text-muted-foreground' // Default
 												}`}>
-												<Clock className={`h-4 w-4 ${isBefore24h ? 'text-warning' : 'opacity-70'}`} />
+												<Clock className={`h-5 w-5 ${isBefore24h ? 'text-warning' : 'opacity-70'}`} />
 												<div className="flex flex-col">
 													<span className="uppercase tracking-wider text-[10px] opacity-70 mb-0.5">
 														{deadlinePassed ? 'Deadline Passed' : 'Due Date'}
@@ -452,7 +452,7 @@ export default function AssignmentsPage() {
 													{submission ? (
 														<Link href={`/assignments/${assignment.id}`} className="block w-full">
 															<Button variant="outline" className="w-full h-11 text-base border-primary/20 text-primary hover:bg-primary/5">
-																<FileText className="h-4 w-4 mr-2" />
+																<FileText className="h-5 w-5 mr-2" />
 																View Submission
 															</Button>
 														</Link>
@@ -466,7 +466,7 @@ export default function AssignmentsPage() {
 													) : (
 														<Link href={`/assignments/${assignment.id}`} className="block w-full">
 															<Button variant="secondary" className="w-full h-11 text-base text-muted-foreground bg-muted/50 hover:bg-muted">
-																<Eye className="h-4 w-4 mr-2" />
+																<Eye className="h-5 w-5 mr-2" />
 																View Details
 															</Button>
 														</Link>

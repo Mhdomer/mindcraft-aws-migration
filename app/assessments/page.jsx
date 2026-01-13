@@ -745,7 +745,7 @@ export default function AssessmentsPage() {
 											<div className="flex items-center gap-3 text-xs text-muted-foreground bg-white/50 p-2 rounded-lg border border-black/5">
 												{assessment.config.startDate && (
 													<div className="flex items-center gap-1.5">
-														<Calendar className="h-3.5 w-3.5 opacity-70" />
+														<Calendar className="h-5 w-5 opacity-70" />
 														<span>{formatDate(assessment.config.startDate).split(',')[0]}</span>
 													</div>
 												)}
@@ -754,7 +754,7 @@ export default function AssessmentsPage() {
 												)}
 												{assessment.config.endDate && (
 													<div className={`flex items-center gap-1.5 ${deadlinePassed ? 'text-destructive font-medium' : ''}`}>
-														<Clock className="h-3.5 w-3.5 opacity-70" />
+														<Clock className="h-5 w-5 opacity-70" />
 														<span>{formatDate(assessment.config.endDate)}</span>
 													</div>
 												)}
@@ -861,7 +861,7 @@ export default function AssessmentsPage() {
 																	className="w-full h-10 border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/40"
 																	onClick={() => setSelectedResult(submission)}
 																>
-																	<Eye className="h-4 w-4 mr-2" />
+																	<Eye className="h-5 w-5 mr-2" />
 																	{language === 'bm' ? 'Lihat Keputusan' : 'View Results'}
 																</Button>
 															) : (

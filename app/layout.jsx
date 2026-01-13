@@ -3,6 +3,7 @@ import ClientLayout from '@/components/ClientLayout';
 import { cookies } from 'next/headers';
 import { LanguageProvider } from '@/app/contexts/LanguageContext';
 import { AuthProvider } from '@/app/contexts/AuthContext';
+import FloatingAIAssistantWrapper from '@/components/FloatingAIAssistantWrapper';
 
 export const metadata = {
 	title: 'MindCraft',
@@ -85,6 +86,7 @@ function getNavItems(role) {
 			{ href: '/progress', label: 'Progress' },
 			{ href: '/forum', label: 'Forum' },
 			{ href: '/ai', label: 'AI Assistant' },
+			{ href: '/support', label: 'Help & Support' },
 			{
 				href: '/profile',
 				label: 'Account',
@@ -120,6 +122,8 @@ export default async function RootLayout({ children }) {
 						<ClientLayout role={role} navItems={navItems}>
 							{children}
 						</ClientLayout>
+						{/* Floating AI Assistant */}
+						<FloatingAIAssistantWrapper />
 					</AuthProvider>
 				</LanguageProvider>
 			</body>
