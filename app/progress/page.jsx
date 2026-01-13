@@ -1,19 +1,26 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { BookOpen, CheckCircle2, CheckCircle, Clock, Award, FileText, ClipboardCheck, TrendingUp, TrendingDown, Calendar, AlertTriangle, Target, Lightbulb, Info, Activity, Printer, Download, LayoutDashboard, ArrowLeft, ArrowRight, Filter, Users, Play } from 'lucide-react';
+import { BookOpen, CheckCircle2, CheckCircle, Clock, Award, FileText, ClipboardCheck, TrendingUp, TrendingDown, Calendar, AlertTriangle, Target, Lightbulb, Info, Activity, Printer, Download, LayoutDashboard, ArrowLeft, ArrowRight, Filter, Users, Play, FlaskConical, MessagesSquare, PlayCircle, Zap, Map, Search, Timer, Crown, GraduationCap, Mail, ExternalLink, File, Send, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Toast } from '@/components/ui/Toast';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { BarChart } from '@tremor/react';
 import { ResponsiveContainer, LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { useRef } from 'react';
+import CertificateTemplate from '@/components/CertificateTemplate';
 
 const ACHIEVEMENT_DEFINITIONS = {
 	'first-step': {
@@ -45,17 +52,73 @@ const ACHIEVEMENT_DEFINITIONS = {
 	},
 };
 
+const SKILL_TAXONOMY = {
+	'sql-fundamentals': {
+		title: { en: 'SQL Fundamentals', bm: 'Asas SQL' },
+		skills: {
+			'sql-basics': {
+				name: { en: 'SQL Basics', bm: 'Asas SQL' },
+				keywords: ['Basic', 'Intro', 'SQL', 'Select'],
+				remedy: { en: 'Review Module 1: Introduction to SQL', bm: 'Ulangkaji Modul 1: Pengenalan kepada SQL' }
+			},
+			'data-types': {
+				name: { en: 'Data Types', bm: 'Jenis Data' },
+				keywords: ['Types', 'Data', 'String', 'Int'],
+				remedy: { en: 'Practice Lab: Data Type Conversion', bm: 'Latihan Makmal: Penukaran Jenis Data' }
+			}
+		}
+	},
+	'advanced-operations': {
+		title: { en: 'Advanced Operations', bm: 'Operasi Lanjutan' },
+		skills: {
+			'joins': {
+				name: { en: 'JOIN Operations', bm: 'Operasi JOIN' },
+				keywords: ['Join', 'Inner', 'Outer', 'Relation'],
+				remedy: { en: 'Watch Video: Mastering Inner & Outer Joins', bm: 'Tonton Video: Menguasai Inner & Outer Joins' }
+			},
+			'aggregations': {
+				name: { en: 'Aggregations', bm: 'Pengagregatan' },
+				keywords: ['Sum', 'Count', 'Group', 'Avg'],
+				remedy: { en: 'Complete Quiz: Group By & Having', bm: 'Selesaikan Kuiz: Group By & Having' }
+			}
+		}
+	},
+	'design-security': {
+		title: { en: 'Design & Security', bm: 'Reka Bentuk & Keselamatan' },
+		skills: {
+			'database-design': {
+				name: { en: 'Database Design', bm: 'Reka Bentuk Pangkalan Data' },
+				keywords: ['Design', 'Schema', 'Normal', 'Keys'],
+				remedy: { en: 'Read Article: Normalization Forms', bm: 'Baca Artikel: Bentuk Normalisasi' }
+			},
+			'security': {
+				name: { en: 'Security', bm: 'Keselamatan' },
+				keywords: ['Security', 'Roles', 'Access', 'Permission'],
+				remedy: { en: 'Review Security Best Practices', bm: 'Ulangkaji Amalan Terbaik Keselamatan' }
+			}
+		}
+	}
+};
+
 export default function ProgressPage() {
 	const { language } = useLanguage();
 	const [loading, setLoading] = useState(true);
 	const [currentUserId, setCurrentUserId] = useState(null);
+	const [studentName, setStudentName] = useState('');
 	const [userRole, setUserRole] = useState(null);
 	const [courseProgress, setCourseProgress] = useState([]);
 	const [riskIndicators, setRiskIndicators] = useState({});
 	const [achievements, setAchievements] = useState([]);
+	const [selectedRiskCourseId, setSelectedRiskCourseId] = useState('all');
 	const [strongTopics, setStrongTopics] = useState([]);
 	const [competency, setCompetency] = useState([]); // New state for Radar Chart
 	const [scoreTrend, setScoreTrend] = useState([]); 	// US011-03 states
+	const [showSkillReportPreview, setShowSkillReportPreview] = useState(false); // Preview modal state
+	// Study Plan Dialog State
+	const [studyDialogOpen, setStudyDialogOpen] = useState(false);
+	const [studyDate, setStudyDate] = useState('');
+	const [studyDuration, setStudyDuration] = useState('60');
+
 	const [selectedCourseId, setSelectedCourseId] = useState('');
 	const [selectedPerformanceCourseId, setSelectedPerformanceCourseId] = useState('all');
 	const [showReportModal, setShowReportModal] = useState(false);
@@ -69,7 +132,148 @@ export default function ProgressPage() {
 		includeDetails: false
 	});
 	// US011-05: Dashboard View State
-	const [currentView, setCurrentView] = useState('hub');
+	const searchParams = useSearchParams();
+	const router = useRouter();
+	const pathname = usePathname();
+	const [currentView, setCurrentView] = useState(searchParams.get('view') || 'hub');
+
+	// Sync currentView with URL
+	useEffect(() => {
+		const params = new URLSearchParams(searchParams);
+		if (currentView && currentView !== 'hub') {
+			params.set('view', currentView);
+		} else {
+			params.delete('view');
+		}
+		router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+	}, [currentView, pathname, router, searchParams]);
+	const [aiRecommendations, setAiRecommendations] = useState([]);
+
+	useEffect(() => {
+		if (courseProgress.length === 0) return;
+
+		const recs = [];
+
+		// 1. Adaptive Content Recommendations (Based on Competency)
+		const weakAreas = competency.filter(c => c.A < 70);
+		if (weakAreas.length > 0) {
+			weakAreas.forEach(area => {
+				let type = 'weakness';
+				let actionLabel = language === 'bm' ? 'Ulangkaji' : 'Review Now';
+				let icon = AlertTriangle;
+				let description = '';
+				let secondaryAction = null;
+
+				// Adaptive Logic
+				if (area.A < 40) {
+					// Serious Gap -> Interactive Lab
+					description = language === 'bm'
+						? `Skor ${area.A}% menunjukkan jurang besar. Disarankan ambil Makmal Interaktif untuk latihan praktikal.`
+						: `Score of ${area.A}% indicates a gap. Recommended: Interactive Fundamentals Lab for hands-on practice.`;
+					actionLabel = language === 'bm' ? 'Mula Makmal' : 'Start Lab';
+					icon = FlaskConical; // Need to import
+					secondaryAction = { label: 'Ask AI Tutor', icon: MessagesSquare }; // Need to import
+				} else if (area.A < 60) {
+					// Moderate Gap -> Video Tutorial
+					description = language === 'bm'
+						? `Skor ${area.A}% perlukan perhatian. Tonton tutorial video untuk memahami konsep asas.`
+						: `Score of ${area.A}%. Recommended: Watch "Deep Dive" Video Tutorial to reinforce concepts.`;
+					actionLabel = language === 'bm' ? 'Tonton Video' : 'Watch Video';
+					icon = PlayCircle; // Need to import
+					secondaryAction = { label: 'Quick Quiz', icon: BookOpen };
+				} else {
+					// Minor Gap -> Micro-Learning
+					description = language === 'bm'
+						? `Hampir menguasai (${area.A}%). Ambil sesi 5-minit "Micro-Learning" untuk gilap topik ini.`
+						: `Almost there (${area.A}%). Suggested: 5-minute "Micro-Learning" refresher to close the gap.`;
+					actionLabel = language === 'bm' ? 'Mula Sesi Pendek' : 'Start Micro-Lesson';
+					icon = Zap; // Need to import
+				}
+
+				recs.push({
+					type: 'adaptive',
+					title: language === 'bm' ? `Tingkatkan: ${area.title}` : `Improve: ${area.title}`,
+					description: description,
+					actionLabel: actionLabel,
+					priority: area.A < 40 ? 'critical' : 'high',
+					color: area.A < 40 ? 'bg-red-50 border-red-200 text-red-900' : 'bg-orange-50 border-orange-200 text-orange-900',
+					icon: icon,
+					secondaryAction: secondaryAction
+				});
+			});
+		}
+
+		// 2. Career Path & Skill Gap
+		// Simulate a "Database Administrator" path goal
+		const dbCourse = courseProgress.find(c => c.courseTitle.includes('Database') || c.courseTitle.includes('SQL'));
+		if (dbCourse && dbCourse.overallProgress < 100) {
+			recs.push({
+				type: 'career',
+				title: language === 'bm' ? 'Laluan Kerjaya: Pentadbir Pangkalan Data' : 'Career Path: Database Admin',
+				description: language === 'bm'
+					? `Anda 80% ke arah pensijilan DBA. Lengkapkan 2 modul SQL seterusnya untuk capai tahap kompetensi.`
+					: `You are on track for the DBA Certification. Complete the next 2 Advanced SQL modules to reach 100% competency.`,
+				actionLabel: language === 'bm' ? 'Lihat Laluan' : 'View Path',
+				priority: 'medium',
+				color: 'bg-blue-50 border-blue-200 text-blue-900',
+				icon: Map, // Need to import
+				secondaryAction: null
+			});
+		}
+
+		// 3. Social Learning (Peer Groups)
+		const difficultCourse = courseProgress.find(c => c.avgAssessmentScore > 40 && c.avgAssessmentScore < 70);
+		if (difficultCourse) {
+			recs.push({
+				type: 'social',
+				title: language === 'bm' ? 'Kumpulan Belajar Rakan Sebaya' : 'Peer Study Group',
+				description: language === 'bm'
+					? `3 pelajar lain sedang ulangkaji ${difficultCourse.courseTitle}. Sertai kumpulan belajar sementara?`
+					: `3 other students are currently studying ${difficultCourse.courseTitle}. Would you like to join a study group?`,
+				actionLabel: language === 'bm' ? 'Sertai Kumpulan' : 'Join Group',
+				priority: 'medium',
+				color: 'bg-indigo-50 border-indigo-200 text-indigo-900',
+				icon: Users,
+				secondaryAction: { label: 'Find Buddy', icon: Search }
+			});
+		}
+
+		// 4. Behavioral Nudges (Inactivity/Momentum)
+		// Check for inactivity (Mock logic using risk data if available, else assumption)
+		const atRisk = Object.values(riskIndicators).some(r => r.daysSinceActivity > 3);
+		if (atRisk) {
+			recs.push({
+				type: 'nudge',
+				title: language === 'bm' ? 'Jangan Hilang Momentum!' : 'Don\'t Lose Momentum!',
+				description: language === 'bm'
+					? 'Anda tidak aktif selama 3 hari. Satu pelajaran lagi untuk capai sasaran mingguan anda.'
+					: 'You\'ve been away for 3 days. Complete just one lesson today to keep your streak alive.',
+				actionLabel: language === 'bm' ? 'Sambung Belajar' : 'Resume Learning',
+				priority: 'low',
+				color: 'bg-slate-50 border-slate-200 text-slate-800',
+				icon: Timer, // Need to import
+				secondaryAction: null
+			});
+		}
+
+		// 5. Challenge (High Performers)
+		const aceCourses = courseProgress.filter(c => c.avgAssessmentScore >= 90);
+		if (aceCourses.length > 0) {
+			recs.push({
+				type: 'challenge',
+				title: language === 'bm' ? 'Mod Cabaran: Pakar' : 'Challenge Mode: Expert',
+				description: language === 'bm'
+					? 'Skor anda cemerlang! Cuba ambil peranan "Mentor Rakan Sebaya" untuk dapat lencana khas.'
+					: 'You are crushing it! Unlock the "Peer Mentor" badge by helping 2 students with their queries.',
+				actionLabel: language === 'bm' ? 'Jadi Mentor' : 'Become Mentor',
+				priority: 'low',
+				color: 'bg-purple-50 border-purple-200 text-purple-900',
+				icon: Crown, // Need to import
+			});
+		}
+
+		setAiRecommendations(recs);
+	}, [courseProgress, competency, riskIndicators, language]);
 
 	const DashboardBlock = ({ title, description, icon: Icon, onClick, colorClass }) => (
 		<Card
@@ -98,32 +302,180 @@ export default function ProgressPage() {
 		</Card>
 	);
 
+	// Certificate Generation State
+	const certificateRef = useRef(null);
+	const [certificateData, setCertificateData] = useState(null);
+	const [showPreviewModal, setShowPreviewModal] = useState(false);
+	const [isGeneratingCertificate, setIsGeneratingCertificate] = useState(false);
+
+	// Instructor Contact State
+	const [contactDialogOpen, setContactDialogOpen] = useState(false);
+	const [selectedContactCourse, setSelectedContactCourse] = useState(null);
+	const [contactSubject, setContactSubject] = useState('');
+	const [contactMessage, setContactMessage] = useState('');
+	const [toast, setToast] = useState({ message: '', type: 'info', visible: false });
+	const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+	const showToast = (message, type = 'info') => {
+		setToast({ message, type, visible: true });
+	};
+
+	const handleHideToast = () => {
+		setToast(prev => ({ ...prev, visible: false }));
+	};
+
+	const handleOpenContact = (course) => {
+		setSelectedContactCourse(course);
+		setContactSubject('');
+		setContactMessage('');
+		setContactDialogOpen(true);
+	};
+
+	const handleSendMessage = async () => {
+		// Validation
+		if (!contactSubject.trim()) {
+			showToast(language === 'bm' ? 'Sila masukkan subjek.' : 'Please enter a subject.', 'error');
+			return;
+		}
+		if (!contactMessage.trim()) {
+			showToast(language === 'bm' ? 'Sila masukkan mesej anda.' : 'Please enter your message.', 'error');
+			return;
+		}
+
+		setIsSendingMessage(true);
+		try {
+			await addDoc(collection(db, 'messages'), {
+				fromUserId: currentUserId,
+				fromName: studentName,
+				toInstructor: selectedContactCourse.instructor || 'Instructor',
+				// In a real app, you'd want the instructor's User ID. 
+				// Since we don't have it easily mapped here, we'll store the name and course for the admin/teacher dashboard to filter.
+				courseId: selectedContactCourse.courseId,
+				courseTitle: selectedContactCourse.courseTitle,
+				subject: contactSubject,
+				message: contactMessage,
+				read: false,
+				createdAt: serverTimestamp(),
+				type: 'student_inquiry'
+			});
+
+			setContactDialogOpen(false);
+			showToast(language === 'bm' ? 'Mesej berjaya dihantar!' : 'Message sent successfully!', 'success');
+		} catch (error) {
+			console.error("Error sending message:", error);
+			showToast(language === 'bm' ? 'Gagal menghantar mesej.' : 'Failed to send message.', 'error');
+		} finally {
+			setIsSendingMessage(false);
+		}
+	};
+
+	// 1. Open Preview Modal
+	const handleViewCertificate = (course) => {
+		const data = {
+			studentName: studentName || "Student Name",
+			courseName: course.courseTitle,
+			instructorName: course.instructor,
+			completionDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+		};
+		setCertificateData(data);
+		setShowPreviewModal(true);
+	};
+
+	// 2. Generate PDF from Hidden Template
+	const handleDownloadCertificate = async () => {
+		if (isGeneratingCertificate || !certificateData) return;
+		setIsGeneratingCertificate(true);
+
+		// Wait a tick to ensure ref is ready (though it should be constantly rendered while preview is open)
+		setTimeout(async () => {
+			try {
+				const element = certificateRef.current;
+				if (!element) throw new Error("Certificate template not found");
+
+				const canvas = await html2canvas(element, {
+					scale: 2, // Higher scale for better quality
+					useCORS: true,
+					backgroundColor: '#ffffff'
+				});
+
+				const imgData = canvas.toDataURL('image/png');
+				const pdf = new jsPDF({
+					orientation: 'landscape',
+					unit: 'px',
+					format: [800, 600]
+				});
+
+				pdf.addImage(imgData, 'PNG', 0, 0, 800, 600);
+				pdf.save(`Certificate-${certificateData.courseName.replace(/\s+/g, '-')}.pdf`);
+
+			} catch (error) {
+				console.error("Certificate generation failed:", error);
+				alert("Failed to generate certificate. Please try again.");
+			} finally {
+				setIsGeneratingCertificate(false);
+				// We don't close the modal automatically, let user close it
+			}
+		}, 100);
+	};
+
 	useEffect(() => {
 		const unsubscribe = onAuthStateChanged(auth, async (user) => {
 			if (user) {
 				setCurrentUserId(user.uid);
-				const { doc, getDoc } = await import('firebase/firestore');
-				const userDoc = await getDoc(doc(db, 'user', user.uid));
-				if (userDoc.exists()) {
-					const role = userDoc.data().role;
-					setUserRole(role);
-					if (role === 'student') {
-						await loadProgress(user.uid);
+				// Fetch user profile to get real name for certificate
+				try {
+					const userDoc = await getDoc(doc(db, 'user', user.uid));
+					if (userDoc.exists()) {
+						const userData = userDoc.data();
+						setUserRole(userData.role);
+						setStudentName(userData.name || userData.fullName || 'Student');
 					}
+				} catch (error) {
+					console.error("Error fetching user profile:", error);
+					setStudentName('Student');
 				}
+				loadProgress(user.uid);
 			} else {
 				setCurrentUserId(null);
-				setUserRole(null);
+				setLoading(false);
 			}
 		});
-
 		return () => unsubscribe();
-	}, []);
+	}, [selectedPerformanceCourseId]);
 
 	// Scroll to top when view changes
 	useEffect(() => {
 		window.scrollTo(0, 0);
 	}, [currentView]);
+
+	const handleDownloadSkills = async () => {
+		const element = document.getElementById('skill-report-preview-content');
+		if (!element) return;
+
+		try {
+			const canvas = await html2canvas(element, {
+				scale: 2,
+				useCORS: true,
+				logging: false,
+				backgroundColor: '#ffffff'
+			});
+
+			const imgData = canvas.toDataURL('image/png');
+			const pdf = new jsPDF('p', 'mm', 'a4');
+			const pdfWidth = pdf.internal.pageSize.getWidth();
+			const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+			pdf.setFontSize(18);
+			pdf.text('Skill Competency Report', 10, 15);
+			pdf.setFontSize(10);
+			pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 10, 22);
+
+			pdf.addImage(imgData, 'PNG', 0, 30, pdfWidth, pdfHeight);
+			pdf.save('skill-competency-report.pdf');
+		} catch (error) {
+			console.error('Error generating PDF:', error);
+		}
+	};
 
 	async function loadProgress(userId) {
 		setLoading(true);
@@ -294,6 +646,7 @@ export default function ProgressPage() {
 						courseId: enrollment.courseId,
 						courseTitle: courseData.title,
 						courseDescription: courseData.description,
+						instructor: courseData.authorName, // Map authorName to instructor
 						enrolledAt: enrollment.enrolledAt,
 						overallProgress,
 						completedLessons,
@@ -317,6 +670,124 @@ export default function ProgressPage() {
 			});
 
 			setCourseProgress(progressData);
+
+			// --- SKILL COMPETENCY CALCULATION (Advanced Engine) ---
+			const calculatedSkills = {};
+			const now = new Date();
+
+			// Initialize skills based on Taxonomy
+			Object.entries(SKILL_TAXONOMY).forEach(([catId, category]) => {
+				Object.entries(category.skills).forEach(([skillId, skillDef]) => {
+					calculatedSkills[skillId] = {
+						id: skillId,
+						categoryId: catId,
+						name: skillDef.name,
+						remedy: skillDef.remedy,
+						totalScore: 0,
+						count: 0,
+						lastData: null
+					};
+				});
+			});
+
+			// Helper to process score with decay and confidence
+			const processSkillScore = (skillId, rawPercentage, date) => {
+				if (!calculatedSkills[skillId]) return;
+
+				// 1. Confidence Weighting (Mocked: Randomly slightly reduce confidence for simulation)
+				// In real app, this would check attempt count
+				const confidenceFactor = 0.9 + (Math.random() * 0.1);
+				let adjustedScore = rawPercentage * confidenceFactor;
+
+				// 2. Recency Decay
+				if (date) {
+					const daysSince = (now - date) / (1000 * 60 * 60 * 24);
+					const decayRate = 0.005; // 0.5% decay per day
+					const decayFactor = Math.exp(-decayRate * daysSince);
+					adjustedScore = adjustedScore * decayFactor;
+				}
+
+				calculatedSkills[skillId].totalScore += adjustedScore;
+				calculatedSkills[skillId].count += 1;
+				calculatedSkills[skillId].lastData = date;
+			};
+
+			// Iterate through all submissions
+			progressData.forEach(course => {
+				course.assessments.forEach(assessment => {
+					if (assessment.score !== undefined && assessment.totalPoints > 0) {
+						const percentage = (assessment.score / assessment.totalPoints) * 100;
+						const title = assessment.assessmentTitle.toLowerCase();
+						const date = assessment.submittedAt ? assessment.submittedAt.toDate() : new Date();
+
+						let matched = false;
+
+						// Match against Taxonomy
+						Object.values(SKILL_TAXONOMY).forEach(category => {
+							Object.entries(category.skills).forEach(([skillId, skillDef]) => {
+								if (skillDef.keywords.some(k => title.includes(k.toLowerCase()))) {
+									processSkillScore(skillId, percentage, date);
+									matched = true;
+								}
+							});
+						});
+
+						// Fallback to 'sql-basics'
+						if (!matched) {
+							processSkillScore('sql-basics', percentage, date);
+						}
+					}
+				});
+
+				// Assignments
+				course.assignments.forEach(assignment => {
+					if (assignment.grade !== undefined) {
+						const percentage = assignment.grade;
+						const title = assignment.assignmentTitle.toLowerCase();
+						const date = assignment.submittedAt ? assignment.submittedAt.toDate() : new Date();
+
+						Object.values(SKILL_TAXONOMY).forEach(category => {
+							Object.entries(category.skills).forEach(([skillId, skillDef]) => {
+								if (skillDef.keywords.some(k => title.includes(k.toLowerCase()))) {
+									processSkillScore(skillId, percentage, date);
+								}
+							});
+						});
+					}
+				});
+			});
+
+			// Finalize scores
+			const finalCompetency = Object.values(calculatedSkills).map(skill => {
+				const avgScore = skill.count > 0 ? Math.round(skill.totalScore / skill.count) : 0;
+				// Mock data if 0 to show visualization (remove in prod)
+				const finalScore = avgScore > 0 ? avgScore : Math.floor(Math.random() * 40) + 10;
+				const level = finalScore >= 80 ? 'Mastered' : finalScore >= 70 ? 'Advanced' : finalScore >= 41 ? 'Intermediate' : 'Beginner';
+				const previousScore = finalScore - (Math.floor(Math.random() * 5)); // Mock previous score for improvement
+
+				return {
+					subject: skill.name[language] || skill.name['en'],
+					A: finalScore,
+					fullMark: 100,
+					level: level,
+					id: skill.id,
+					categoryId: skill.categoryId,
+					categoryTitle: SKILL_TAXONOMY[skill.categoryId].title[language],
+					remedy: skill.remedy[language] || skill.remedy['en'],
+					status: level === 'Mastered' ? 'mastered' : level === 'Beginner' ? 'needs_practice' : 'acquired',
+					improvement: finalScore - previousScore
+				};
+			});
+
+			setCompetency(finalCompetency);
+
+			// Populate Strong Topics (Top 3 skills)
+			const topSkills = [...finalCompetency].sort((a, b) => b.A - a.A).slice(0, 3);
+			setStrongTopics(topSkills.map(s => ({
+				id: s.id,
+				title: s.subject,
+				score: s.A
+			})));
 
 			// --- US011-01: Achievements Calculation ---
 			const newAchievements = [];
@@ -406,7 +877,7 @@ export default function ProgressPage() {
 
 			// Calculate risk indicators for each course
 			const riskData = {};
-			const now = new Date();
+			// const now = new Date(); // Already declared above
 			const defaultRiskConfig = {
 				minAvgScore: 60,
 				maxMissedDeadlines: 2,
@@ -481,8 +952,10 @@ export default function ProgressPage() {
 				}
 
 				// 3. Submission & Deadline Risk
+				// 3. Submission & Deadline Risk
 				const submissionRisks = [];
 				let submissionScore = 0; // Penalty points (Max ~20)
+				let isDeclining = false; // 5.6 Risk Trend Tracking
 
 				// Count missed deadlines (simplified - check if assignments/assessments are past due)
 				let missedDeadlines = 0;
@@ -523,6 +996,15 @@ export default function ProgressPage() {
 						id: 'schedule',
 						label: language === 'bm' ? 'Jadual Belajar' : 'Plan Study Time',
 						actionType: 'nudge'
+					});
+				}
+				// 5.5 Automated Interventions (AI Integration)
+				if (riskLevel === 'high' || riskLevel === 'medium') {
+					interventions.push({
+						id: 'ai_recs',
+						label: language === 'bm' ? 'Syor AI' : 'AI Recommendations',
+						actionType: 'ai',
+						icon: 'Sparkles'
 					});
 				}
 
@@ -589,7 +1071,8 @@ export default function ProgressPage() {
 
 					interventions,
 					riskReasons,
-					recommendations
+					recommendations,
+					isDeclining // 5.6 Risk Trend Tracking
 				};
 			}
 
@@ -693,7 +1176,7 @@ export default function ProgressPage() {
 								{language === 'bm' ? 'Kembali ke Papan Pemuka' : 'Back to Dashboard'}
 							</Button>
 						)}
-						{currentView === 'hub' || (currentView === 'details' && selectedCourseId) ? (
+						{currentView === 'hub' ? (
 							<Dialog open={showReportModal} onOpenChange={setShowReportModal}>
 								<DialogTrigger asChild>
 									<Button variant="outline" className="gap-2 print:hidden">
@@ -771,7 +1254,7 @@ export default function ProgressPage() {
 									</DialogFooter>
 								</DialogContent>
 							</Dialog>
-						) : currentView !== 'details' ? (
+						) : currentView !== 'details' && currentView !== 'risk' && currentView !== 'strong' ? (
 							<Button
 								variant="outline"
 								className="gap-2 print:hidden"
@@ -956,13 +1439,7 @@ export default function ProgressPage() {
 										colorClass="text-blue-500"
 										onClick={() => setCurrentView('performance')}
 									/>
-									<DashboardBlock
-										title={language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress'}
-										description={language === 'bm' ? 'Jejak peratusan siap pelajaran' : 'Track completion rates for your lessons'}
-										icon={Activity}
-										colorClass="text-emerald-500"
-										onClick={() => setCurrentView('progress')}
-									/>
+
 									<DashboardBlock
 										title={language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators'}
 										description={language === 'bm' ? 'Amaran awal untuk memastikan anda di landasan' : 'Early warnings to keep you on track'}
@@ -986,6 +1463,9 @@ export default function ProgressPage() {
 
 
 
+
+
+						{/* Conditional: AI Recommendations View */}
 
 
 						{/* Conditional: Achievements View */}
@@ -1018,7 +1498,7 @@ export default function ProgressPage() {
 
 												// Dynamic Title Override for Course Completion
 												if (achievement.id === 'course-completion' && achievement.courseTitle) {
-													title = language === 'bm' ? `Tamat: ${achievement.courseTitle}` : `Completed: ${achievement.courseTitle}`;
+													title = language === 'bm' ? `Penyelesaian: ${achievement.courseTitle}` : `Completion of ${achievement.courseTitle}`;
 													description = language === 'bm' ? 'Anda telah menamatkan kursus ini sepenuhnya.' : 'You have fully completed this course.';
 												}
 
@@ -1180,42 +1660,243 @@ export default function ProgressPage() {
 				{/* US011-01: Skill Competency Section (Consolidated Strong/Weak) */}
 				{(currentView === 'strong' || (currentView === 'hub' && reportConfig.includeStrong)) && competency.length > 0 && (
 					<div className={currentView !== 'strong' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
-						<Card className="shadow-sm border-neutral-200">
-							<CardHeader>
-								<CardTitle className="text-lg font-semibold text-neutralDark flex items-center gap-2">
-									<Target className="h-5 w-5 text-indigo-500" />
-									{language === 'bm' ? 'Kompetensi Kemahiran' : 'Skill Competency'}
-								</CardTitle>
-								<CardDescription>
-									{language === 'bm' ? 'Analisis visual kekuatan dan kelemahan mengikut topik.' : 'Visual analysis of strengths and weaknesses across topics.'}
-								</CardDescription>
+						<Card className="shadow-sm border-neutral-200" id="skill-competency-report">
+							<CardHeader className="flex flex-row items-center justify-between">
+								<div>
+									<CardTitle className="text-lg font-semibold text-neutralDark flex items-center gap-2">
+										<Target className="h-5 w-5 text-indigo-500" />
+										{language === 'bm' ? 'Kompetensi Kemahiran' : 'Skill Competency'}
+									</CardTitle>
+									<CardDescription>
+										{language === 'bm' ? 'Analisis visual kekuatan dan kelemahan mengikut topik.' : 'Visual analysis of strengths and weaknesses across topics.'}
+									</CardDescription>
+								</div>
+
+								{/* Preview Modal Trigger */}
+								<Dialog open={showSkillReportPreview} onOpenChange={setShowSkillReportPreview}>
+									<DialogTrigger asChild>
+										<Button
+											variant="outline"
+											className="print:hidden gap-2 h-10 px-4 py-2"
+										>
+											<Download className="h-5 w-5" />
+											{language === 'bm' ? 'Eksport' : 'Export'}
+										</Button>
+									</DialogTrigger>
+									<DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+										<DialogHeader>
+											<DialogTitle>{language === 'bm' ? 'Pratonton Laporan Kemahiran' : 'Skill Report Preview'}</DialogTitle>
+											<DialogDescription>
+												{language === 'bm' ? 'Semak profil kemahiran anda sebelum memuat turun.' : 'Review your skill profile before downloading.'}
+											</DialogDescription>
+										</DialogHeader>
+
+										{/* Report Preview Content (Mirrors the Card Content) */}
+										<div className="border rounded-lg p-6 bg-white min-h-[500px]" id="skill-report-preview-content">
+											<div className="text-center mb-6">
+												<h2 className="text-2xl font-bold text-neutralDark">Skill Competency Report</h2>
+												<p className="text-muted-foreground">{studentName} • {new Date().toLocaleDateString()}</p>
+											</div>
+
+											<div className="grid md:grid-cols-2 gap-8">
+												{/* Radar Chart (Scaled down for preview) */}
+												<div className="h-[300px] w-full flex items-center justify-center bg-neutral-50/50 rounded-xl border border-neutral-100 p-4">
+													<ResponsiveContainer width="100%" height="100%">
+														<RadarChart cx="50%" cy="50%" outerRadius="70%" data={competency}>
+															<PolarGrid stroke="#e5e7eb" />
+															<PolarAngleAxis dataKey="subject" tick={{ fill: '#374151', fontSize: 10, fontWeight: 500 }} />
+															<PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#9ca3af', fontSize: 9 }} />
+															<Radar
+																name={language === 'bm' ? 'Skor' : 'Score'}
+																dataKey="A"
+																stroke="#8b5cf6"
+																strokeWidth={2}
+																fill="#8b5cf6"
+																fillOpacity={0.5}
+															/>
+														</RadarChart>
+													</ResponsiveContainer>
+												</div>
+
+												{/* Skill List */}
+												<div className="space-y-4">
+													{Object.entries(competency.reduce((acc, skill) => {
+														const cat = skill.categoryTitle || 'General';
+														if (!acc[cat]) acc[cat] = [];
+														acc[cat].push(skill);
+														return acc;
+													}, {})).map(([category, skills]) => (
+														<div key={category}>
+															<h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 border-b pb-1">{category}</h4>
+															<div className="space-y-2">
+																{skills.map(skill => (
+																	<div key={skill.id} className="flex justify-between items-center text-sm">
+																		<span className="text-neutralDark">{skill.subject}</span>
+																		<span className={`font-bold ${skill.level === 'Mastered' ? 'text-violet-600' :
+																			skill.level === 'Advanced' ? 'text-emerald-600' :
+																				skill.level === 'Intermediate' ? 'text-blue-600' : 'text-amber-600'
+																			}`}>
+																			{skill.A}%
+																		</span>
+																	</div>
+																))}
+															</div>
+														</div>
+													))}
+												</div>
+											</div>
+
+											{/* Focus Areas Section */}
+											{competency.some(c => c.A < 60) && (
+												<div className="mt-8 pt-4 border-t border-neutral-100">
+													<h3 className="text-sm font-bold text-neutralDark mb-2">Focus Areas</h3>
+													<ul className="list-disc list-inside text-sm text-red-600 space-y-1">
+														{competency.filter(c => c.A < 60).map(skill => (
+															<li key={skill.id}>
+																<span className="font-medium">{skill.subject}</span>: {skill.remedy}
+															</li>
+														))}
+													</ul>
+												</div>
+											)}
+										</div>
+
+										<DialogFooter className="mt-4">
+											<Button variant="outline" onClick={() => setShowSkillReportPreview(false)}>
+												{language === 'bm' ? 'Batal' : 'Cancel'}
+											</Button>
+											<Button onClick={handleDownloadSkills} className="gap-2">
+												<Download className="h-4 w-4" />
+												{language === 'bm' ? 'Muat Turun PDF' : 'Download PDF'}
+											</Button>
+										</DialogFooter>
+									</DialogContent>
+								</Dialog>
 							</CardHeader>
 							<CardContent>
-								<div className="h-[350px] w-full flex items-center justify-center">
-									<ResponsiveContainer width="100%" height="100%">
-										<RadarChart cx="50%" cy="50%" outerRadius="80%" data={competency}>
-											<PolarGrid stroke="#e5e7eb" />
-											<PolarAngleAxis dataKey="subject" tick={{ fill: '#4b5563', fontSize: 12 }} />
-											<PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#9ca3af', fontSize: 10 }} />
-											<Radar
-												name={language === 'bm' ? 'Skor' : 'Score'}
-												dataKey="A"
-												stroke="#8b5cf6"
-												strokeWidth={2}
-												fill="#8b5cf6"
-												fillOpacity={0.5}
-											/>
-											<RechartsTooltip
-												contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-												formatter={(value) => [`${value}%`, language === 'bm' ? 'Markah' : 'Score']}
-											/>
-										</RadarChart>
-									</ResponsiveContainer>
+								<div className="grid md:grid-cols-2 gap-8">
+									{/* Radar Chart */}
+									<div className="h-[400px] w-full flex items-center justify-center bg-neutral-50/50 rounded-xl border border-neutral-100 p-4 relative">
+										<div className="absolute top-4 left-4 z-10">
+											<div className="flex items-center gap-2 text-xs text-neutral-500 mb-1">
+												<div className="w-3 h-3 rounded-full bg-indigo-500 opacity-50"></div>
+												<span>Current Level</span>
+											</div>
+										</div>
+										<ResponsiveContainer width="100%" height="100%">
+											<RadarChart cx="50%" cy="50%" outerRadius="75%" data={competency}>
+												<PolarGrid stroke="#e5e7eb" />
+												<PolarAngleAxis dataKey="subject" tick={{ fill: '#374151', fontSize: 11, fontWeight: 500 }} />
+												<PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#9ca3af', fontSize: 10 }} />
+												<Radar
+													name={language === 'bm' ? 'Skor' : 'Score'}
+													dataKey="A"
+													stroke="#8b5cf6"
+													strokeWidth={2}
+													fill="#8b5cf6"
+													fillOpacity={0.5}
+												/>
+												<RechartsTooltip
+													contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+													formatter={(value) => [`${value}%`, language === 'bm' ? 'Markah' : 'Score']}
+												/>
+											</RadarChart>
+										</ResponsiveContainer>
+									</div>
+
+									{/* Linear Progress Bars Detail (Grouped by Hierarchy) */}
+									<div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+										{Object.entries(competency.reduce((acc, skill) => {
+											const cat = skill.categoryTitle || 'General';
+											if (!acc[cat]) acc[cat] = [];
+											acc[cat].push(skill);
+											return acc;
+										}, {})).map(([category, skills]) => (
+											<div key={category}>
+												<h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+													<div className="h-px flex-1 bg-neutral-200"></div>
+													{category}
+													<div className="h-px flex-1 bg-neutral-200"></div>
+												</h3>
+												<div className="space-y-4">
+													{skills.map((skill) => (
+														<div key={skill.id} className="space-y-2">
+															<div className="flex justify-between items-end text-sm">
+																<div className="flex items-center gap-2">
+																	{skill.status === 'mastered' ? (
+																		<CheckCircle2 className="h-4 w-4 text-emerald-500" />
+																	) : skill.status === 'needs_practice' ? (
+																		<AlertTriangle className="h-4 w-4 text-amber-500" />
+																	) : (
+																		<div className="h-4 w-4 rounded-full border border-neutral-300"></div>
+																	)}
+																	<span className="font-medium text-neutralDark">{skill.subject}</span>
+																</div>
+																<div className="text-right">
+																	<span className={`font-bold ${skill.level === 'Mastered' ? 'text-violet-600' :
+																		skill.level === 'Advanced' ? 'text-emerald-600' :
+																			skill.level === 'Intermediate' ? 'text-blue-600' : 'text-amber-600'
+																		}`}>
+																		{skill.A}%
+																	</span>
+																	<span className="text-xs text-muted-foreground ml-1">
+																		({language === 'bm' ?
+																			(skill.level === 'Mastered' ? 'Pakar' : skill.level) :
+																			skill.level})
+																	</span>
+																</div>
+															</div>
+
+															{/* Progress Bar with Improvement Indicator */}
+															<div className="relative">
+																<div className="h-2 w-full bg-neutral-100 rounded-full overflow-hidden">
+																	<div
+																		className={`h-full rounded-full transition-all duration-1000 ${skill.level === 'Mastered' ? 'bg-violet-500' :
+																			skill.level === 'Advanced' ? 'bg-emerald-500' :
+																				skill.level === 'Intermediate' ? 'bg-blue-500' : 'bg-amber-500'
+																			}`}
+																		style={{ width: `${skill.A}%` }}
+																	></div>
+																</div>
+																{skill.improvement > 0 && (
+																	<div className="absolute -top-6 right-0 text-[10px] font-bold text-emerald-600 flex items-center animate-pulse">
+																		<TrendingUp className="h-3 w-3 mr-0.5" />
+																		+{skill.improvement}%
+																	</div>
+																)}
+															</div>
+
+															{/* Remedy Action if Weak */}
+															{skill.status === 'needs_practice' && (
+																<div className="bg-amber-50 p-2 rounded border border-amber-100 flex items-start justify-between gap-2 mt-1">
+																	<div className="flex items-start gap-2">
+																		<Lightbulb className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
+																		<span className="text-xs text-amber-800 leading-tight">
+																			{skill.remedy}
+																		</span>
+																	</div>
+																	<Button
+																		variant="ghost"
+																		size="sm"
+																		className="h-6 text-[10px] text-amber-700 hover:text-amber-900 hover:bg-amber-100 p-0 px-2"
+																		onClick={() => alert(`Redirecting to: ${skill.remedy}`)}
+																	>
+																		{language === 'bm' ? 'Lihat' : 'View'}
+																	</Button>
+																</div>
+															)}
+														</div>
+													))}
+												</div>
+											</div>
+										))}
+									</div>
 								</div>
-								<div className="mt-4 flex items-center justify-center gap-6 text-sm text-muted-foreground border-t pt-4">
+
+								<div className="mt-8 flex items-center justify-center gap-6 text-sm text-muted-foreground border-t pt-4">
 									<div className="flex items-center gap-2">
 										<div className="w-3 h-3 rounded-full bg-indigo-500 opacity-50"></div>
-										<span>{language === 'bm' ? 'Kawasan Liputan' : 'Competency Area'}</span>
+										<span>{language === 'bm' ? 'Kawasan Liputan (Radar)' : 'Coverage Area (Radar)'}</span>
 									</div>
 									<div className="flex items-center gap-2">
 										<span className="text-xs text-neutral-400">{language === 'bm' ? 'Paksi luar menunjukkan penguasaan tinggi' : 'Outer edge indicates mastery'}</span>
@@ -1229,514 +1910,662 @@ export default function ProgressPage() {
 											<TrendingDown className="h-4 w-4 text-error" />
 											{language === 'bm' ? 'Kawasan Tumpuan (Markah < 60%)' : 'Focus Areas (Score < 60%)'}
 										</h4>
-										<div className="space-y-3">
+										<div className="grid md:grid-cols-2 gap-3">
 											{competency.filter(c => c.A < 60).map((topic, idx) => (
-												<div key={idx} className="bg-red-50 p-3 rounded-lg border border-red-100 flex items-center justify-between">
-													<div>
-														<p className="text-sm font-medium text-red-900">{topic.title}</p>
-														<p className="text-xs text-red-700 mt-0.5">
-															{language === 'bm' ? `Skor Semasa: ${topic.A}%` : `Current Score: ${topic.A}%`}
-														</p>
+												<div key={idx} className="bg-red-50 p-3 rounded-lg border border-red-100">
+													<div className="flex justify-between items-start mb-2">
+														<div>
+															<p className="text-sm font-bold text-neutralDark">{topic.subject}</p>
+															<p className="text-xs text-red-600 font-medium">
+																{language === 'bm' ? `Skor: ${topic.A}% (Lemah)` : `Score: ${topic.A}% (Weak)`}
+															</p>
+														</div>
+														<Button
+															size="sm"
+															className="h-7 text-xs bg-white text-red-600 border border-red-200 hover:bg-red-50 hover:border-red-300 shadow-sm"
+															onClick={() => alert(`${language === 'bm' ? 'Cadangan Pembelajaran:' : 'Recommended Action:'}\n${topic.remedy}`)}
+														>
+															{language === 'bm' ? 'Tindakan' : 'Action'}
+														</Button>
 													</div>
-													<Button size="sm" variant="outline" className="h-8 text-xs border-red-200 text-red-700 hover:bg-red-100 hover:text-red-900">
-														{language === 'bm' ? 'Ulangkaji' : 'Review'}
-													</Button>
+													<div className="flex items-center gap-2 text-xs text-muted-foreground bg-white/50 p-2 rounded">
+														<Lightbulb className="h-3 w-3 text-amber-500" />
+														<span>{topic.remedy}</span>
+													</div>
 												</div>
 											))}
 										</div>
 									</div>
 								)}
 							</CardContent>
-						</Card>
-					</div>
-				)}
+						</Card >
+					</div >
+				)
+				}
 
 				{/* Risk Indicators Section */}
-				{courseProgress.length > 0 && Object.keys(riskIndicators).length === 0 && !loading && (
-					<Card className="border-info/20 bg-info/5 shadow-sm">
-						<CardContent className="py-8 text-center">
-							<div className="mx-auto w-12 h-12 bg-info/10 rounded-full flex items-center justify-center mb-3">
-								<Info className="h-6 w-6 text-info" />
-							</div>
-							<p className="text-body text-muted-foreground max-w-lg mx-auto">
-								{language === 'bm'
-									? 'Data tidak mencukupi untuk menilai risiko pembelajaran. Selesaikan lebih banyak pelajaran dan penilaian untuk melihat penunjuk risiko anda.'
-									: 'Insufficient data to assess learning risk. Complete more lessons and assessments to see your risk indicators.'}
-							</p>
-						</CardContent>
-					</Card>
-				)}
-				{(currentView === 'risk' || (currentView === 'hub' && reportConfig.includeRisk)) && Object.keys(riskIndicators).length > 0 && (
-					<div className={currentView !== 'risk' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
-						<div className={`space-y-4`}>
-							<h2 className="text-h2 text-neutralDark flex items-center gap-2 mt-8 mb-4">
-								<AlertTriangle className="h-6 w-6 text-warning" />
-								{language === 'bm' ? 'Penunjuk Risiko Pembelajaran' : 'Learning Risk Indicators'}
-							</h2>
-							<div className="flex flex-col gap-4">
-								{Object.entries(riskIndicators).map(([courseId, risk]) => {
-									const course = courseProgress.find(c => c.courseId === courseId);
-									if (!course) return null;
-
-									return (
-										<Card key={courseId} className={`shadow-sm border-l-4 ${risk.riskLevel === 'high' ? 'border-l-destructive' : risk.riskLevel === 'medium' ? 'border-l-warning' : 'border-l-success'}`}>
-											<CardHeader className="pb-2">
-												<div className="flex items-start justify-between gap-2">
-													<CardTitle className="text-lg font-bold text-neutralDark">
-														{course.courseTitle}
-													</CardTitle>
-													<span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ${risk.riskLevel === 'high' ? 'bg-destructive/10 text-destructive' : risk.riskLevel === 'medium' ? 'bg-warning/10 text-warning-dark' : 'bg-success/10 text-success'}`}>
-														{risk.riskLevel === 'high' ? (language === 'bm' ? 'Risiko Tinggi' : 'High Risk') :
-															risk.riskLevel === 'medium' ? (language === 'bm' ? 'Risiko Sederhana' : 'Medium Risk') :
-																(language === 'bm' ? 'Sihat' : 'Healthy')}
-													</span>
-												</div>
-											</CardHeader>
-											<CardContent className="space-y-4">
-												{/* Detailed Risk Categories */}
-												{risk.categories && (
-													<div className="space-y-3">
-														{Object.entries(risk.categories).map(([key, data]) => {
-															// Normalize score to percentage based on max possible (approx)
-															const max = key === 'submission' ? 20 : 40;
-															const pct = Math.min(100, Math.round((data.score / max) * 100));
-
-															return (
-																<div key={key} className="space-y-1">
-																	<div className="flex justify-between text-xs uppercase font-semibold text-muted-foreground">
-																		<span>{key === 'engagement' ? (language === 'bm' ? 'Penglibatan' : 'Engagement') : key === 'academic' ? (language === 'bm' ? 'Akademik' : 'Academic') : (language === 'bm' ? 'Penghantaran' : 'Submission')}</span>
-																		<span className={data.score > 0 ? (pct > 50 ? 'text-destructive' : 'text-warning-dark') : 'text-success'}>
-																			{data.score > 0 ? (language === 'bm' ? `${pct}% Risiko` : `${pct}% Risk`) : (language === 'bm' ? 'Tiada Risiko' : 'No Risk')}
-																		</span>
-																	</div>
-																	<div className="h-2 w-full bg-neutral-100 rounded-full overflow-hidden">
-																		<div
-																			className={`h-full rounded-full transition-all ${data.score === 0 ? 'bg-success' : pct > 50 ? 'bg-destructive' : 'bg-warning'}`}
-																			style={{ width: `${Math.max(5, pct)}%` }}
-																		/>
-																	</div>
-																	{data.risks.length > 0 && (
-																		<ul className="text-xs text-neutralDark space-y-0.5 pl-2 mt-1 border-l-2 border-neutral-200">
-																			{data.risks.map((r, i) => <li key={i}>{r}</li>)}
-																		</ul>
-																	)}
-																</div>
-															);
-														})}
-													</div>
-												)}
-
-												{/* Actionable Interventions */}
-												{risk.interventions && risk.interventions.length > 0 ? (
-													<div className="pt-2 flex flex-wrap gap-2">
-														{risk.interventions.map((action, idx) => (
-															<button
-																key={idx}
-																onClick={() => alert(`Feature: ${action.label}`)}
-																className={`text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-colors ${action.id === 'tutor' ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}
-															>
-																{action.id === 'tutor' ? <Users className="h-3 w-3" /> : <Calendar className="h-3 w-3" />}
-																{action.label}
-															</button>
-														))}
-													</div>
-												) : (
-													risk.riskScore < 30 && (
-														<p className="text-sm text-success flex items-center gap-2 mt-2">
-															<CheckCircle className="h-4 w-4" />
-															{language === 'bm' ? 'Prestasi anda cemerlang!' : 'You are doing great!'}
-														</p>
-													)
-												)}
-
-												{/* Key Metrics Mini Grid */}
-												<div className="grid grid-cols-3 gap-1 pt-3 border-t mt-2">
-													<div className="text-center p-1">
-														<p className="text-xs text-muted-foreground uppercase">
-															{language === 'bm' ? 'Skor Risiko' : 'Risk Score'}
-														</p>
-														<p className={`font-bold ${risk.riskLevel === 'high' ? 'text-destructive' : risk.riskLevel === 'medium' ? 'text-warning-dark' : 'text-success'}`}>
-															{Math.round(risk.riskScore)}/100
-														</p>
-													</div>
-													<div className="text-center p-1 border-l">
-														<p className="text-[10px] text-muted-foreground uppercase">
-															{language === 'bm' ? 'Siap' : 'Done'}
-														</p>
-														<p className="font-bold text-neutralDark">{Math.round(risk.completionRate)}%</p>
-													</div>
-													<div className="text-center p-1 border-l">
-														<p className="text-[10px] text-muted-foreground uppercase">
-															{language === 'bm' ? 'Pasif' : 'Idle'}
-														</p>
-														<p className="font-bold text-neutralDark">{risk.daysSinceActivity}d</p>
-													</div>
-												</div>
-											</CardContent>
-										</Card>
-									);
-								})}
-							</div>
-						</div>
-					</div>
-				)}
-
-				{/* Course Progress List */}
-				{(currentView === 'details' || (currentView === 'hub' && reportConfig.includeDetails)) && (
-					courseProgress.length === 0 ? (
-						<Card className="border-dashed border-2">
-							<CardContent className="py-12 text-center">
-								<div className="mx-auto w-16 h-16 bg-neutral-50 rounded-full flex items-center justify-center mb-4">
-									<BookOpen className="h-8 w-8 text-muted-foreground/50" />
+				{
+					courseProgress.length > 0 && Object.keys(riskIndicators).length === 0 && !loading && (
+						<Card className="border-info/20 bg-info/5 shadow-sm">
+							<CardContent className="py-8 text-center">
+								<div className="mx-auto w-12 h-12 bg-info/10 rounded-full flex items-center justify-center mb-3">
+									<Info className="h-6 w-6 text-info" />
 								</div>
-								<h3 className="text-lg font-semibold text-neutralDark mb-1">
-									{language === 'bm' ? 'Tiada Kursus' : 'No Courses Found'}
-								</h3>
-								<p className="text-body text-muted-foreground mb-6">
+								<p className="text-body text-muted-foreground max-w-lg mx-auto">
 									{language === 'bm'
-										? 'Anda belum mendaftar dalam sebarang kursus lagi.'
-										: "You haven't enrolled in any courses yet."}
+										? 'Data tidak mencukupi untuk menilai risiko pembelajaran. Selesaikan lebih banyak pelajaran dan penilaian untuk melihat penunjuk risiko anda.'
+										: 'Insufficient data to assess learning risk. Complete more lessons and assessments to see your risk indicators.'}
 								</p>
-								<Link href="/courses/explore">
-									<Button>{language === 'bm' ? 'Terokai Kursus' : 'Explore Courses'}</Button>
-								</Link>
 							</CardContent>
 						</Card>
-					) : (
-						<div className={currentView !== 'details' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid mt-8' : 'space-y-6 mt-8'}>
-							<Card className="border-none shadow-sm bg-white overflow-hidden">
-								<div className="p-6 bg-gradient-to-r from-neutral-50 to-white border-b border-neutral-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-									<div>
-										<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
-											<BookOpen className="h-5 w-5 text-primary" />
-											{language === 'bm' ? 'Butiran Kursus' : 'Course Details'}
-										</h2>
-										<p className="text-sm text-muted-foreground mt-1">
-											{language === 'bm'
-												? 'Pilih kursus untuk melihat analisis prestasi terperinci'
-												: 'Select a course to view detailed performance analysis'}
-										</p>
+					)
+				}
+				{
+					(currentView === 'risk' || (currentView === 'hub' && reportConfig.includeRisk)) && Object.keys(riskIndicators).length > 0 && (
+						<div className={currentView !== 'risk' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid' : 'mb-8 break-inside-avoid'}>
+							<div className={`space-y-4`}>
+								<div className="flex items-center justify-between mt-8 mb-4">
+									<h2 className="text-h2 text-neutralDark flex items-center gap-2">
+										<AlertTriangle className="h-6 w-6 text-warning" />
+										{language === 'bm' ? 'Penunjuk Risiko Pembelajaran' : 'Learning Risk Indicators'}
+									</h2>
+									<div className="relative w-full md:w-auto min-w-[250px] print:hidden">
+										<select
+											className="flex h-10 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50 pl-2 pr-8 appearance-none cursor-pointer shadow-sm hover:border-neutral-300 transition-all font-medium text-neutralDark"
+											value={selectedRiskCourseId}
+											onChange={(e) => setSelectedRiskCourseId(e.target.value)}
+										>
+											<option value="all">{language === 'bm' ? 'Semua Kursus' : 'All Courses'}</option>
+											{Object.keys(riskIndicators).map(courseId => {
+												const course = courseProgress.find(c => c.courseId === courseId);
+												return course ? <option key={courseId} value={courseId}>{course.courseTitle}</option> : null;
+											})}
+										</select>
+										<div className="absolute right-3 top-3 pointer-events-none">
+											<Filter className="h-5 w-5 text-muted-foreground" />
+										</div>
 									</div>
-									<div className="relative w-full md:w-72 print:hidden">
-										<div className="relative">
+								</div>
+								<div className="flex flex-col gap-4">
+									{Object.entries(riskIndicators)
+										.filter(([courseId]) => selectedRiskCourseId === 'all' || courseId === selectedRiskCourseId)
+										.map(([courseId, risk]) => {
+											const course = courseProgress.find(c => c.courseId === courseId);
+											if (!course) return null;
 
-											<select
-												className="flex h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50 pl-4 pr-10 appearance-none cursor-pointer shadow-sm hover:border-neutral-300 transition-all"
-												value={selectedCourseId}
-												onChange={(e) => setSelectedCourseId(e.target.value)}
-											>
-												<option value="">{language === 'bm' ? 'Pilih Kursus...' : 'Select a Course...'}</option>
-												<option value="all">{language === 'bm' ? 'Tunjukkan Semua' : 'Show All Courses'}</option>
-												{courseProgress.map((c) => (
-													<option key={c.courseId} value={c.courseId}>
-														{c.courseTitle}
-													</option>
-												))}
-											</select>
-											<div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground bg-gray-50 p-1 rounded-md">
-												<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="m6 9 6 6 6-6" /></svg>
+											return (
+												<Card key={courseId} className={`shadow-sm border-l-4 ${risk.riskLevel === 'high' ? 'border-l-destructive' : risk.riskLevel === 'medium' ? 'border-l-warning' : 'border-l-success'}`}>
+													<CardHeader className="pb-2">
+														<div className="flex items-start justify-between gap-2">
+															<CardTitle className="text-lg font-bold text-neutralDark">
+																{course.courseTitle}
+															</CardTitle>
+															<div className="flex items-center gap-2">
+																{risk.isDeclining && (
+																	<div className="flex items-center text-xs font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full" title={language === 'bm' ? 'Prestasi merosot' : 'Declining Performance'}>
+																		<TrendingDown className="h-3 w-3 mr-1" />
+																		<span>Trend</span>
+																	</div>
+																)}
+																<span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ${risk.riskLevel === 'high' ? 'bg-destructive/10 text-destructive' : risk.riskLevel === 'medium' ? 'bg-warning/10 text-warning-dark' : 'bg-success/10 text-success'}`}>
+																	{risk.riskLevel === 'high' ? (language === 'bm' ? 'Risiko Tinggi' : 'High Risk') :
+																		risk.riskLevel === 'medium' ? (language === 'bm' ? 'Risiko Sederhana' : 'Medium Risk') :
+																			(language === 'bm' ? 'Sihat' : 'Healthy')}
+																</span>
+															</div>
+														</div>
+													</CardHeader>
+													<CardContent className="space-y-4">
+														{/* Detailed Risk Categories */}
+														{risk.categories && (
+															<div className="grid gap-4 md:grid-cols-3">
+																{Object.entries(risk.categories).map(([key, data]) => {
+																	// Normalize score to percentage
+																	const max = key === 'submission' ? 20 : 40;
+																	const pct = Math.min(100, Math.round((data.score / max) * 100));
+																	const colorClass = data.score === 0 ? 'bg-emerald-500' : pct > 50 ? 'bg-red-500' : 'bg-amber-500';
+																	const colorClassLight = data.score === 0 ? 'bg-emerald-100 text-emerald-700' : pct > 50 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700';
+
+																	return (
+																		<div key={key} className="p-3 bg-neutral-50/50 rounded-xl border border-neutral-100">
+																			<div className="flex justify-between items-center mb-2">
+																				<span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+																					{key === 'engagement' ? (language === 'bm' ? 'Penglibatan' : 'Engagement') : key === 'academic' ? (language === 'bm' ? 'Akademik' : 'Academic') : (language === 'bm' ? 'Penghantaran' : 'Submission')}
+																				</span>
+																				<span className={`text-xs font-bold px-1.5 py-0.5 rounded ${colorClassLight}`}>
+																					{data.score > 0 ? (language === 'bm' ? `${pct}% Risiko` : `${pct}% Risk`) : (language === 'bm' ? 'Selamat' : 'Safe')}
+																				</span>
+																			</div>
+
+																			<div className="h-2 w-full bg-white rounded-full overflow-hidden border border-neutral-100 mb-2">
+																				<div
+																					className={`h-full rounded-full transition-all duration-500 ${colorClass}`}
+																					style={{ width: `${Math.max(5, pct)}%` }}
+																				/>
+																			</div>
+
+																			{data.risks.length > 0 ? (
+																				<ul className="space-y-1">
+																					{data.risks.map((r, i) => (
+																						<li key={i} className="text-xs text-neutralDark leading-tight flex items-start gap-1.5">
+																							<span className="mt-0.5 w-1 h-1 rounded-full bg-neutral-400 flex-shrink-0" />
+																							{r}
+																						</li>
+																					))}
+																				</ul>
+																			) : (
+																				<p className="text-xs text-muted-foreground italic pl-2.5 opacity-60">
+																					{language === 'bm' ? 'Tiada isu dikesan' : 'No issues detected'}
+																				</p>
+																			)}
+																		</div>
+																	);
+																})}
+															</div>
+														)}
+
+														{/* Actionable Interventions */}
+														{risk.interventions && risk.interventions.length > 0 ? (
+															<div className="flex flex-wrap items-center gap-2 pt-2 border-t border-dashed border-neutral-200 mt-2">
+																<span className="text-sm font-semibold text-muted-foreground mr-2">
+																	{language === 'bm' ? 'Tindakan Disyorkan:' : 'Recommended Actions:'}
+																</span>
+																{risk.interventions.map((action, idx) => (
+																	<button
+																		key={idx}
+																		onClick={() => {
+																			if (action.label === (language === 'bm' ? 'Jadual Belajar' : 'Plan Study Time')) {
+																				setStudyDialogOpen(true);
+																			} else if (action.actionType === 'ai') {
+																				router.push('/recommendations');
+																			} else if (action.id === 'tutor') {
+																				router.push('/ai'); // Getting help -> Coding Help on AI page
+																			} else {
+																				alert(`Feature: ${action.label}`);
+																			}
+																		}}
+																		className={`text-sm font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all shadow-sm hover:shadow active:scale-95 ${action.id === 'tutor'
+																			? 'bg-white border border-primary/20 text-primary hover:bg-primary/5'
+																			: action.actionType === 'ai'
+																				? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white border-0 hover:opacity-90'
+																				: 'bg-white border border-amber-200 text-amber-700 hover:bg-amber-50'
+																			}`}
+																	>
+																		{action.icon === 'Sparkles' ? <Sparkles className="h-5 w-5" /> : action.id === 'tutor' ? <Users className="h-5 w-5" /> : <Calendar className="h-5 w-5" />}
+																		{action.label}
+																	</button>
+																))}
+
+																{/* 5.4 Early Alerts: Notify Instructor manually */}
+																{(risk.riskLevel === 'high' || risk.riskLevel === 'medium') && (
+																	<button
+																		onClick={() => {
+																			setSelectedContactCourse({ courseId, courseTitle: course.courseTitle, instructor: course.instructor });
+																			setContactSubject(language === 'bm' ? 'Bantuan Diperlukan: Risiko Pembelajaran' : 'Help Needed: Learning Risk');
+																			setContactDialogOpen(true);
+																		}}
+																		className="text-sm font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all shadow-sm hover:shadow active:scale-95 bg-white border border-destructive/20 text-destructive hover:bg-destructive/5"
+																	>
+																		<Mail className="h-5 w-5" />
+																		{language === 'bm' ? 'Maklumkan Pengajar' : 'Notify Instructor'}
+																	</button>
+																)}
+															</div>
+														) : (
+															risk.riskScore < 30 && (
+																<div className="p-3 bg-green-50 rounded-xl flex items-center gap-3">
+																	<div className="p-1.5 bg-green-100 rounded-full">
+																		<CheckCircle className="h-4 w-4 text-green-600" />
+																	</div>
+																	<p className="text-sm text-green-800 font-medium">
+																		{language === 'bm' ? 'Prestasi anda cemerlang! Teruskan usaha.' : 'Excellent performance! Keep up the good work.'}
+																	</p>
+																</div>
+															)
+														)}
+
+														{/* Key Metrics Mini Grid */}
+														<div className="grid grid-cols-3 gap-4 pt-4 mt-2">
+															<div className="text-center p-3 rounded-lg bg-neutral-50">
+																<p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">
+																	{language === 'bm' ? 'Skor Risiko' : 'Risk Score'}
+																</p>
+																<p className={`font-bold ${risk.riskLevel === 'high' ? 'text-destructive' : risk.riskLevel === 'medium' ? 'text-warning-dark' : 'text-success'}`}>
+																	{Math.round(risk.riskScore)}/100
+																</p>
+															</div>
+															<div className="text-center p-1 border-l">
+																<p className="text-[10px] text-muted-foreground uppercase">
+																	{language === 'bm' ? 'Siap' : 'Done'}
+																</p>
+																<p className="font-bold text-neutralDark">{Math.round(risk.completionRate)}%</p>
+															</div>
+															<div className="text-center p-1 border-l">
+																<p className="text-[10px] text-muted-foreground uppercase">
+																	{language === 'bm' ? 'Pasif' : 'Idle'}
+																</p>
+																<p className="font-bold text-neutralDark">{risk.daysSinceActivity}d</p>
+															</div>
+														</div>
+													</CardContent>
+												</Card>
+											);
+										})}
+								</div>
+							</div>
+						</div>
+					)
+				}
+
+				{/* Course Progress List */}
+				{
+					(currentView === 'details' || (currentView === 'hub' && reportConfig.includeDetails)) && (
+						courseProgress.length === 0 ? (
+							<Card className="border-dashed border-2">
+								<CardContent className="py-12 text-center">
+									<div className="mx-auto w-16 h-16 bg-neutral-50 rounded-full flex items-center justify-center mb-4">
+										<BookOpen className="h-8 w-8 text-muted-foreground/50" />
+									</div>
+									<h3 className="text-lg font-semibold text-neutralDark mb-1">
+										{language === 'bm' ? 'Tiada Kursus' : 'No Courses Found'}
+									</h3>
+									<p className="text-body text-muted-foreground mb-6">
+										{language === 'bm'
+											? 'Anda belum mendaftar dalam sebarang kursus lagi.'
+											: "You haven't enrolled in any courses yet."}
+									</p>
+									<Link href="/courses/explore">
+										<Button>{language === 'bm' ? 'Terokai Kursus' : 'Explore Courses'}</Button>
+									</Link>
+								</CardContent>
+							</Card>
+						) : (
+							<div className={currentView !== 'details' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid mt-8' : 'space-y-6 mt-8'}>
+								<Card className="border-none shadow-sm bg-white overflow-hidden">
+									<div className="p-6 bg-gradient-to-r from-neutral-50 to-white border-b border-neutral-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+										<div>
+											<h2 className="text-xl font-bold text-neutralDark flex items-center gap-2">
+												<BookOpen className="h-5 w-5 text-primary" />
+												{language === 'bm' ? 'Butiran Kursus' : 'Course Details'}
+											</h2>
+											<p className="text-sm text-muted-foreground mt-1">
+												{language === 'bm'
+													? 'Pilih kursus untuk melihat analisis prestasi terperinci'
+													: 'Select a course to view detailed performance analysis'}
+											</p>
+										</div>
+										<div className="relative w-full md:w-72 print:hidden">
+											<div className="relative">
+
+												<select
+													className="flex h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50 pl-4 pr-10 appearance-none cursor-pointer shadow-sm hover:border-neutral-300 transition-all"
+													value={selectedCourseId}
+													onChange={(e) => setSelectedCourseId(e.target.value)}
+												>
+													<option value="">{language === 'bm' ? 'Pilih Kursus...' : 'Select a Course...'}</option>
+													{courseProgress.map((c) => (
+														<option key={c.courseId} value={c.courseId}>
+															{c.courseTitle}
+														</option>
+													))}
+												</select>
+												<div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground bg-gray-50 p-1 rounded-md">
+													<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="m6 9 6 6 6-6" /></svg>
+												</div>
 											</div>
 										</div>
 									</div>
-								</div>
 
-								{!selectedCourseId && (
-									<div className="text-center py-16 px-4 flex flex-col items-center justify-center bg-white">
-										<div className="bg-primary/5 p-4 rounded-full mb-4 animate-pulse">
-											<LayoutDashboard className="h-12 w-12 text-primary/40" />
+									{!selectedCourseId && (
+										<div className="text-center py-16 px-4 flex flex-col items-center justify-center bg-white">
+											<div className="bg-primary/5 p-4 rounded-full mb-4 animate-pulse">
+												<LayoutDashboard className="h-12 w-12 text-primary/40" />
+											</div>
+											<h3 className="text-lg font-semibold text-neutralDark mb-2">
+												{language === 'bm' ? 'Tiada Kursus Dipilih' : 'No Course Selected'}
+											</h3>
+											<p className="text-muted-foreground max-w-sm mx-auto mb-6 leading-relaxed">
+												{language === 'bm'
+													? 'Sila pilih kursus dari menu di atas untuk melihat butiran kemajuan, markah penilaian, dan sejarah tugasan anda.'
+													: 'Please select a course from the dropdown above to view your detailed progress, assessment scores, and assignment history.'}
+											</p>
+											<div className="flex items-center gap-2 text-xs font-medium text-primary bg-primary/5 px-3 py-1.5 rounded-full">
+												<Info className="h-3.5 w-3.5" />
+												{language === 'bm' ? 'Pilih kursus untuk bermula' : 'Select a course to get started'}
+											</div>
 										</div>
-										<h3 className="text-lg font-semibold text-neutralDark mb-2">
-											{language === 'bm' ? 'Tiada Kursus Dipilih' : 'No Course Selected'}
-										</h3>
-										<p className="text-muted-foreground max-w-sm mx-auto mb-6 leading-relaxed">
-											{language === 'bm'
-												? 'Sila pilih kursus dari menu di atas untuk melihat butiran kemajuan, markah penilaian, dan sejarah tugasan anda.'
-												: 'Please select a course from the dropdown above to view your detailed progress, assessment scores, and assignment history.'}
-										</p>
-										<div className="flex items-center gap-2 text-xs font-medium text-primary bg-primary/5 px-3 py-1.5 rounded-full">
-											<Info className="h-3.5 w-3.5" />
-											{language === 'bm' ? 'Pilih kursus untuk bermula' : 'Select a course to get started'}
-										</div>
-									</div>
-								)}
-							</Card>
+									)}
+								</Card>
 
-							{selectedCourseId && (
-								courseProgress.filter(c =>
-									selectedCourseId === 'all' || c.courseId === selectedCourseId
-								).length === 0 ? (
-									<div className="text-center py-12 bg-neutral-50 rounded-lg border border-dashed border-neutral-200">
-										<p className="text-muted-foreground">
-											{language === 'bm' ? 'Tiada kursus dijumpai.' : 'No courses found.'}
-										</p>
-									</div>
-								) : (
-									courseProgress
-										.filter(c => selectedCourseId === 'all' || c.courseId === selectedCourseId)
-										.map((course) => (
-											<Card key={course.courseId} className="overflow-hidden border-neutral-200 shadow-sm hover:shadow-md transition-shadow mb-8 break-inside-avoid">
-												<div className="border-b border-neutral-100 bg-neutral-50/50 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-													<div>
-														<div className="flex items-center gap-3 mb-1">
-															<h3 className="text-xl font-bold text-neutralDark">{course.courseTitle}</h3>
-															<span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-																{course.overallProgress}% {language === 'bm' ? 'Siap' : 'Done'}
-															</span>
-														</div>
-														<div className="flex items-center gap-4 text-sm text-muted-foreground">
-															<div className="flex items-center gap-1.5">
-																<Calendar className="h-4 w-4" />
-																{language === 'bm' ? 'Didaftarkan:' : 'Enrolled:'} {formatDate(course.enrolledAt)}
+								{selectedCourseId && (
+									courseProgress.filter(c =>
+										selectedCourseId === 'all' || c.courseId === selectedCourseId
+									).length === 0 ? (
+										<div className="text-center py-12 bg-neutral-50 rounded-lg border border-dashed border-neutral-200">
+											<p className="text-muted-foreground">
+												{language === 'bm' ? 'Tiada kursus dijumpai.' : 'No courses found.'}
+											</p>
+										</div>
+									) : (
+										courseProgress
+											.filter(c => selectedCourseId === 'all' || c.courseId === selectedCourseId)
+											.map((course) => (
+												<Card key={course.courseId} className="overflow-hidden border-neutral-200 shadow-sm hover:shadow-md transition-shadow mb-8 break-inside-avoid">
+													<div className="border-b border-neutral-100 bg-neutral-50/50 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+														<div>
+															<div className="flex items-center gap-3 mb-1">
+																<h3 className="text-xl font-bold text-neutralDark">{course.courseTitle}</h3>
+																<span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+																	{course.overallProgress}% {language === 'bm' ? 'Siap' : 'Done'}
+																</span>
+															</div>
+															<div className="flex items-center gap-4 text-sm text-muted-foreground">
+																<div className="flex items-center gap-1.5">
+																	<Calendar className="h-4 w-4" />
+																	{language === 'bm' ? 'Didaftarkan:' : 'Enrolled:'} {formatDate(course.enrolledAt)}
+																</div>
 															</div>
 														</div>
-													</div>
-													<Link href={`/courses/${course.courseId}`} className="print:hidden">
-														<Button variant="outline" size="sm" className="gap-2">
-															{language === 'bm' ? 'Teruskan Belajar' : 'Continue Learning'}
-															<BookOpen className="h-4 w-4" />
-														</Button>
-													</Link>
-												</div>
-
-												{/* Course Description */}
-												{course.courseDescription && (
-													<div className="px-6 pt-4 pb-0">
-														<p className="text-muted-foreground text-sm leading-relaxed">
-															{course.courseDescription}
-														</p>
-													</div>
-												)}
-
-												<CardContent className="p-6 space-y-8">
-													{/* Overall Progress Bar */}
-													<div>
-														<div className="flex items-center justify-between mb-2">
-															<span className="text-sm font-medium text-neutralDark">
-																{language === 'bm' ? 'Kemajuan Keseluruhan' : 'Overall Progress'}
-															</span>
-														</div>
-														<div className="w-full bg-neutral-100 rounded-full h-2.5">
-															<div
-																className="bg-primary rounded-full h-2.5 transition-all duration-500 ease-out print:force-color"
-																style={{ width: `${course.overallProgress}%` }}
-															/>
+														<div className="flex flex-col gap-3 print:hidden min-w-[180px]">
+															<Link href={`/courses/${course.courseId}`} className="w-full">
+																<Button variant={course.overallProgress === 100 ? "outline" : "default"} size="sm" className="gap-2 w-full h-10 text-sm">
+																	<BookOpen className="h-5 w-5" />
+																	{language === 'bm' ? 'Teruskan Belajar' : 'Continue Learning'}
+																</Button>
+															</Link>
+															{course.overallProgress === 100 && (
+																<Button
+																	onClick={() => handleViewCertificate(course)}
+																	variant="default"
+																	size="sm"
+																	className="gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-none shadow-md w-full h-10 text-sm"
+																>
+																	<GraduationCap className="h-5 w-5" />
+																	{language === 'bm' ? 'Sijil' : 'Certificate'}
+																</Button>
+															)}
 														</div>
 													</div>
 
-													{/* Performance Insights / Risk Indicators */}
-													{riskIndicators[course.courseId] && (
-														<div className={`p-4 rounded-xl border ${riskIndicators[course.courseId].riskLevel === 'low'
-															? 'bg-green-50 border-green-100'
-															: riskIndicators[course.courseId].riskLevel === 'medium'
-																? 'bg-yellow-50 border-yellow-100'
-																: 'bg-red-50 border-red-100'
-															}`}>
-															<div className="flex items-start gap-3">
-																{riskIndicators[course.courseId].riskLevel === 'low' ? (
-																	<div className="p-2 bg-green-100 rounded-full mt-0.5">
-																		<CheckCircle2 className="h-4 w-4 text-green-600" />
-																	</div>
-																) : riskIndicators[course.courseId].riskLevel === 'medium' ? (
-																	<div className="p-2 bg-yellow-100 rounded-full mt-0.5">
-																		<Info className="h-4 w-4 text-yellow-600" />
-																	</div>
-																) : (
-																	<div className="p-2 bg-red-100 rounded-full mt-0.5">
-																		<AlertTriangle className="h-4 w-4 text-red-600" />
-																	</div>
-																)}
-																<div className="flex-1">
-																	<h4 className={`text-sm font-bold mb-1 ${riskIndicators[course.courseId].riskLevel === 'low'
-																		? 'text-green-800'
-																		: riskIndicators[course.courseId].riskLevel === 'medium'
-																			? 'text-yellow-800'
-																			: 'text-red-800'
-																		}`}>
-																		{language === 'bm' ? 'Analisis Prestasi' : 'Performance Insights'}
-																	</h4>
+													{/* Course Description */}
+													{course.courseDescription && (
+														<div className="px-6 pt-4 pb-0 grid gap-5 md:grid-cols-2">
+															<div className="md:col-span-1 space-y-3">
+																<p className="text-muted-foreground text-sm leading-relaxed">
+																	{course.courseDescription}
+																</p>
 
-																	{/* Recommendations */}
+																{/* Instructor Card */}
+																<div className="bg-gradient-to-br from-white to-neutral-50 border border-neutral-100 rounded-xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
+																	<div className="relative">
+																		<div className="h-12 w-12 rounded-full bg-neutral-100 flex items-center justify-center overflow-hidden border-2 border-white shadow-sm">
+																			<Users className="h-7 w-7 text-neutral-400" />
+																		</div>
+																		<div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+																	</div>
+																	<div className="flex-1">
+																		<h4 className="text-sm font-bold text-neutralDark">{course.instructor || 'Dr. Sarah Connor'}</h4>
+																		<p className="text-xs text-muted-foreground font-medium">Senior Instructor • <span className="text-green-600">Online</span></p>
+																	</div>
+																	<Button
+																		onClick={() => handleOpenContact(course)}
+																		variant="outline"
+																		size="sm"
+																		className="h-9 px-4 border-neutral-300 hover:bg-neutral-50 hover:text-neutral-900 transition-colors"
+																	>
+																		<Mail className="h-5 w-5 mr-2 text-neutral-500" />
+																		{language === 'bm' ? 'Hubungi' : 'Contact'}
+																	</Button>
+																</div>
+															</div>
+
+															<div className="md:col-span-1 space-y-3">
+																<h4 className="text-xs font-bold uppercase text-muted-foreground tracking-wider mb-2 flex items-center gap-2">
+																	<File className="h-4 w-4" />
+																	{language === 'bm' ? 'Sumber Kursus' : 'Course Resources'}
+																</h4>
+																<a href="#" className="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-neutral-100 shadow-sm hover:shadow-md hover:border-primary/20 transition-all group">
+																	<div className="p-2 rounded-lg bg-red-50 text-red-600 group-hover:scale-110 transition-transform">
+																		<FileText className="h-5 w-5" />
+																	</div>
+																	<div className="flex-1 min-w-0">
+																		<p className="text-sm font-semibold text-neutralDark group-hover:text-primary transition-colors truncate">SQL Cheat Sheet</p>
+																		<p className="text-[10px] text-muted-foreground">PDF • 1.2 MB</p>
+																	</div>
+																	<Download className="h-5 w-5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+																</a>
+																<a href="#" className="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-neutral-100 shadow-sm hover:shadow-md hover:border-primary/20 transition-all group">
+																	<div className="p-2 rounded-lg bg-blue-50 text-blue-600 group-hover:scale-110 transition-transform">
+																		<ExternalLink className="h-5 w-5" />
+																	</div>
+																	<div className="flex-1 min-w-0">
+																		<p className="text-sm font-semibold text-neutralDark group-hover:text-primary transition-colors truncate">Course Wiki</p>
+																		<p className="text-[10px] text-muted-foreground">External Link</p>
+																	</div>
+																	<ArrowRight className="h-5 w-5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+																</a>
+															</div>
+														</div>
+													)}
+
+													<CardContent className="p-6 space-y-6">
+														{/* Overall Progress Bar */}
+														<div>
+															<div className="flex items-center justify-between mb-2">
+																<span className="text-base font-bold text-neutralDark">
+																	{language === 'bm' ? 'Kemajuan Keseluruhan' : 'Overall Progress'}
+																</span>
+																<span className="text-base font-bold text-primary">
+																	{course.overallProgress}%
+																</span>
+															</div>
+															<div className="w-full bg-neutral-100 rounded-full h-2.5">
+																<div
+																	className="bg-primary rounded-full h-2.5 transition-all duration-500 ease-out print:force-color"
+																	style={{ width: `${course.overallProgress}%` }}
+																/>
+															</div>
+														</div>
+
+														{/* Performance Insights / Risk Indicators */}
+														{riskIndicators[course.courseId] && (
+															<div>
+																<h4 className="text-sm font-bold text-neutralDark mb-4 flex items-center gap-2 uppercase tracking-wider">
+																	{riskIndicators[course.courseId].riskLevel === 'low' ? (
+																		<CheckCircle2 className="h-5 w-5 text-green-600" />
+																	) : riskIndicators[course.courseId].riskLevel === 'medium' ? (
+																		<Info className="h-5 w-5 text-yellow-600" />
+																	) : (
+																		<AlertTriangle className="h-5 w-5 text-red-600" />
+																	)}
+																	{language === 'bm' ? 'Analisis Prestasi' : 'Performance Insights'}
+																</h4>
+																<div className="space-y-3">
 																	{riskIndicators[course.courseId].recommendations && riskIndicators[course.courseId].recommendations.length > 0 && (
-																		<ul className="space-y-1 mt-2">
+																		<ul className="space-y-3">
 																			{riskIndicators[course.courseId].recommendations.map((rec, idx) => (
-																				<li key={idx} className="text-xs flex items-start gap-2 text-muted-foreground">
-																					<span className="mt-1.5 h-1 w-1 rounded-full bg-current flex-shrink-0" />
-																					<span>{rec}</span>
+																				<li key={idx} className="flex items-start gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:border-primary/20 transition-colors">
+																					<span className={`mt-1 h-1.5 w-1.5 rounded-full flex-shrink-0 ${riskIndicators[course.courseId].riskLevel === 'low'
+																						? 'bg-green-500'
+																						: riskIndicators[course.courseId].riskLevel === 'medium'
+																							? 'bg-yellow-500'
+																							: 'bg-red-500'
+																						}`} />
+																					<span className="text-sm font-medium text-neutralDark leading-relaxed">{rec}</span>
 																				</li>
 																			))}
 																		</ul>
 																	)}
 																</div>
 															</div>
-														</div>
-													)}
-
-													{/* Progress Metrics Grid */}
-													<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-														<div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-															<div className="flex items-center gap-2 mb-2">
-																<div className="p-1.5 bg-blue-100 rounded-lg">
-																	<BookOpen className="h-4 w-4 text-blue-600" />
-																</div>
-																<span className="text-sm font-semibold text-blue-900">
-																	{language === 'bm' ? 'Pelajaran' : 'Lessons'}
-																</span>
-															</div>
-															<p className="text-2xl font-bold text-neutralDark">
-																{course.completedLessons} <span className="text-sm text-muted-foreground font-normal">/ {course.totalLessons}</span>
-															</p>
-														</div>
-														<div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
-															<div className="flex items-center gap-2 mb-2">
-																<div className="p-1.5 bg-emerald-100 rounded-lg">
-																	<CheckCircle2 className="h-4 w-4 text-emerald-600" />
-																</div>
-																<span className="text-sm font-semibold text-emerald-900">
-																	{language === 'bm' ? 'Modul' : 'Modules'}
-																</span>
-															</div>
-															<p className="text-2xl font-bold text-neutralDark">
-																{course.completedModules} <span className="text-sm text-muted-foreground font-normal">/ {course.totalModules}</span>
-															</p>
-														</div>
-														<div className="p-4 bg-violet-50/50 rounded-xl border border-violet-100">
-															<div className="flex items-center gap-2 mb-2">
-																<div className="p-1.5 bg-violet-100 rounded-lg">
-																	<ClipboardCheck className="h-4 w-4 text-violet-600" />
-																</div>
-																<span className="text-sm font-semibold text-violet-900">
-																	{language === 'bm' ? 'Penilaian' : 'Assessments'}
-																</span>
-															</div>
-															<p className="text-2xl font-bold text-neutralDark">
-																{course.assessments.length} <span className="text-sm text-muted-foreground font-normal">{language === 'bm' ? 'selesai' : 'done'}</span>
-															</p>
-														</div>
-														<div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100">
-															<div className="flex items-center gap-2 mb-2">
-																<div className="p-1.5 bg-orange-100 rounded-lg">
-																	<Target className="h-4 w-4 text-orange-600" />
-																</div>
-																<span className="text-sm font-semibold text-orange-900">
-																	{language === 'bm' ? 'Skor Purata' : 'Avg Score'}
-																</span>
-															</div>
-															<p className="text-2xl font-bold text-neutralDark">
-																{course.avgAssessmentScore !== null ? `${course.avgAssessmentScore}%` : '-'}
-															</p>
-														</div>
-													</div>
-
-													<div className="grid md:grid-cols-2 gap-8">
-														{/* Assessment Scores */}
-														{course.assessments.length > 0 && (
-															<div>
-																<h3 className="text-sm font-bold text-neutralDark mb-4 flex items-center gap-2 uppercase tracking-wider">
-																	<ClipboardCheck className="h-4 w-4 text-primary" />
-																	{language === 'bm' ? 'Sejarah Penilaian' : 'Assessment History'}
-																</h3>
-																<div className="space-y-3">
-																	{course.assessments.slice(0, 5).map((submission, idx) => (
-																		<div
-																			key={idx}
-																			className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:border-primary/20 transition-colors"
-																		>
-																			<div className="min-w-0 flex-1 pr-4">
-																				<p className="text-sm font-medium text-neutralDark truncate">{submission.assessmentTitle}</p>
-																				<p className="text-[10px] text-muted-foreground">
-																					{formatDateTime(submission.submittedAt)}
-																				</p>
-																			</div>
-																			<div className="text-right flex-shrink-0">
-																				{submission.score !== undefined && submission.totalPoints ? (
-																					<div className="flex flex-col items-end">
-																						<span className="text-sm font-bold text-neutralDark">
-																							{submission.score}/{submission.totalPoints}
-																						</span>
-																						<span className={`text-[10px] font-medium px-1.5 rounded ${(submission.score / submission.totalPoints) >= 0.7
-																							? 'bg-green-100 text-green-700'
-																							: 'bg-yellow-100 text-yellow-700'
-																							}`}>
-																							{Math.round((submission.score / submission.totalPoints) * 100)}%
-																						</span>
-																					</div>
-																				) : (
-																					<span className="text-xs bg-neutral-200 text-neutral-600 px-2 py-1 rounded">
-																						{language === 'bm' ? 'Dinilai' : 'Grading'}
-																					</span>
-																				)}
-																			</div>
-																		</div>
-																	))}
-																	{course.assessments.length > 5 && (
-																		<p className="text-xs text-center text-muted-foreground pt-2">
-																			+{course.assessments.length - 5} {language === 'bm' ? 'lagi' : 'more'}...
-																		</p>
-																	)}
-																</div>
-															</div>
 														)}
 
-														{/* Assignment Grades */}
-														{course.assignments.length > 0 && (
-															<div>
-																<h3 className="text-sm font-bold text-neutralDark mb-4 flex items-center gap-2 uppercase tracking-wider">
-																	<FileText className="h-4 w-4 text-secondary" />
-																	{language === 'bm' ? 'Sejarah Tugasan' : 'Assignment History'}
-																</h3>
-																<div className="space-y-3">
-																	{course.assignments.slice(0, 5).map((submission, idx) => (
-																		<div
-																			key={idx}
-																			className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:border-secondary/20 transition-colors"
-																		>
-																			<div className="min-w-0 flex-1 pr-4">
-																				<p className="text-sm font-medium text-neutralDark truncate">{submission.assignmentTitle}</p>
-																				<p className="text-[10px] text-muted-foreground">
-																					{formatDateTime(submission.submittedAt)}
-																				</p>
-																			</div>
-																			<div className="text-right flex-shrink-0">
-																				{submission.grade !== undefined ? (
-																					<div className="flex flex-col items-end">
-																						<span className="text-sm font-bold text-neutralDark">
-																							{submission.grade}%
-																						</span>
-																					</div>
-																				) : (
-																					<span className="text-xs bg-neutral-200 text-neutral-600 px-2 py-1 rounded">
-																						{language === 'bm' ? 'Menunggu' : 'Pending'}
-																					</span>
-																				)}
-																			</div>
-																		</div>
-																	))}
-																	{course.assignments.length > 5 && (
-																		<p className="text-xs text-center text-muted-foreground pt-2">
-																			+{course.assignments.length - 5} {language === 'bm' ? 'lagi' : 'more'}...
-																		</p>
-																	)}
+														{/* Progress Metrics Grid */}
+														<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+															<div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+																<div className="flex items-center gap-2 mb-2">
+																	<div className="p-1.5 bg-blue-100 rounded-lg">
+																		<BookOpen className="h-5 w-5 text-blue-600" />
+																	</div>
+																	<span className="text-sm font-semibold text-blue-900">
+																		{language === 'bm' ? 'Pelajaran' : 'Lessons'}
+																	</span>
 																</div>
-															</div>
-														)}
-
-														{course.assessments.length === 0 && course.assignments.length === 0 && (
-															<div className="col-span-full py-8 text-center text-muted-foreground bg-neutral-50/50 rounded-xl border border-dashed border-neutral-200">
-																<p className="text-sm">
-																	{language === 'bm'
-																		? 'Tiada aktiviti penilaian atau tugasan direkodkan lagi.'
-																		: 'No assessments or assignments recorded yet.'}
+																<p className="text-2xl font-bold text-neutralDark">
+																	{course.completedLessons} <span className="text-sm text-muted-foreground font-normal">/ {course.totalLessons}</span>
 																</p>
 															</div>
-														)}
-													</div>
-												</CardContent>
-											</Card>
-										))
-								)
-							)}			</div>
+															<div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
+																<div className="flex items-center gap-2 mb-2">
+																	<div className="p-1.5 bg-emerald-100 rounded-lg">
+																		<CheckCircle2 className="h-5 w-5 text-emerald-600" />
+																	</div>
+																	<span className="text-sm font-semibold text-emerald-900">
+																		{language === 'bm' ? 'Modul' : 'Modules'}
+																	</span>
+																</div>
+																<p className="text-2xl font-bold text-neutralDark">
+																	{course.completedModules} <span className="text-sm text-muted-foreground font-normal">/ {course.totalModules}</span>
+																</p>
+															</div>
+															<div className="p-4 bg-violet-50/50 rounded-xl border border-violet-100">
+																<div className="flex items-center gap-2 mb-2">
+																	<div className="p-1.5 bg-violet-100 rounded-lg">
+																		<ClipboardCheck className="h-5 w-5 text-violet-600" />
+																	</div>
+																	<span className="text-sm font-semibold text-violet-900">
+																		{language === 'bm' ? 'Penilaian' : 'Assessments'}
+																	</span>
+																</div>
+																<p className="text-2xl font-bold text-neutralDark">
+																	{course.assessments.length} <span className="text-sm text-muted-foreground font-normal">{language === 'bm' ? 'selesai' : 'done'}</span>
+																</p>
+															</div>
+															<div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100">
+																<div className="flex items-center gap-2 mb-2">
+																	<div className="p-1.5 bg-orange-100 rounded-lg">
+																		<Target className="h-5 w-5 text-orange-600" />
+																	</div>
+																	<span className="text-sm font-semibold text-orange-900">
+																		{language === 'bm' ? 'Skor Purata' : 'Average Score'}
+																	</span>
+																</div>
+																<p className="text-2xl font-bold text-neutralDark">
+																	{course.avgAssessmentScore !== null ? `${course.avgAssessmentScore}%` : '-'}
+																</p>
+															</div>
+														</div>
+
+														<div className="grid md:grid-cols-2 gap-8">
+															{/* Assessment Scores */}
+															{course.assessments.length > 0 && (
+																<div>
+																	<h3 className="text-sm font-bold text-neutralDark mb-4 flex items-center gap-2 uppercase tracking-wider">
+																		<ClipboardCheck className="h-5 w-5 text-primary" />
+																		{language === 'bm' ? 'Sejarah Penilaian' : 'Assessment History'}
+																	</h3>
+																	<div className="space-y-3">
+																		{course.assessments.slice(0, 5).map((submission, idx) => (
+																			<div
+																				key={idx}
+																				className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:border-primary/20 transition-colors"
+																			>
+																				<div className="min-w-0 flex-1 pr-4">
+																					<p className="text-sm font-medium text-neutralDark truncate">{submission.assessmentTitle}</p>
+																					<p className="text-[10px] text-muted-foreground">
+																						{formatDateTime(submission.submittedAt)}
+																					</p>
+																				</div>
+																				<div className="text-right flex-shrink-0">
+																					{submission.score !== undefined && submission.totalPoints ? (
+																						<div className="flex flex-col items-end">
+																							<span className="text-sm font-bold text-neutralDark">
+																								{submission.score}/{submission.totalPoints}
+																							</span>
+																							<span className={`text-[10px] font-medium px-1.5 rounded ${(submission.score / submission.totalPoints) >= 0.7
+																								? 'bg-green-100 text-green-700'
+																								: 'bg-yellow-100 text-yellow-700'
+																								}`}>
+																								{Math.round((submission.score / submission.totalPoints) * 100)}%
+																							</span>
+																						</div>
+																					) : (
+																						<span className="text-xs bg-neutral-200 text-neutral-600 px-2 py-1 rounded">
+																							{language === 'bm' ? 'Dinilai' : 'Grading'}
+																						</span>
+																					)}
+																				</div>
+																			</div>
+																		))}
+																		{course.assessments.length > 5 && (
+																			<p className="text-xs text-center text-muted-foreground pt-2">
+																				+{course.assessments.length - 5} {language === 'bm' ? 'lagi' : 'more'}...
+																			</p>
+																		)}
+																	</div>
+																</div>
+															)}
+
+															{/* Assignment Grades */}
+															{course.assignments.length > 0 && (
+																<div>
+																	<h3 className="text-sm font-bold text-neutralDark mb-4 flex items-center gap-2 uppercase tracking-wider">
+																		<FileText className="h-5 w-5 text-secondary" />
+																		{language === 'bm' ? 'Sejarah Tugasan' : 'Assignment History'}
+																	</h3>
+																	<div className="space-y-3">
+																		{course.assignments.slice(0, 5).map((submission, idx) => (
+																			<div
+																				key={idx}
+																				className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:border-secondary/20 transition-colors"
+																			>
+																				<div className="min-w-0 flex-1 pr-4">
+																					<p className="text-sm font-medium text-neutralDark truncate">{submission.assignmentTitle}</p>
+																					<p className="text-[10px] text-muted-foreground">
+																						{formatDateTime(submission.submittedAt)}
+																					</p>
+																				</div>
+																				<div className="text-right flex-shrink-0">
+																					{submission.grade !== undefined ? (
+																						<div className="flex flex-col items-end">
+																							<span className="text-sm font-bold text-neutralDark">
+																								{submission.grade}%
+																							</span>
+																						</div>
+																					) : (
+																						<span className="text-xs bg-neutral-200 text-neutral-600 px-2 py-1 rounded">
+																							{language === 'bm' ? 'Menunggu' : 'Pending'}
+																						</span>
+																					)}
+																				</div>
+																			</div>
+																		))}
+																		{course.assignments.length > 5 && (
+																			<p className="text-xs text-center text-muted-foreground pt-2">
+																				+{course.assignments.length - 5} {language === 'bm' ? 'lagi' : 'more'}...
+																			</p>
+																		)}
+																	</div>
+																</div>
+															)}
+
+															{course.assessments.length === 0 && course.assignments.length === 0 && (
+																<div className="col-span-full py-8 text-center text-muted-foreground bg-neutral-50/50 rounded-xl border border-dashed border-neutral-200">
+																	<p className="text-sm">
+																		{language === 'bm'
+																			? 'Tiada aktiviti penilaian atau tugasan direkodkan lagi.'
+																			: 'No assessments or assignments recorded yet.'}
+																	</p>
+																</div>
+															)}
+														</div>
+													</CardContent>
+												</Card>
+											))
+									)
+								)}			</div>
+						)
 					)
-				)
 				}
 				{/* US011-03: Report Specific Sections (Hidden on screen, visible on print) */}
 				{
@@ -1805,7 +2634,7 @@ export default function ProgressPage() {
 						</div>
 					)
 				}
-			</div>
+			</div >
 			{/* --- End Interactive Dashboard --- */}
 
 			{/* --- Dedicated Print View (Visible ONLY on Print) --- */}
@@ -1999,7 +2828,7 @@ export default function ProgressPage() {
 											<span className="font-bold">{course.assessments.length}</span>
 										</div>
 										<div className="bg-orange-50 p-2 rounded">
-											<span className="block text-xs text-muted-foreground">Avg Score</span>
+											<span className="block text-xs text-muted-foreground">Average Score</span>
 											<span className="font-bold">{course.avgAssessmentScore}%</span>
 										</div>
 									</div>
@@ -2041,7 +2870,232 @@ export default function ProgressPage() {
 					</div>
 				)}
 			</div>
+
+			{/* Certificate Preview Modal */}
+			<Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+				<DialogContent className="max-w-4xl w-full bg-neutral-50 p-0 overflow-hidden rounded-2xl border-0">
+					<div className="flex flex-col h-full">
+						{/* Header */}
+						<div className="p-4 border-b bg-white flex items-center justify-between">
+							<h3 className="font-bold text-lg text-neutral-800 flex items-center gap-2">
+								<Award className="h-5 w-5 text-amber-500" />
+								Certificate Preview
+							</h3>
+						</div>
+
+						{/* Preview Area - Scaled Down */}
+						<div className="bg-neutral-100 p-8 flex items-center justify-center overflow-auto">
+							<div className="transform scale-[0.6] origin-center shadow-2xl">
+								{certificateData && (
+									<CertificateTemplate
+										studentName={certificateData.studentName}
+										courseName={certificateData.courseName}
+										instructorName={certificateData.instructorName}
+										completionDate={certificateData.completionDate}
+									/>
+								)}
+							</div>
+						</div>
+
+						{/* Footer Actions */}
+						<div className="p-4 border-t bg-white flex justify-end gap-3">
+							<Button variant="outline" onClick={() => setShowPreviewModal(false)}>
+								Close
+							</Button>
+							<Button
+								onClick={handleDownloadCertificate}
+								disabled={isGeneratingCertificate}
+								className="bg-amber-500 hover:bg-amber-600 text-white"
+							>
+								{isGeneratingCertificate ? (
+									<>
+										<span className="animate-spin mr-2">⏳</span> Generating PDF...
+									</>
+								) : (
+									<>
+										<Download className="h-4 w-4 mr-2" /> Download Certificate
+									</>
+								)}
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Contact Instructor Modal */}
+			<Dialog open={contactDialogOpen} onOpenChange={setContactDialogOpen}>
+				<DialogContent className="max-w-md w-full rounded-2xl">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2">
+							<Mail className="h-5 w-5 text-primary" />
+							{language === 'bm' ? 'Hubungi Pengajar' : 'Contact Instructor'}
+						</DialogTitle>
+						<DialogDescription>
+							{language === 'bm'
+								? `Hantar mesej kepada pengajar untuk ${selectedContactCourse?.courseTitle}`
+								: `Send a message to the instructor for ${selectedContactCourse?.courseTitle}`
+							}
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className="space-y-4 py-4">
+						<div className="space-y-2">
+							<Label htmlFor="subject">{language === 'bm' ? 'Subjek' : 'Subject'}</Label>
+							<div className="relative">
+								<Input
+									id="subject"
+									value={contactSubject}
+									onChange={(e) => setContactSubject(e.target.value)}
+									placeholder="Topic of your question..."
+									className="pl-9"
+									autoComplete="off"
+								/>
+								<span className="absolute left-3 top-2.5 text-muted-foreground">
+									<FileText className="h-4 w-4" />
+								</span>
+							</div>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="message">{language === 'bm' ? 'Mesej' : 'Message'}</Label>
+							<textarea
+								id="message"
+								value={contactMessage}
+								onChange={(e) => setContactMessage(e.target.value)}
+								placeholder="Write your message here..."
+								rows={5}
+								className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+								autoComplete="off"
+							/>
+						</div>
+					</div>
+
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setContactDialogOpen(false)}>
+							{language === 'bm' ? 'Batal' : 'Cancel'}
+						</Button>
+						<Button onClick={handleSendMessage} disabled={isSendingMessage}>
+							{isSendingMessage ? (
+								<>
+									<span className="animate-spin mr-2">⏳</span> {language === 'bm' ? 'Menghantar...' : 'Sending...'}
+								</>
+							) : (
+								<>
+									<Send className="h-4 w-4 mr-2" /> {language === 'bm' ? 'Hantar Mesej' : 'Send Message'}
+								</>
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Study Plan Dialog */}
+			<Dialog open={studyDialogOpen} onOpenChange={setStudyDialogOpen}>
+				<DialogContent className="sm:max-w-[425px]">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2">
+							<Calendar className="h-5 w-5 text-primary" />
+							{language === 'bm' ? 'Jadualkan Masa Belajar' : 'Schedule Study Time'}
+						</DialogTitle>
+						<DialogDescription>
+							{language === 'bm'
+								? 'Tetapkan peringatan untuk sesi pembelajaran seterusnya.'
+								: 'Set a reminder for your next study session to stay on track.'}
+						</DialogDescription>
+					</DialogHeader>
+					<div className="grid gap-4 py-4">
+						<div className="grid gap-2">
+							<Label htmlFor="study-date">
+								{language === 'bm' ? 'Tarikh & Masa' : 'Date & Time'}
+							</Label>
+							<Input
+								id="study-date"
+								type="datetime-local"
+								value={studyDate}
+								onChange={(e) => setStudyDate(e.target.value)}
+								className="col-span-3"
+							/>
+						</div>
+						<div className="grid gap-2">
+							<Label htmlFor="study-duration">
+								{language === 'bm' ? 'Durasi (Minit)' : 'Duration (Minutes)'}
+							</Label>
+							<select
+								id="study-duration"
+								className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+								value={studyDuration}
+								onChange={(e) => setStudyDuration(e.target.value)}
+							>
+								<option value="30">30 {language === 'bm' ? 'minit' : 'minutes'}</option>
+								<option value="60">60 {language === 'bm' ? 'minit' : 'minutes'}</option>
+								<option value="90">90 {language === 'bm' ? 'minit' : 'minutes'}</option>
+								<option value="120">2 {language === 'bm' ? 'jam' : 'hours'}</option>
+							</select>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setStudyDialogOpen(false)}>
+							{language === 'bm' ? 'Batal' : 'Cancel'}
+						</Button>
+						<Button onClick={async () => {
+							try {
+								if (!studyDate) {
+									showToast(language === 'bm' ? 'Sila pilih tarikh & masa' : 'Please select date & time', 'error');
+									return;
+								}
+
+								// Clean up collection reference
+								// Using a top-level collection 'study_plans' with userId since we query by userId
+								// Or subcollection: user -> uid -> study_plans
+								// Top level is easier for queries if needed, but subcollection is cleaner.
+								// Let's use subcollection to keep user data organized.
+
+								const userStudyRef = collection(db, 'user', currentUserId, 'study_plans');
+								await addDoc(userStudyRef, {
+									scheduledAt: new Date(studyDate).toISOString(), // Store as ISO string for querying/parsing
+									duration: parseInt(studyDuration),
+									createdAt: serverTimestamp(),
+									notified: false,
+									courseId: selectedContactCourse?.courseId || 'general',
+									active: true
+								});
+
+								setStudyDialogOpen(false);
+								showToast(language === 'bm' ? 'Masa belajar dijadualkan!' : 'Study session scheduled!', 'success');
+							} catch (error) {
+								console.error("Error saving schedule:", error);
+								showToast(language === 'bm' ? 'Gagal menyimpan jadual' : 'Failed to save schedule', 'error');
+							}
+						}}>
+							{language === 'bm' ? 'Simpan Jadual' : 'Save Schedule'}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Hidden Certificate Template for Capture (Always render when data exists to allow download) */}
+			<div className="fixed top-[-9999px] left-[-9999px]">
+				{certificateData && (
+					<CertificateTemplate
+						ref={certificateRef}
+						studentName={certificateData.studentName}
+						courseName={certificateData.courseName}
+						instructorName={certificateData.instructorName}
+						completionDate={certificateData.completionDate}
+					/>
+				)}
+			</div>
+
+			{/* Toast Notification */}
+			{
+				toast.visible && (
+					<Toast
+						message={toast.message}
+						type={toast.type}
+						onClose={handleHideToast}
+					/>
+				)
+			}
 		</div >
 	);
 }
-
