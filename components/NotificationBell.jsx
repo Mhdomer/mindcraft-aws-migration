@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, X, AlertTriangle, CheckCircle, Info, Clock, BookOpen, Lightbulb } from 'lucide-react';
+import { Bell, X, AlertTriangle, CheckCircle, Info, Clock, BookOpen, Lightbulb, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, orderBy, onSnapshot, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, onSnapshot, updateDoc, writeBatch, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth } from '@/app/contexts/AuthContext';
 
 export default function NotificationBell() {
 	const { language } = useLanguage();
@@ -15,69 +16,155 @@ export default function NotificationBell() {
 	const [unreadCount, setUnreadCount] = useState(0);
 	const [showDropdown, setShowDropdown] = useState(false);
 	const [currentUserId, setCurrentUserId] = useState(null);
+	const { userData } = useAuth(); // for role
 
 	useEffect(() => {
 		const unsubscribe = onAuthStateChanged(auth, (user) => {
-			if (user) {
-				setCurrentUserId(user.uid);
-			} else {
-				setCurrentUserId(null);
-				setNotifications([]);
-				setUnreadCount(0);
-			}
+			setCurrentUserId(user?.uid || null);
 		});
-
 		return () => unsubscribe();
 	}, []);
 
 	useEffect(() => {
 		if (!currentUserId) return;
 
-		const q = query(
+		// 1. Notification Collection Listener
+		const notifQuery = query(
 			collection(db, 'notification'),
 			where('userId', '==', currentUserId)
 		);
 
-		const unsubscribe = onSnapshot(q, async (snapshot) => {
-			const notifs = [];
-			for (const docSnapshot of snapshot.docs) {
-				let data = { id: docSnapshot.id, ...docSnapshot.data() };
+		const unsubNotifications = onSnapshot(notifQuery, (snapshot) => {
+			const notificationsList = snapshot.docs.map(doc => ({
+				id: doc.id,
+				...doc.data(),
+				source: 'notification'
+			}));
+			updateCombinedNotifications(notificationsList, 'notification');
+		});
 
-				// Enrich with course title if needed
-				if (data.courseId) {
+		// 2. Messages Collection Listener
+		let messageQuery = null;
+
+		if (userData?.role === 'teacher' || userData?.role === 'admin') {
+			messageQuery = query(
+				collection(db, 'messages'),
+				where('type', '==', 'student_inquiry')
+			);
+		} else {
+			messageQuery = query(
+				collection(db, 'messages'),
+				where('toUserId', '==', currentUserId)
+			);
+		}
+
+		let unsubMessages = () => { };
+		if (messageQuery) {
+			unsubMessages = onSnapshot(messageQuery, (snapshot) => {
+				const messagesList = snapshot.docs.map(doc => ({
+					id: doc.id,
+					...doc.data(),
+					title: doc.data().subject || 'New Message',
+					message: doc.data().message,
+					type: 'message',
+					source: 'messages',
+					riskLevel: 'low',
+					createdAt: doc.data().createdAt // Ensure timestamp is passed
+				}));
+				updateCombinedNotifications(messagesList, 'messages');
+			});
+		}
+
+		// 3. Study Plan Listener & Polling (Local Check)
+		let unsubStudyPlans = () => { };
+		let checkInterval = null;
+
+		const studyPlansRef = collection(db, 'user', currentUserId, 'study_plans');
+		const studyPlansQuery = query(studyPlansRef, where('active', '==', true)); // Get active plans
+
+		// Store plans in a local var to be checked by interval (using a ref would be better but simple var in closure works for effect)
+		let currentPlans = [];
+
+		unsubStudyPlans = onSnapshot(studyPlansQuery, (snapshot) => {
+			currentPlans = snapshot.docs.map(doc => ({
+				id: doc.id,
+				...doc.data()
+			}));
+		});
+
+		// Check every 30 seconds
+		checkInterval = setInterval(async () => {
+			const now = new Date();
+
+			for (const plan of currentPlans) {
+				if (plan.notified) continue; // Skip if already notified
+
+				const scheduledTime = new Date(plan.scheduledAt);
+
+				// Check if time is reached (or passed within last 15 mins to avoid huge backlog alerts)
+				// Allow a small buffer (e.g. if now is 10:00:15 and schedule was 10:00:00)
+				if (scheduledTime <= now) {
+					// Time reached!
 					try {
-						const courseDoc = await getDoc(doc(db, 'course', data.courseId));
-						if (courseDoc.exists()) {
-							data.courseTitle = courseDoc.data().title;
-						}
+						// 1. Mark as notified immediately to prevent double firing locally while async ops finish
+						plan.notified = true;
+
+						// 2. Add System Notification
+						await addDoc(collection(db, 'notification'), {
+							userId: currentUserId,
+							title: language === 'bm' ? 'Masa Belajar Telah Tiba!' : 'Study Time Reached!',
+							message: language === 'bm'
+								? `Sudah tiba masanya untuk sesi belajar ${plan.duration} minit anda.`
+								: `It's time for your ${plan.duration} minute study session.`,
+							type: 'risk_alert', // Use existing type for icon
+							riskLevel: 'medium', // Use yellow icon
+							read: false,
+							createdAt: serverTimestamp(),
+							source: 'study_plan'
+						});
+
+						// 3. Update Firestore to persist notified state
+						const planRef = doc(db, 'user', currentUserId, 'study_plans', plan.id);
+						await updateDoc(planRef, { notified: true });
+
 					} catch (err) {
-						console.error('Error loading course title:', err);
+						console.error("Error triggering study alert:", err);
 					}
 				}
-				notifs.push(data);
 			}
+		}, 30000); // Check every 30s
 
-			// Sort client-side to avoid needing a Firestore composite index
-			notifs.sort((a, b) => {
-				const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime();
-				const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime();
+		return () => {
+			unsubNotifications();
+			unsubMessages();
+			unsubStudyPlans();
+			if (checkInterval) clearInterval(checkInterval);
+		};
+	}, [currentUserId, userData]);
+
+	// Helper to manage merging multiple streams
+	const [notificationStreams, setNotificationStreams] = useState({ notification: [], messages: [] });
+
+	const updateCombinedNotifications = (newData, streamKey) => {
+		setNotificationStreams(prev => {
+			const updated = { ...prev, [streamKey]: newData };
+			const combined = [...updated.notification, ...updated.messages].sort((a, b) => {
+				const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
+				const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
 				return timeB - timeA;
 			});
 
-			setNotifications(notifs);
-			setUnreadCount(notifs.filter(n => !n.read).length);
-		}, (error) => {
-			console.error("Error listening to notifications:", error);
+			setNotifications(combined);
+			setUnreadCount(combined.filter(n => !n.read).length);
+			return updated;
 		});
+	};
 
-		return () => unsubscribe();
-	}, [currentUserId]);
-
-	async function markAsRead(notificationId) {
+	async function markAsRead(notificationId, source) {
 		try {
-			const notifRef = doc(db, 'notification', notificationId);
+			const collectionName = source === 'messages' ? 'messages' : 'notification';
+			const notifRef = doc(db, collectionName, notificationId);
 			await updateDoc(notifRef, { read: true });
-			// State update happens automatically via onSnapshot
 		} catch (err) {
 			console.error('Error marking notification as read:', err);
 		}
@@ -90,7 +177,8 @@ export default function NotificationBell() {
 		try {
 			const batch = writeBatch(db);
 			unreadNotifications.forEach(notif => {
-				const notifRef = doc(db, 'notification', notif.id);
+				const collectionName = notif.source === 'messages' ? 'messages' : 'notification';
+				const notifRef = doc(db, collectionName, notif.id);
 				batch.update(notifRef, { read: true });
 			});
 			await batch.commit();
@@ -110,6 +198,10 @@ export default function NotificationBell() {
 				}
 				return <div className={`${iconClass} rounded-full bg-yellow-100 p-1.5 flex items-center justify-center`}>
 					<AlertTriangle className="h-3.5 w-3.5 text-yellow-600" />
+				</div>;
+			case 'message':
+				return <div className={`${iconClass} rounded-full bg-purple-100 p-1.5 flex items-center justify-center`}>
+					<Mail className="h-3.5 w-3.5 text-purple-600" />
 				</div>;
 			case 'feedback_released':
 				return <div className={`${iconClass} rounded-full bg-green-100 p-1.5 flex items-center justify-center`}>
@@ -235,7 +327,7 @@ export default function NotificationBell() {
 													}`}
 												onClick={() => {
 													if (!notification.read) {
-														markAsRead(notification.id);
+														markAsRead(notification.id, notification.source);
 													}
 												}}
 											>

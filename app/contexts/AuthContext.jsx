@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/firebase';
 
 const AuthContext = createContext({
@@ -20,6 +20,7 @@ export function AuthProvider({ children }) {
 
     useEffect(() => {
         let unsubscribeFirestore = null;
+        let heartbeatInterval = null;
 
         const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
@@ -30,7 +31,21 @@ export function AuthProvider({ children }) {
                     setLoading(true);
                     const userDocRef = doc(db, 'user', currentUser.uid);
 
-                    // Subscribe to real-time changes for the user profile
+                    // 1. Set online status immediately
+                    await updateDoc(userDocRef, {
+                        isOnline: true,
+                        lastSeen: serverTimestamp()
+                    });
+
+                    // 2. Heartbeat: Update every 60 seconds
+                    heartbeatInterval = setInterval(async () => {
+                        await updateDoc(userDocRef, {
+                            isOnline: true,
+                            lastSeen: serverTimestamp()
+                        });
+                    }, 60000);
+
+                    // 3. Subscribe to real-time changes for the user profile
                     unsubscribeFirestore = onSnapshot(userDocRef, (docSnap) => {
                         if (docSnap.exists()) {
                             setUserData(docSnap.data());
@@ -52,14 +67,25 @@ export function AuthProvider({ children }) {
                     unsubscribeFirestore();
                     unsubscribeFirestore = null;
                 }
+                if (heartbeatInterval) {
+                    clearInterval(heartbeatInterval);
+                    heartbeatInterval = null;
+                }
                 setLoading(false);
             }
         });
 
+        // Cleanup on unmount (e.g. tab close/refresh)
+        // Note: This isn't guaranteed to fire on all close events, but helps.
+        // True "presence" usually requires Realtime Database 'onDisconnect', 
+        // but this heartbeat + active timestamp check is sufficient for this requirement.
         return () => {
             unsubscribeAuth();
             if (unsubscribeFirestore) {
                 unsubscribeFirestore();
+            }
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
             }
         };
     }, []);

@@ -89,6 +89,7 @@ export default function Header({ role: initialRole, toggleSidebar }) {
 						</>
 					) : (
 						<>
+							<NotificationBell />
 							{pathname !== '/' && (
 								<Button
 									variant="ghost"

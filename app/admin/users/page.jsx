@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, getDoc, updateDoc, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -43,31 +43,10 @@ export default function ManageUsersPage() {
 		return role.charAt(0).toUpperCase() + role.slice(1);
 	};
 
-	const loadUsers = async () => {
-		try {
-			// Fetch directly from Firestore (client-side has auth context)
-			const usersQuery = query(collection(db, 'user'), orderBy('createdAt', 'desc'));
-			const usersSnapshot = await getDocs(usersQuery);
-			const usersList = usersSnapshot.docs.map(doc => ({
-				id: doc.id,
-				...doc.data(),
-			}));
-			setUsers(usersList);
-		} catch (err) {
-			console.error('Error loading users:', err);
-			// Check if it's a permission error
-			if (err.code === 'permission-denied') {
-				setError('Permission denied. Please check Firestore security rules. Make sure you are logged in and have admin role.');
-			} else {
-				setError('Failed to load users: ' + (err.message || 'Unknown error'));
-			}
-		} finally {
-			setLoading(false);
-		}
-	};
-
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
+		let unsubscribeUsers = null;
+
+		const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
 			if (!user) {
 				router.push('/login');
 				setLoading(false);
@@ -77,8 +56,7 @@ export default function ManageUsersPage() {
 			try {
 				const userDoc = await getDoc(doc(db, 'user', user.uid));
 				if (!userDoc.exists()) {
-					console.error('User document does not exist for UID:', user.uid);
-					setError('User profile not found. Please contact an administrator.');
+					setError('User profile not found.');
 					setLoading(false);
 					return;
 				}
@@ -86,41 +64,49 @@ export default function ManageUsersPage() {
 				const userData = userDoc.data();
 				const userRole = userData?.role;
 
-				console.log('User role loaded:', userRole, 'for user:', user.uid);
-
-				if (!userRole) {
-					console.error('User document exists but role is missing:', userData);
-					setError('User role not found. Please contact an administrator.');
+				if (userRole !== 'admin') {
+					router.push('/dashboard/admin');
 					setLoading(false);
 					return;
 				}
 
 				setRole(userRole);
 
-				// Only admins can access
-				if (userRole !== 'admin') {
-					console.log('User is not admin, redirecting. Role:', userRole);
-					router.push('/dashboard/admin');
+				// Subscribe to users collection for real-time updates (presence)
+				const usersQuery = query(collection(db, 'user'), orderBy('createdAt', 'desc'));
+				unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+					const usersList = snapshot.docs.map(doc => ({
+						id: doc.id,
+						...doc.data(),
+					}));
+					setUsers(usersList);
 					setLoading(false);
-					return;
-				}
-
-				console.log('User is admin, loading users list...');
-				// Load users once role is confirmed
-				await loadUsers();
-			} catch (err) {
-				console.error('Error checking user role:', err);
-				console.error('Error details:', {
-					code: err.code,
-					message: err.message,
-					stack: err.stack
+				}, (err) => {
+					console.error('Error fetching users:', err);
+					setError('Failed to load users');
+					setLoading(false);
 				});
-				setError(`Failed to verify permissions: ${err.message || 'Unknown error'}. Please check the browser console for details.`);
+
+			} catch (err) {
+				console.error('Error checking permission:', err);
 				setLoading(false);
 			}
 		});
-		return () => unsubscribe();
+
+		return () => {
+			unsubscribeAuth();
+			if (unsubscribeUsers) unsubscribeUsers();
+		};
 	}, [router]);
+
+	// Helper to check if user is online (active in last 2 mins)
+	const isUserOnline = (lastSeen) => {
+		if (!lastSeen) return false;
+		const lastSeenDate = lastSeen.toDate ? lastSeen.toDate() : new Date(lastSeen);
+		const now = new Date();
+		const diffMs = now - lastSeenDate;
+		return diffMs < 2 * 60 * 1000; // 2 minutes
+	};
 
 	const startEdit = (user) => {
 		setEditingUserId(user.id);
@@ -339,138 +325,155 @@ export default function ManageUsersPage() {
 							<p className="text-muted-foreground">Try adjusting your filters or register a new user</p>
 						</div>
 					) : (
-						filteredUsers.map((user) => (
-							<Card
-								key={user.id}
-								className="border-none shadow-md hover:shadow-xl transition-all duration-300 bg-white/80 backdrop-blur-md group overflow-hidden"
-							>
-								<CardContent className="p-6">
-									{editingUserId === user.id ? (
-										<div className="space-y-4 animate-fadeIn">
-											<div className="flex justify-center mb-2">
-												<div className="relative group/edit-pic">
-													{profilePictureUrl || user.profilePicture ? (
-														<img
-															src={profilePictureUrl || user.profilePicture}
-															alt="Profile"
-															className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md"
-														/>
-													) : (
-														<div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center border-4 border-white shadow-md">
-															<User className="h-8 w-8 text-emerald-600" />
-														</div>
-													)}
-													<label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover/edit-pic:opacity-100 transition-opacity cursor-pointer">
-														<Edit2 className="h-6 w-6 text-white" />
-														<input
-															type="file"
-															accept="image/*"
-															onChange={handleProfilePictureChange}
-															className="hidden"
-															disabled={uploading}
-														/>
-													</label>
-												</div>
-											</div>
-
-											<div className="space-y-3">
-												<div>
-													<label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider ml-1">Name</label>
-													<Input
-														value={editName}
-														onChange={(e) => setEditName(e.target.value)}
-														placeholder="User name"
-														className="bg-white/50 border-neutral-200 focus:border-emerald-500 focus:ring-emerald-500"
-													/>
-												</div>
-												<div>
-													<label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider ml-1">Email</label>
-													<Input
-														value={editEmail}
-														disabled
-														className="bg-neutral-50/50 text-neutral-500 border-transparent shadow-none"
-													/>
-												</div>
-
-												<div className="flex gap-2 pt-2">
-													<Button
-														size="sm"
-														onClick={saveEdit}
-														disabled={uploading || !editName.trim()}
-														className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-													>
-														<Save className="h-4 w-4 mr-2" />
-														Save
-													</Button>
-													<Button
-														size="sm"
-														variant="ghost"
-														onClick={cancelEdit}
-														disabled={uploading}
-														className="flex-1 text-neutral-600 hover:bg-neutral-100"
-													>
-														<X className="h-4 w-4 mr-2" />
-														Cancel
-													</Button>
-												</div>
-											</div>
-										</div>
-									) : (
-										<div className="flex flex-col h-full">
-											<div className="flex items-start justify-between mb-4">
-												{user.profilePicture ? (
-													<img
-														src={user.profilePicture}
-														alt={user.name}
-														className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-sm ring-1 ring-neutral-100"
-													/>
-												) : (
-													<div className="w-16 h-16 rounded-full bg-gradient-to-br from-neutral-100 to-neutral-200 flex items-center justify-center border-4 border-white shadow-sm ring-1 ring-neutral-100">
-														<User className="h-6 w-6 text-neutral-400" />
+						filteredUsers.map((user) => {
+							const online = isUserOnline(user.lastSeen);
+							return (
+								<Card
+									key={user.id}
+									className="border-none shadow-md hover:shadow-xl transition-all duration-300 bg-white/80 backdrop-blur-md group overflow-hidden"
+								>
+									<CardContent className="p-6">
+										{editingUserId === user.id ? (
+											<div className="space-y-4 animate-fadeIn">
+												<div className="flex justify-center mb-2">
+													<div className="relative group/edit-pic">
+														{profilePictureUrl || user.profilePicture ? (
+															<img
+																src={profilePictureUrl || user.profilePicture}
+																alt="Profile"
+																className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md"
+															/>
+														) : (
+															<div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center border-4 border-white shadow-md">
+																<User className="h-8 w-8 text-emerald-600" />
+															</div>
+														)}
+														<label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover/edit-pic:opacity-100 transition-opacity cursor-pointer">
+															<Edit2 className="h-6 w-6 text-white" />
+															<input
+																type="file"
+																accept="image/*"
+																onChange={handleProfilePictureChange}
+																className="hidden"
+																disabled={uploading}
+															/>
+														</label>
 													</div>
-												)}
-												<div className={`
-													px-3 py-1 rounded-full text-xs font-semibold tracking-wide border flex items-center
-													${user.role === 'admin'
-														? 'bg-purple-100 text-purple-700 border-purple-200'
-														: user.role === 'teacher'
-															? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-															: 'bg-blue-100 text-blue-700 border-blue-200'
-													}
-												`}>
-													{getRoleIcon(user.role)}
-													{formatRole(user.role)}
+												</div>
+
+												<div className="space-y-3">
+													<div>
+														<label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider ml-1">Name</label>
+														<Input
+															value={editName}
+															onChange={(e) => setEditName(e.target.value)}
+															placeholder="User name"
+															className="bg-white/50 border-neutral-200 focus:border-emerald-500 focus:ring-emerald-500"
+														/>
+													</div>
+													<div>
+														<label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider ml-1">Email</label>
+														<Input
+															value={editEmail}
+															disabled
+															className="bg-neutral-50/50 text-neutral-500 border-transparent shadow-none"
+														/>
+													</div>
+
+													<div className="flex gap-2 pt-2">
+														<Button
+															size="sm"
+															onClick={saveEdit}
+															disabled={uploading || !editName.trim()}
+															className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+														>
+															<Save className="h-4 w-4 mr-2" />
+															Save
+														</Button>
+														<Button
+															size="sm"
+															variant="ghost"
+															onClick={cancelEdit}
+															disabled={uploading}
+															className="flex-1 text-neutral-600 hover:bg-neutral-100"
+														>
+															<X className="h-4 w-4 mr-2" />
+															Cancel
+														</Button>
+													</div>
 												</div>
 											</div>
+										) : (
+											<div className="flex flex-col h-full">
+												<div className="flex items-start justify-between mb-4">
+													<div className="relative">
+														{user.profilePicture ? (
+															<img
+																src={user.profilePicture}
+																alt={user.name}
+																className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-sm ring-1 ring-neutral-100"
+															/>
+														) : (
+															<div className="w-16 h-16 rounded-full bg-gradient-to-br from-neutral-100 to-neutral-200 flex items-center justify-center border-4 border-white shadow-sm ring-1 ring-neutral-100">
+																<User className="h-6 w-6 text-neutral-400" />
+															</div>
+														)}
+														{/* Online Status Indicator */}
+														<div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white ${online ? 'bg-green-500' : 'bg-neutral-400'}`} title={online ? 'Online' : 'Offline'}></div>
+													</div>
+													<div className={`
+														px-3 py-1 rounded-full text-xs font-semibold tracking-wide border flex items-center
+														${user.role === 'admin'
+															? 'bg-purple-100 text-purple-700 border-purple-200'
+															: user.role === 'teacher'
+																? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+																: 'bg-blue-100 text-blue-700 border-blue-200'
+														}
+													`}>
+														{getRoleIcon(user.role)}
+														{formatRole(user.role)}
+													</div>
+												</div>
 
-											<div className="flex-1">
-												<h3 className="text-lg font-bold text-neutralDark mb-1 line-clamp-1 group-hover:text-emerald-700 transition-colors">{user.name}</h3>
-												<p className="text-sm text-neutral-500 mb-4 line-clamp-1">{user.email}</p>
-											</div>
+												<div className="flex-1">
+													<h3 className="text-lg font-bold text-neutralDark mb-1 line-clamp-1 group-hover:text-emerald-700 transition-colors">{user.name}</h3>
+													<p className="text-sm text-neutral-500 mb-4 line-clamp-1">{user.email}</p>
 
-											<div className="flex items-center gap-2 pt-4 border-t border-neutral-100 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0">
-												<Button
-													variant="secondary"
-													size="sm"
-													onClick={() => startEdit(user)}
-													className="flex-1 bg-neutral-100 hover:bg-white hover:shadow-md text-neutral-700 transition-all font-medium"
-												>
-													<Edit2 className="h-4 w-4 mr-2" /> Edit
-												</Button>
-												<Button
-													variant="ghost"
-													size="sm"
-													onClick={() => handleDelete(user.id, user.name)}
-													className="px-3 text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
-												>
-													<Trash2 className="h-4 w-4" />
-												</Button>
+													{/* Last Seen Text */}
+													<div className="text-xs text-muted-foreground flex items-center gap-1.5">
+														<div className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-green-500 animate-pulse' : 'bg-neutral-300'}`}></div>
+														{online ? (
+															<span className="text-green-600 font-medium">Active now</span>
+														) : (
+															<span>Last seen: {user.lastSeen?.toDate ? user.lastSeen.toDate().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never'}</span>
+														)}
+													</div>
+												</div>
+
+												<div className="flex items-center gap-2 pt-4 border-t border-neutral-100 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0">
+													<Button
+														variant="secondary"
+														size="sm"
+														onClick={() => startEdit(user)}
+														className="flex-1 bg-neutral-100 hover:bg-white hover:shadow-md text-neutral-700 transition-all font-medium"
+													>
+														<Edit2 className="h-4 w-4 mr-2" /> Edit
+													</Button>
+													<Button
+														variant="ghost"
+														size="sm"
+														onClick={() => handleDelete(user.id, user.name)}
+														className="px-3 text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+													>
+														<Trash2 className="h-4 w-4" />
+													</Button>
+												</div>
 											</div>
-										</div>
-									)}
-								</CardContent>
-							</Card>
-						))
+										)}
+									</CardContent>
+								</Card>
+							);
+						})
 					)}
 				</div>
 			</div>
