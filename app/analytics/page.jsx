@@ -151,12 +151,8 @@ export default function AnalyticsPage() {
 		}
 		setAnalyticsLoading(true);
 		try {
-			// Get all enrollments for this course
-			// Try querying by courseId field first
-			const enrollmentsQuery = query(
-				collection(db, 'enrollment'),
-				where('courseId', '==', courseId)
-			);
+			// 2. Fetch Enrollments
+			const enrollmentsQuery = query(collection(db, 'progress'), where('courseId', 'in', courseIds));
 			const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
 			let enrollments = enrollmentsSnapshot.docs.map(doc => ({
 				id: doc.id,
@@ -608,18 +604,22 @@ export default function AnalyticsPage() {
 				const weekEnd = new Date(weekStart);
 				weekEnd.setDate(weekStart.getDate() + 7);
 
-				let completed = 0;
-				let total = 0;
+				let totalProgress = 0;
+				let studentCount = 0;
 				Object.values(studentData).forEach(student => {
-					total++;
-					// Check if student completed any lessons this week
-					const progress = student.overallProgress || 0;
-					if (progress > 0) {
-						completed++;
+					// Only include students who were enrolled by this point in time
+					const enrolledAt = student.enrollment?.enrolledAt?.toDate
+						? student.enrollment.enrolledAt.toDate()
+						: new Date(student.enrollment?.enrolledAt || 0);
+
+					if (enrolledAt <= weekEnd) {
+						totalProgress += (student.overallProgress || 0);
+						studentCount++;
 					}
 				});
 
-				const rate = total > 0 ? (completed / total) * 100 : 0;
+				// Calculate average progress for the class
+				const rate = studentCount > 0 ? (totalProgress / studentCount) : 0;
 				completionRates.push({
 					week: `Week ${7 - i}`,
 					date: weekStart.toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', { month: 'short', day: 'numeric' }),

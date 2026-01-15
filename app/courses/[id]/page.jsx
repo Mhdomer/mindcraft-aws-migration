@@ -41,7 +41,7 @@ export default function CourseDetailPage() {
 						// Check enrollment directly from Firestore (more reliable than API)
 						try {
 							const enrollmentId = `${user.uid}_${courseId}`;
-							const enrollmentRef = doc(db, 'enrollment', enrollmentId);
+							const enrollmentRef = doc(db, 'progress', enrollmentId);
 							const enrollmentDoc = await getDoc(enrollmentRef);
 							const enrolled = enrollmentDoc.exists();
 							setIsEnrolled(enrolled);
@@ -192,7 +192,7 @@ export default function CourseDetailPage() {
 
 			// Check if already enrolled
 			const enrollmentId = `${userId}_${courseId}`;
-			const enrollmentRef = doc(db, 'enrollment', enrollmentId);
+			const enrollmentRef = doc(db, 'progress', enrollmentId);
 			const enrollmentDoc = await getDoc(enrollmentRef);
 
 			if (enrollmentDoc.exists()) {

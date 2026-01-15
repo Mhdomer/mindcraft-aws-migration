@@ -63,7 +63,7 @@ export default function LessonPage() {
 						if (role === 'student') {
 							try {
 								const enrollmentId = `${currentUser.uid}_${courseId}`;
-								const enrollmentDoc = await getDoc(doc(db, 'enrollment', enrollmentId));
+								const enrollmentDoc = await getDoc(doc(db, 'progress', enrollmentId));
 								const enrolled = enrollmentDoc.exists();
 								setIsEnrolled(enrolled);
 
@@ -430,7 +430,7 @@ export default function LessonPage() {
 		setCompleting(true);
 		try {
 			const enrollmentId = `${user.uid}_${courseId}`;
-			const enrollmentRef = doc(db, 'enrollment', enrollmentId);
+			const enrollmentRef = doc(db, 'progress', enrollmentId);
 			const newStatus = !isCompleted;
 
 			// 1. Update the completedLessons array

@@ -228,7 +228,7 @@ export default function LoginPage() {
 								type="submit"
 								disabled={loading}
 							>
-								{loading ? 'Mining...' : 'Log In'}
+								{loading ? 'Querying Database...' : 'Log In'}
 							</Button>
 
 							<div className="text-center mt-4">

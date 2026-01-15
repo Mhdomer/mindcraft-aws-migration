@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '@/firebase';
 import { useAuth } from '@/app/contexts/AuthContext';
+import { useLanguage } from '@/app/contexts/LanguageContext';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import { Metric, Flex, Text, ProgressBar } from '@tremor/react';
 
 export default function StudentDashboard() {
     const { user, userData } = useAuth();
+    const { language } = useLanguage();
 
     const [loading, setLoading] = useState(true);
     const [userName, setUserName] = useState('');
@@ -40,8 +42,8 @@ export default function StudentDashboard() {
         try {
             // 1. Fetch Enrollments
             const enrollmentsQuery = query(
-                collection(db, 'enrollment'),
-                where('studentId', '==', userId)
+                collection(db, 'progress'),
+                where('studentId', '==', user.uid)
             );
             const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
             const enrollments = enrollmentsSnapshot.docs.map(doc => ({
@@ -203,15 +205,19 @@ export default function StudentDashboard() {
                     <div>
                         <h1 className="text-h1 text-neutralDark flex items-center gap-3">
                             <span className="bg-gradient-to-r from-primary to-emerald-600 bg-clip-text text-transparent">
-                                {userName ? `Welcome back, ${userName}` : 'Student Dashboard'}
+                                {userName
+                                    ? (language === 'bm' ? `Selamat kembali, ${userName}` : `Welcome back, ${userName}`)
+                                    : (language === 'bm' ? 'Papan Pemuka Pelajar' : 'Student Dashboard')}
                             </span>
                             <Sparkles className="h-6 w-6 text-yellow-400 animate-pulse hidden md:block" />
                         </h1>
-                        <p className="text-body text-muted-foreground mt-1">Ready to continue your learning journey today?</p>
+                        <p className="text-body text-muted-foreground mt-1">
+                            {language === 'bm' ? 'Bersedia untuk meneruskan perjalanan pembelajaran anda hari ini?' : 'Ready to continue your learning journey today?'}
+                        </p>
                     </div>
                     <div className="hidden md:block">
                         <p className="text-sm font-medium text-muted-foreground bg-white/50 px-4 py-2 rounded-full border border-gray-100">
-                            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                            {new Date().toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                         </p>
                     </div>
                 </div>
@@ -226,14 +232,18 @@ export default function StudentDashboard() {
                                     <div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
                                         <BookOpen className="h-5 w-5 text-primary" />
                                     </div>
-                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Enrolled Courses</CardTitle>
+                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
+                                        {language === 'bm' ? 'Kursus Berdaftar' : 'Enrolled Courses'}
+                                    </CardTitle>
                                 </Flex>
                             </CardHeader>
                             <CardContent className="z-10 relative">
                                 <Metric className="text-4xl font-bold text-neutralDark">
                                     {loading ? '-' : enrolledCourses}
                                 </Metric>
-                                <Text className="text-sm text-muted-foreground mt-1">Active learning paths</Text>
+                                <Text className="text-sm text-muted-foreground mt-1">
+                                    {language === 'bm' ? 'Laluan pembelajaran aktif' : 'Active learning paths'}
+                                </Text>
                             </CardContent>
                         </Card>
                     </Link>
@@ -246,7 +256,9 @@ export default function StudentDashboard() {
                                     <div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
                                         <TrendingUp className="h-5 w-5 text-indigo-500" />
                                     </div>
-                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Overall Progress</CardTitle>
+                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
+                                        {language === 'bm' ? 'Kemajuan Keseluruhan' : 'Overall Progress'}
+                                    </CardTitle>
                                 </Flex>
                             </CardHeader>
                             <CardContent className="z-10 relative">
@@ -254,7 +266,9 @@ export default function StudentDashboard() {
                                     <Metric className="text-4xl font-bold text-neutralDark">{overallProgress}%</Metric>
                                 </div>
                                 <ProgressBar value={overallProgress} color="indigo" className="mt-3 h-2 rounded-full" />
-                                <Text className="text-sm text-muted-foreground mt-2">Completion rate across all courses</Text>
+                                <Text className="text-sm text-muted-foreground mt-2">
+                                    {language === 'bm' ? 'Kadar penyelesaian semua kursus' : 'Completion rate across all courses'}
+                                </Text>
                             </CardContent>
                         </Card>
                     </Link>
@@ -267,14 +281,18 @@ export default function StudentDashboard() {
                                     <div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
                                         <FileQuestion className="h-5 w-5 text-orange-500" />
                                     </div>
-                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Pending Tasks</CardTitle>
+                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
+                                        {language === 'bm' ? 'Tugasan Tertunda' : 'Pending Tasks'}
+                                    </CardTitle>
                                 </Flex>
                             </CardHeader>
                             <CardContent className="z-10 relative">
                                 <Metric className="text-4xl font-bold text-neutralDark">
                                     {loading ? '-' : pendingTasks}
                                 </Metric>
-                                <Text className="text-sm text-muted-foreground mt-1">Assessments & assignments to do</Text>
+                                <Text className="text-sm text-muted-foreground mt-1">
+                                    {language === 'bm' ? 'Penilaian & tugasan untuk dilakukan' : 'Assessments & assignments to do'}
+                                </Text>
                             </CardContent>
                         </Card>
                     </Link>
@@ -284,7 +302,9 @@ export default function StudentDashboard() {
                 <div>
                     <div className="flex items-center gap-2 mb-6">
                         <div className="h-6 w-1 bg-primary rounded-full"></div>
-                        <h2 className="text-h2 text-neutralDark">Quick Access</h2>
+                        <h2 className="text-h2 text-neutralDark">
+                            {language === 'bm' ? 'Akses Pantas' : 'Quick Access'}
+                        </h2>
                     </div>
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                         <Link href="/courses" className="group">
@@ -294,11 +314,15 @@ export default function StudentDashboard() {
                                         <BookOpen className="h-8 w-8 text-primary group-hover:scale-110 transition-transform duration-300" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">My Courses</h3>
-                                        <p className="text-sm text-muted-foreground">Access your learning materials</p>
+                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">
+                                            {language === 'bm' ? 'Kursus Saya' : 'My Courses'}
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            {language === 'bm' ? 'Akses bahan pembelajaran anda' : 'Access your learning materials'}
+                                        </p>
                                     </div>
                                     <Button size="sm" variant="ghost" className="text-primary mt-2 group-hover:bg-primary/10">
-                                        View Courses <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        {language === 'bm' ? 'Lihat Kursus' : 'View Courses'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -311,13 +335,17 @@ export default function StudentDashboard() {
                                         <FileQuestion className="h-8 w-8 text-orange-600 group-hover:scale-110 transition-transform duration-300" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">Assessments</h3>
+                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">
+                                            {language === 'bm' ? 'Penilaian' : 'Assessments'}
+                                        </h3>
                                         <p className="text-sm text-muted-foreground">
-                                            {pendingTasks > 0 ? `${pendingTasks} pending tasks` : 'Take quizzes and exams'}
+                                            {pendingTasks > 0
+                                                ? (language === 'bm' ? `${pendingTasks} tugasan tertunda` : `${pendingTasks} pending tasks`)
+                                                : (language === 'bm' ? 'Ambil kuiz dan peperiksaan' : 'Take quizzes and exams')}
                                         </p>
                                     </div>
                                     <Button size="sm" variant="ghost" className="text-orange-600 mt-2 group-hover:bg-orange-100">
-                                        View Assessments <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        {language === 'bm' ? 'Lihat Penilaian' : 'View Assessments'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -330,11 +358,15 @@ export default function StudentDashboard() {
                                         <FileText className="h-8 w-8 text-blue-600 group-hover:scale-110 transition-transform duration-300" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">Assignments</h3>
-                                        <p className="text-sm text-muted-foreground">Submit your homework</p>
+                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">
+                                            {language === 'bm' ? 'Tugasan' : 'Assignments'}
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            {language === 'bm' ? 'Hantar kerja rumah anda' : 'Submit your homework'}
+                                        </p>
                                     </div>
                                     <Button size="sm" variant="ghost" className="text-blue-600 mt-2 group-hover:bg-blue-100">
-                                        View Assignments <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        {language === 'bm' ? 'Lihat Tugasan' : 'View Assignments'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -347,11 +379,15 @@ export default function StudentDashboard() {
                                         <TrendingUp className="h-8 w-8 text-green-600 group-hover:scale-110 transition-transform duration-300" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">My Progress</h3>
-                                        <p className="text-sm text-muted-foreground">Track your performance</p>
+                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">
+                                            {language === 'bm' ? 'Kemajuan Saya' : 'My Progress'}
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            {language === 'bm' ? 'Jejak prestasi anda' : 'Track your performance'}
+                                        </p>
                                     </div>
                                     <Button size="sm" variant="ghost" className="text-green-600 mt-2 group-hover:bg-green-100">
-                                        View Stats <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        {language === 'bm' ? 'Lihat Statistik' : 'View Stats'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -365,12 +401,14 @@ export default function StudentDashboard() {
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-2">
                                 <div className="h-6 w-1 bg-orange-500 rounded-full"></div>
-                                <h2 className="text-h2 text-neutralDark">Priorities</h2>
+                                <h2 className="text-h2 text-neutralDark">
+                                    {language === 'bm' ? 'Keutamaan' : 'Priorities'}
+                                </h2>
                             </div>
                             {recentAssessments.length > 0 && (
                                 <Link href="/assessments">
                                     <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-neutralDark">
-                                        View All
+                                        {language === 'bm' ? 'Lihat Semua' : 'View All'}
                                     </Button>
                                 </Link>
                             )}
@@ -385,11 +423,11 @@ export default function StudentDashboard() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <h4 className="font-semibold text-neutralDark truncate">{assessment.title}</h4>
-                                            <p className="text-sm text-muted-foreground capitalize">{assessment.type || 'Assessment'}</p>
+                                            <p className="text-sm text-muted-foreground capitalize">{assessment.type || (language === 'bm' ? 'Penilaian' : 'Assessment')}</p>
                                         </div>
                                         <Link href={`/assessments/${assessment.id}/take`}>
                                             <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-4 shadow-sm hover:shadow">
-                                                Start
+                                                {language === 'bm' ? 'Mula' : 'Start'}
                                             </Button>
                                         </Link>
                                     </div>
@@ -400,8 +438,12 @@ export default function StudentDashboard() {
                                 <div className="inline-flex p-4 bg-gray-50 rounded-full mb-3">
                                     <CheckCircle className="h-6 w-6 text-gray-400" />
                                 </div>
-                                <p className="text-neutralDark font-medium">All caught up!</p>
-                                <p className="text-sm text-muted-foreground">No pending assessments at the moment.</p>
+                                <p className="text-neutralDark font-medium">
+                                    {language === 'bm' ? 'Semua telah selesai!' : 'All caught up!'}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                    {language === 'bm' ? 'Tiada penilaian tertunda pada masa ini.' : 'No pending assessments at the moment.'}
+                                </p>
                             </div>
                         )}
                     </div>
@@ -414,11 +456,13 @@ export default function StudentDashboard() {
                                 <div className="flex items-center justify-between mb-6">
                                     <div className="flex items-center gap-2">
                                         <div className="h-6 w-1 bg-primary rounded-full"></div>
-                                        <h2 className="text-h2 text-neutralDark">Recent Courses</h2>
+                                        <h2 className="text-h2 text-neutralDark">
+                                            {language === 'bm' ? 'Kursus Terkini' : 'Recent Courses'}
+                                        </h2>
                                     </div>
                                     <Link href="/courses">
                                         <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-neutralDark">
-                                            View All
+                                            {language === 'bm' ? 'Lihat Semua' : 'View All'}
                                         </Button>
                                     </Link>
                                 </div>
@@ -447,13 +491,13 @@ export default function StudentDashboard() {
                                 <div className="flex items-center gap-2">
                                     <div className="h-6 w-1 bg-purple-500 rounded-full"></div>
                                     <h2 className="text-h2 text-neutralDark flex items-center gap-2">
-                                        AI Insights
+                                        {language === 'bm' ? 'Wawasan AI' : 'AI Insights'}
                                         <Sparkles className="h-4 w-4 text-purple-500" />
                                     </h2>
                                 </div>
                                 <Link href="/ai">
                                     <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-neutralDark">
-                                        AI Assistant
+                                        {language === 'bm' ? 'Pembantu AI' : 'AI Assistant'}
                                     </Button>
                                 </Link>
                             </div>
@@ -501,7 +545,7 @@ export default function StudentDashboard() {
                                                                             window.location.href = rec.action.path;
                                                                         }}
                                                                     >
-                                                                        {rec.action.label || 'View'} <ArrowRight className="h-3 w-3 ml-2" />
+                                                                        {rec.action.label || (language === 'bm' ? 'Lihat' : 'View')} <ArrowRight className="h-3 w-3 ml-2" />
                                                                     </Button>
                                                                 )}
                                                             </div>
@@ -515,8 +559,12 @@ export default function StudentDashboard() {
                             ) : (
                                 <div className="bg-purple-50/50 rounded-xl p-6 text-center border border-purple-100">
                                     <Brain className="h-8 w-8 text-purple-300 mx-auto mb-2" />
-                                    <p className="text-sm text-purple-900 font-medium">AI is analyzing your progress...</p>
-                                    <p className="text-xs text-purple-600/70 mt-1">Check back later for personalized tips.</p>
+                                    <p className="text-sm text-purple-900 font-medium">
+                                        {language === 'bm' ? 'AI sedang menganalisis kemajuan anda...' : 'AI is analyzing your progress...'}
+                                    </p>
+                                    <p className="text-xs text-purple-600/70 mt-1">
+                                        {language === 'bm' ? 'Semak semula kemudian untuk petua peribadi.' : 'Check back later for personalized tips.'}
+                                    </p>
                                 </div>
                             )}
                         </div>

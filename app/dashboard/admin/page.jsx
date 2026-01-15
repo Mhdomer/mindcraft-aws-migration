@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useLanguage } from '@/app/contexts/LanguageContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -10,6 +11,7 @@ import { db } from '@/firebase'; // Ensure db is imported
 import { collection, getDocs, query, where } from 'firebase/firestore';
 
 export default function AdminDashboard() {
+	const { language } = useLanguage();
 	const [stats, setStats] = useState({
 		users: 0,
 		courses: 0,
@@ -56,15 +58,17 @@ export default function AdminDashboard() {
 					<div>
 						<h1 className="text-h1 text-neutralDark flex items-center gap-3">
 							<span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-								Admin Dashboard
+								{language === 'bm' ? 'Papan Pemuka Admin' : 'Admin Dashboard'}
 							</span>
 							<ShieldCheck className="h-6 w-6 text-blue-500 hidden md:block" />
 						</h1>
-						<p className="text-body text-muted-foreground mt-1">Manage users, courses, and platform activity</p>
+						<p className="text-body text-muted-foreground mt-1">
+							{language === 'bm' ? 'Urus pengguna, kursus, dan aktiviti platform' : 'Manage users, courses, and platform activity'}
+						</p>
 					</div>
 					<div className="hidden md:block">
 						<p className="text-sm font-medium text-muted-foreground bg-white/50 px-4 py-2 rounded-full border border-gray-100">
-							{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+							{new Date().toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
 						</p>
 					</div>
 				</div>
@@ -79,12 +83,16 @@ export default function AdminDashboard() {
 									<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
 										<Users className="h-5 w-5 text-primary" />
 									</div>
-									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Total Users</CardTitle>
+									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
+										{language === 'bm' ? 'Jumlah Pengguna' : 'Total Users'}
+									</CardTitle>
 								</Flex>
 							</CardHeader>
 							<CardContent className="z-10 relative">
 								<Metric className="text-3xl font-bold text-neutralDark">{loading ? '-' : stats.users}</Metric>
-								<Text className="text-sm text-muted-foreground mt-1">Across all roles</Text>
+								<Text className="text-sm text-muted-foreground mt-1">
+									{language === 'bm' ? 'Merentas semua peranan' : 'Across all roles'}
+								</Text>
 							</CardContent>
 						</Card>
 					</Link>
@@ -97,12 +105,16 @@ export default function AdminDashboard() {
 									<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
 										<BookOpen className="h-5 w-5 text-emerald-500" />
 									</div>
-									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Total Courses</CardTitle>
+									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
+										{language === 'bm' ? 'Jumlah Kursus' : 'Total Courses'}
+									</CardTitle>
 								</Flex>
 							</CardHeader>
 							<CardContent className="z-10 relative">
 								<Metric className="text-3xl font-bold text-neutralDark">{loading ? '-' : stats.courses}</Metric>
-								<Text className="text-sm text-muted-foreground mt-1">Published and draft</Text>
+								<Text className="text-sm text-muted-foreground mt-1">
+									{language === 'bm' ? 'Diterbitkan dan draf' : 'Published and draft'}
+								</Text>
 							</CardContent>
 						</Card>
 					</Link>
@@ -114,12 +126,16 @@ export default function AdminDashboard() {
 								<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
 									<FileText className="h-5 w-5 text-orange-500" />
 								</div>
-								<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Active Sessions</CardTitle>
+								<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
+									{language === 'bm' ? 'Sesi Aktif' : 'Active Sessions'}
+								</CardTitle>
 							</Flex>
 						</CardHeader>
 						<CardContent className="z-10 relative">
 							<Metric className="text-3xl font-bold text-neutralDark">-</Metric>
-							<Text className="text-sm text-muted-foreground mt-1">Currently online</Text>
+							<Text className="text-sm text-muted-foreground mt-1">
+								{language === 'bm' ? 'Sedang dalam talian' : 'Currently online'}
+							</Text>
 						</CardContent>
 					</Card>
 				</div>
@@ -128,7 +144,9 @@ export default function AdminDashboard() {
 				<div>
 					<div className="flex items-center gap-2 mb-6">
 						<div className="h-6 w-1 bg-primary rounded-full"></div>
-						<h2 className="text-h2 text-neutralDark">Quick Actions</h2>
+						<h2 className="text-h2 text-neutralDark">
+							{language === 'bm' ? 'Tindakan Pantas' : 'Quick Actions'}
+						</h2>
 					</div>
 					<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 						<Link href="/admin/register" className="group">
@@ -138,11 +156,15 @@ export default function AdminDashboard() {
 										<UserPlus className="h-8 w-8 text-primary group-hover:scale-110 transition-transform duration-300" />
 									</div>
 									<div>
-										<h3 className="text-lg font-semibold text-neutralDark mb-1">User Management</h3>
-										<p className="text-sm text-muted-foreground">Register teachers and students</p>
+										<h3 className="text-lg font-semibold text-neutralDark mb-1">
+											{language === 'bm' ? 'Pengurusan Pengguna' : 'User Management'}
+										</h3>
+										<p className="text-sm text-muted-foreground">
+											{language === 'bm' ? 'Daftar guru dan pelajar' : 'Register teachers and students'}
+										</p>
 									</div>
 									<Button size="sm" variant="ghost" className="text-primary mt-2 group-hover:bg-primary/10">
-										Go to Register <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+										{language === 'bm' ? 'Pergi ke Daftar' : 'Go to Register'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
 									</Button>
 								</CardContent>
 							</Card>
@@ -155,11 +177,15 @@ export default function AdminDashboard() {
 										<BookOpen className="h-8 w-8 text-emerald-600 group-hover:scale-110 transition-transform duration-300" />
 									</div>
 									<div>
-										<h3 className="text-lg font-semibold text-neutralDark mb-1">Course Management</h3>
-										<p className="text-sm text-muted-foreground">Approve and manage courses</p>
+										<h3 className="text-lg font-semibold text-neutralDark mb-1">
+											{language === 'bm' ? 'Pengurusan Kursus' : 'Course Management'}
+										</h3>
+										<p className="text-sm text-muted-foreground">
+											{language === 'bm' ? 'Luluskan dan urus kursus' : 'Approve and manage courses'}
+										</p>
 									</div>
 									<Button size="sm" variant="ghost" className="text-emerald-600 mt-2 group-hover:bg-emerald-100">
-										View Courses <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+										{language === 'bm' ? 'Lihat Kursus' : 'View Courses'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
 									</Button>
 								</CardContent>
 							</Card>
@@ -172,11 +198,15 @@ export default function AdminDashboard() {
 										<Settings className="h-8 w-8 text-gray-600 group-hover:scale-110 transition-transform duration-300" />
 									</div>
 									<div>
-										<h3 className="text-lg font-semibold text-neutralDark mb-1">Settings</h3>
-										<p className="text-sm text-muted-foreground">Platform configuration</p>
+										<h3 className="text-lg font-semibold text-neutralDark mb-1">
+											{language === 'bm' ? 'Tetapan' : 'Settings'}
+										</h3>
+										<p className="text-sm text-muted-foreground">
+											{language === 'bm' ? 'Konfigurasi platform' : 'Platform configuration'}
+										</p>
 									</div>
 									<Button size="sm" variant="ghost" className="text-gray-600 mt-2 group-hover:bg-gray-100">
-										Configure <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+										{language === 'bm' ? 'Konfigurasi' : 'Configure'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
 									</Button>
 								</CardContent>
 							</Card>

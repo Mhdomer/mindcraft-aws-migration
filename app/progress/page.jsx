@@ -482,9 +482,9 @@ export default function ProgressPage() {
 		try {
 			if (!userId) return;
 
-			// Get all enrollments for this student
+			// Get all enrollments for this student - now stored in 'progress' collection
 			const enrollmentsQuery = query(
-				collection(db, 'enrollment'),
+				collection(db, 'progress'),
 				where('studentId', '==', userId)
 			);
 			const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
@@ -832,14 +832,16 @@ export default function ProgressPage() {
 			setAchievements(newAchievements);
 
 			// --- US011-01: Skill Competency (Strong/Weak Consolidation) ---
-			const competencyData = progressData.map(c => ({
-				subject: c.courseTitle.length > 15 ? c.courseTitle.substring(0, 12) + '...' : c.courseTitle,
-				A: c.avgAssessmentScore || 0,
-				fullMark: 100,
-				totalLessons: c.totalLessons,
-				title: c.courseTitle
-			}));
-			setCompetency(competencyData);
+			// --- US011-01: Skill Competency (Strong/Weak Consolidation) ---
+			// FIX: Commented out to prevent overwriting the detailed taxonomy-based competency data
+			// const competencyData = progressData.map(c => ({
+			// 	subject: c.courseTitle.length > 15 ? c.courseTitle.substring(0, 12) + '...' : c.courseTitle,
+			// 	A: c.avgAssessmentScore || 0,
+			// 	fullMark: 100,
+			// 	totalLessons: c.totalLessons,
+			// 	title: c.courseTitle
+			// }));
+			// setCompetency(competencyData);
 
 			// Legacy state for backward compatibility if needed, but UI will use competencyData
 			const strong = progressData
@@ -1176,100 +1178,7 @@ export default function ProgressPage() {
 								{language === 'bm' ? 'Kembali ke Papan Pemuka' : 'Back to Dashboard'}
 							</Button>
 						)}
-						{currentView === 'hub' ? (
-							<Dialog open={showReportModal} onOpenChange={setShowReportModal}>
-								<DialogTrigger asChild>
-									<Button variant="outline" className="gap-2 print:hidden">
-										<Printer className="h-5 w-5" />
-										{language === 'bm' ? 'Laporan' : 'Export'}
-									</Button>
-								</DialogTrigger>
-								<DialogContent className="sm:max-w-[425px]">
-									<DialogHeader>
-										<DialogTitle>{language === 'bm' ? 'Jana Laporan Prestasi' : 'Generate Performance Report'}</DialogTitle>
-										<DialogDescription>
-											{language === 'bm'
-												? 'Pilih bahagian yang ingin disertakan dalam laporan PDF anda.'
-												: 'Select sections to include in your PDF report.'}
-										</DialogDescription>
-									</DialogHeader>
-									<div className="grid gap-4 py-4">
-										{/* Select All Option */}
-										<div
-											className="flex items-center space-x-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors border-b border-neutral-100 pb-3 mb-1"
-											onClick={() => {
-												const allSelected = Object.values(reportConfig).every(Boolean);
-												setReportConfig({
-													includeDetails: !allSelected,
-													includePerformance: !allSelected,
-													includeProgress: !allSelected,
-													includeRisk: !allSelected,
 
-													includeStrong: !allSelected,
-												});
-											}}
-										>
-											<Checkbox
-												checked={Object.values(reportConfig).every(Boolean)}
-												className="pointer-events-none h-6 w-6"
-											/>
-											<Label className="cursor-pointer flex-1 font-bold text-neutralDark">
-												{language === 'bm' ? 'Pilih Semua' : 'Select All'}
-											</Label>
-										</div>
-
-										{[
-											{ id: 'includeDetails', label: language === 'bm' ? 'Butiran Kursus' : 'Course Details' },
-											{ id: 'includePerformance', label: language === 'bm' ? 'Prestasi Kursus' : 'Course Performance' },
-											{ id: 'includeProgress', label: language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress' },
-											{ id: 'includeRisk', label: language === 'bm' ? 'Penunjuk Risiko' : 'Risk Indicators' },
-
-											{ id: 'includeStrong', label: language === 'bm' ? 'Topik Kuat' : 'Strong Topics' },
-										].map((item) => (
-											<div
-												key={item.id}
-												className="flex items-center space-x-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors"
-												onClick={() => setReportConfig({ ...reportConfig, [item.id]: !reportConfig[item.id] })}
-											>
-												<Checkbox
-													id={item.id}
-													checked={reportConfig[item.id]}
-													className="pointer-events-none h-6 w-6"
-												/>
-												<Label htmlFor={item.id} className="cursor-pointer flex-1">
-													{item.label}
-												</Label>
-											</div>
-										))}
-									</div>
-									<DialogFooter>
-										<Button
-											onClick={handlePrint}
-											className="gap-2"
-											disabled={!Object.values(reportConfig).some(Boolean)}
-										>
-											<Download className="h-4 w-4" />
-											{language === 'bm' ? 'Muat Turun PDF' : 'Download PDF'}
-										</Button>
-									</DialogFooter>
-								</DialogContent>
-							</Dialog>
-						) : currentView !== 'details' && currentView !== 'risk' && currentView !== 'strong' ? (
-							<Button
-								variant="outline"
-								className="gap-2 print:hidden"
-								onClick={() => {
-									setIsPrinting(true);
-									setTimeout(() => {
-										window.print();
-										setIsPrinting(false);
-									}, 500);
-								}}
-							>
-								<Printer className="h-5 w-5" />
-								{language === 'bm' ? 'Laporan' : 'Export'}
-							</Button>
-						) : null}
 					</div>
 				</div>
 
@@ -1813,7 +1722,7 @@ export default function ProgressPage() {
 											return acc;
 										}, {})).map(([category, skills]) => (
 											<div key={category}>
-												<h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+												<h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
 													<div className="h-px flex-1 bg-neutral-200"></div>
 													{category}
 													<div className="h-px flex-1 bg-neutral-200"></div>
@@ -1830,16 +1739,16 @@ export default function ProgressPage() {
 																	) : (
 																		<div className="h-4 w-4 rounded-full border border-neutral-300"></div>
 																	)}
-																	<span className="font-medium text-neutralDark">{skill.subject}</span>
+																	<span className="font-medium text-neutralDark text-base">{skill.subject}</span>
 																</div>
 																<div className="text-right">
-																	<span className={`font-bold ${skill.level === 'Mastered' ? 'text-violet-600' :
+																	<span className={`font-bold text-base ${skill.level === 'Mastered' ? 'text-violet-600' :
 																		skill.level === 'Advanced' ? 'text-emerald-600' :
 																			skill.level === 'Intermediate' ? 'text-blue-600' : 'text-amber-600'
 																		}`}>
 																		{skill.A}%
 																	</span>
-																	<span className="text-xs text-muted-foreground ml-1">
+																	<span className="text-sm text-muted-foreground ml-1">
 																		({language === 'bm' ?
 																			(skill.level === 'Mastered' ? 'Pakar' : skill.level) :
 																			skill.level})
@@ -1871,15 +1780,15 @@ export default function ProgressPage() {
 																<div className="bg-amber-50 p-2 rounded border border-amber-100 flex items-start justify-between gap-2 mt-1">
 																	<div className="flex items-start gap-2">
 																		<Lightbulb className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
-																		<span className="text-xs text-amber-800 leading-tight">
+																		<span className="text-sm text-amber-800 leading-tight">
 																			{skill.remedy}
 																		</span>
 																	</div>
 																	<Button
 																		variant="ghost"
 																		size="sm"
-																		className="h-6 text-[10px] text-amber-700 hover:text-amber-900 hover:bg-amber-100 p-0 px-2"
-																		onClick={() => alert(`Redirecting to: ${skill.remedy}`)}
+																		className="h-7 text-xs text-amber-700 hover:text-amber-900 hover:bg-amber-100 p-0 px-3"
+																		onClick={() => router.push(`/courses?search=${encodeURIComponent(skill.subject)}`)}
 																	>
 																		{language === 'bm' ? 'Lihat' : 'View'}
 																	</Button>
@@ -1906,8 +1815,8 @@ export default function ProgressPage() {
 								{/* Weak Areas (Focus Topics) Integration */}
 								{competency.some(c => c.A < 60) && (
 									<div className="mt-6 pt-6 border-t border-neutral-100">
-										<h4 className="text-sm font-semibold text-neutralDark mb-3 flex items-center gap-2">
-											<TrendingDown className="h-4 w-4 text-error" />
+										<h4 className="text-base font-semibold text-neutralDark mb-3 flex items-center gap-2">
+											<TrendingDown className="h-5 w-5 text-error" />
 											{language === 'bm' ? 'Kawasan Tumpuan (Markah < 60%)' : 'Focus Areas (Score < 60%)'}
 										</h4>
 										<div className="grid md:grid-cols-2 gap-3">
@@ -1915,21 +1824,21 @@ export default function ProgressPage() {
 												<div key={idx} className="bg-red-50 p-3 rounded-lg border border-red-100">
 													<div className="flex justify-between items-start mb-2">
 														<div>
-															<p className="text-sm font-bold text-neutralDark">{topic.subject}</p>
-															<p className="text-xs text-red-600 font-medium">
+															<p className="text-base font-bold text-neutralDark">{topic.subject}</p>
+															<p className="text-sm text-red-600 font-medium">
 																{language === 'bm' ? `Skor: ${topic.A}% (Lemah)` : `Score: ${topic.A}% (Weak)`}
 															</p>
 														</div>
 														<Button
 															size="sm"
-															className="h-7 text-xs bg-white text-red-600 border border-red-200 hover:bg-red-50 hover:border-red-300 shadow-sm"
-															onClick={() => alert(`${language === 'bm' ? 'Cadangan Pembelajaran:' : 'Recommended Action:'}\n${topic.remedy}`)}
+															className="h-9 text-sm bg-white text-red-600 border border-red-200 hover:bg-red-50 hover:border-red-300 shadow-sm px-4"
+															onClick={() => router.push(`/courses?search=${encodeURIComponent(topic.subject)}`)}
 														>
 															{language === 'bm' ? 'Tindakan' : 'Action'}
 														</Button>
 													</div>
-													<div className="flex items-center gap-2 text-xs text-muted-foreground bg-white/50 p-2 rounded">
-														<Lightbulb className="h-3 w-3 text-amber-500" />
+													<div className="flex items-center gap-2 text-sm text-muted-foreground bg-white/50 p-2 rounded">
+														<Lightbulb className="h-4 w-4 text-amber-500" />
 														<span>{topic.remedy}</span>
 													</div>
 												</div>
@@ -2289,8 +2198,8 @@ export default function ProgressPage() {
 
 													{/* Course Description */}
 													{course.courseDescription && (
-														<div className="px-6 pt-4 pb-0 grid gap-5 md:grid-cols-2">
-															<div className="md:col-span-1 space-y-3">
+														<div className="px-6 pt-4 pb-0 space-y-5">
+															<div className="space-y-3">
 																<p className="text-muted-foreground text-sm leading-relaxed">
 																	{course.courseDescription}
 																</p>
@@ -2319,32 +2228,7 @@ export default function ProgressPage() {
 																</div>
 															</div>
 
-															<div className="md:col-span-1 space-y-3">
-																<h4 className="text-xs font-bold uppercase text-muted-foreground tracking-wider mb-2 flex items-center gap-2">
-																	<File className="h-4 w-4" />
-																	{language === 'bm' ? 'Sumber Kursus' : 'Course Resources'}
-																</h4>
-																<a href="#" className="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-neutral-100 shadow-sm hover:shadow-md hover:border-primary/20 transition-all group">
-																	<div className="p-2 rounded-lg bg-red-50 text-red-600 group-hover:scale-110 transition-transform">
-																		<FileText className="h-5 w-5" />
-																	</div>
-																	<div className="flex-1 min-w-0">
-																		<p className="text-sm font-semibold text-neutralDark group-hover:text-primary transition-colors truncate">SQL Cheat Sheet</p>
-																		<p className="text-[10px] text-muted-foreground">PDF • 1.2 MB</p>
-																	</div>
-																	<Download className="h-5 w-5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
-																</a>
-																<a href="#" className="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-neutral-100 shadow-sm hover:shadow-md hover:border-primary/20 transition-all group">
-																	<div className="p-2 rounded-lg bg-blue-50 text-blue-600 group-hover:scale-110 transition-transform">
-																		<ExternalLink className="h-5 w-5" />
-																	</div>
-																	<div className="flex-1 min-w-0">
-																		<p className="text-sm font-semibold text-neutralDark group-hover:text-primary transition-colors truncate">Course Wiki</p>
-																		<p className="text-[10px] text-muted-foreground">External Link</p>
-																	</div>
-																	<ArrowRight className="h-5 w-5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
-																</a>
-															</div>
+
 														</div>
 													)}
 
@@ -2879,7 +2763,7 @@ export default function ProgressPage() {
 						<div className="p-4 border-b bg-white flex items-center justify-between">
 							<h3 className="font-bold text-lg text-neutral-800 flex items-center gap-2">
 								<Award className="h-5 w-5 text-amber-500" />
-								Certificate Preview
+								{language === 'bm' ? 'Pratonton Sijil' : 'Certificate Preview'}
 							</h3>
 						</div>
 
@@ -2892,6 +2776,7 @@ export default function ProgressPage() {
 										courseName={certificateData.courseName}
 										instructorName={certificateData.instructorName}
 										completionDate={certificateData.completionDate}
+										language={language}
 									/>
 								)}
 							</div>
@@ -2900,7 +2785,7 @@ export default function ProgressPage() {
 						{/* Footer Actions */}
 						<div className="p-4 border-t bg-white flex justify-end gap-3">
 							<Button variant="outline" onClick={() => setShowPreviewModal(false)}>
-								Close
+								{language === 'bm' ? 'Tutup' : 'Close'}
 							</Button>
 							<Button
 								onClick={handleDownloadCertificate}
@@ -2909,11 +2794,11 @@ export default function ProgressPage() {
 							>
 								{isGeneratingCertificate ? (
 									<>
-										<span className="animate-spin mr-2">⏳</span> Generating PDF...
+										<span className="animate-spin mr-2">⏳</span> {language === 'bm' ? 'Menjana PDF...' : 'Generating PDF...'}
 									</>
 								) : (
 									<>
-										<Download className="h-4 w-4 mr-2" /> Download Certificate
+										<Download className="h-4 w-4 mr-2" /> {language === 'bm' ? 'Muat Turun Sijil' : 'Download Certificate'}
 									</>
 								)}
 							</Button>
@@ -3082,6 +2967,7 @@ export default function ProgressPage() {
 						courseName={certificateData.courseName}
 						instructorName={certificateData.instructorName}
 						completionDate={certificateData.completionDate}
+						language={language}
 					/>
 				)}
 			</div>

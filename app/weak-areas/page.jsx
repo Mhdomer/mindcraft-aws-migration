@@ -230,20 +230,20 @@ export default function WeakAreasPage() {
 						Insights into topics where your scores are lowest, based on your recent assessments and assignments.
 					</p>
 				</div>
-				<div className="flex flex-col gap-2 shrink-0">
+				<div className="flex items-center gap-3 shrink-0">
 					<Link href="/progress" className="print:hidden">
-						<Button variant="outline" size="sm" className="w-full gap-2 justify-start">
-							<ArrowLeft className="h-5 w-5" />
+						<Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors">
+							<ArrowLeft className="h-4 w-4" />
 							Back to Dashboard
 						</Button>
 					</Link>
 					<Button
 						variant="outline"
 						size="sm"
-						className="gap-2 print:hidden"
+						className="gap-2 print:hidden bg-white shadow-sm hover:bg-neutral-50 hover:border-neutral-300 transition-all"
 						onClick={() => window.print()}
 					>
-						<Printer className="h-5 w-5" />
+						<Printer className="h-4 w-4" />
 						Export
 					</Button>
 				</div>
