@@ -774,17 +774,17 @@ export default function ForumPage() {
         <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.12em] text-slate-500 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-500" /> Course Forum
+              <Sparkles className="w-5 h-5 text-indigo-500" /> Course Forum
             </p>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Threaded discussions</h1>
             <p className="text-slate-600 dark:text-slate-300">Ask questions, share fixes, and learn from instructors.</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" className="gap-2" onClick={() => setFilterTags([])}>
-              <Filter className="w-4 h-4" /> Clear filters
+              <Filter className="w-5 h-5" /> Clear filters
             </Button>
             <Button className="gap-2" onClick={() => setComposerOpen(true)}>
-              <Plus className="w-4 h-4" /> New post
+              <Plus className="w-5 h-5" /> New post
             </Button>
           </div>
         </header>
@@ -804,7 +804,7 @@ export default function ForumPage() {
             ))}
           </div>
           <div className="flex items-center gap-2 flex-1 flex-wrap">
-            <Tag className="w-4 h-4 text-slate-500" />
+            <Tag className="w-5 h-5 text-slate-500" />
             {TAG_OPTIONS.map((t) => {
               const active = filterTags.includes(t);
               return (
@@ -968,7 +968,7 @@ export default function ForumPage() {
                   </div>
                   {sentiment && (
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="gap-1"><ShieldCheck className="w-3 h-3" /> Sentiment {sentiment.label} {sentiment.score}%</Badge>
+                      <Badge variant="secondary" className="gap-1"><ShieldCheck className="w-4 h-4" /> Sentiment {sentiment.label} {sentiment.score}%</Badge>
                     </div>
                   )}
                   {violations.length > 0 && (
@@ -1030,7 +1030,7 @@ export default function ForumPage() {
                             ))}
                           {item.hasInstructorReply && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                              <ShieldCheck className="w-3 h-3" /> Instructor replied
+                              <ShieldCheck className="w-4 h-4" /> Instructor replied
                             </span>
                           )}
                         </div>
@@ -1071,11 +1071,11 @@ const MetaRow = memo(function MetaRow({ post, nameMap }) {
 const StatusBadges = memo(function StatusBadges({ post, instructorReplied }) {
   return (
     <div className="flex flex-wrap gap-1">
-      {post.isPinned && <Badge variant="secondary" className="text-[10px] gap-1"><Pin className="w-3 h-3" /> Pinned</Badge>}
-      {post.isLocked && <Badge variant="warning" className="text-[10px] gap-1"><Lock className="w-3 h-3" /> Locked</Badge>}
-      {instructorReplied && <Badge variant="success" className="text-[10px] gap-1"><ShieldCheck className="w-3 h-3" /> Instructor replied</Badge>}
-      {post.isExamRelevant && <Badge variant="success" className="text-[10px] gap-1"><BadgeCheck className="w-3 h-3" /> Exam relevant</Badge>}
-      {post.isInKnowledgeBase && <Badge variant="secondary" className="text-[10px] gap-1"><ShieldCheck className="w-3 h-3" /> In Knowledge Base</Badge>}
+      {post.isPinned && <Badge variant="secondary" className="text-[10px] gap-1"><Pin className="w-4 h-4" /> Pinned</Badge>}
+      {post.isLocked && <Badge variant="warning" className="text-[10px] gap-1"><Lock className="w-4 h-4" /> Locked</Badge>}
+      {instructorReplied && <Badge variant="success" className="text-[10px] gap-1"><ShieldCheck className="w-4 h-4" /> Instructor replied</Badge>}
+      {post.isExamRelevant && <Badge variant="success" className="text-[10px] gap-1"><BadgeCheck className="w-4 h-4" /> Exam relevant</Badge>}
+      {post.isInKnowledgeBase && <Badge variant="secondary" className="text-[10px] gap-1"><ShieldCheck className="w-4 h-4" /> In Knowledge Base</Badge>}
     </div>
   );
 });
@@ -1084,7 +1084,7 @@ const ActionRow = memo(function ActionRow({ post, replyCount, reactionCount, isM
   return (
     <div className="flex items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-700 text-[11px] md:text-xs text-slate-600">
       <Link href={`/forum/${post.id}`} className="inline-flex items-center gap-1 hover:text-indigo-600">
-        <MessageSquare className="w-3 h-3" /> {replyCount} comment{replyCount !== 1 ? 's' : ''}
+        <MessageSquare className="w-4 h-4" /> {replyCount} comment{replyCount !== 1 ? 's' : ''}
       </Link>
       <div className="flex items-center gap-1">
         {['👍', '❤️', '🎉', '🤔', '👀'].map((emoji) => {
@@ -1157,7 +1157,7 @@ const PostCard = memo(function PostCard({ post, user, isModerator, onVote, onRea
             className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             aria-label="Upvote"
           >
-            <ArrowBigUp className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+            <ArrowBigUp className="w-5 h-5 text-slate-600 dark:text-slate-400" />
           </button>
           <div className="text-[11px] text-slate-600 dark:text-slate-300">{post.score || 0}</div>
           <button 
@@ -1165,7 +1165,7 @@ const PostCard = memo(function PostCard({ post, user, isModerator, onVote, onRea
             className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             aria-label="Downvote"
           >
-            <ArrowBigDown className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+            <ArrowBigDown className="w-5 h-5 text-slate-600 dark:text-slate-400" />
           </button>
         </aside>
 

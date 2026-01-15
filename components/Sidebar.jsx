@@ -29,7 +29,8 @@ import {
 	FileQuestion,
 	Pickaxe,
 	Map,
-	Backpack
+	Backpack,
+	HelpCircle
 } from 'lucide-react';
 
 
@@ -94,6 +95,7 @@ const iconMap = {
 	'AI Assistant': Brain,
 	'Game Levels': Gamepad2,
 	'Activities': Gamepad2,
+	'Help & Support': HelpCircle,
 };
 
 export default function Sidebar({ role: initialRole, navItems: initialNavItems }) {

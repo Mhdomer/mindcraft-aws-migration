@@ -21,8 +21,10 @@ export default function LoginPage() {
 
 	// Check if user is already authenticated and redirect
 	useEffect(() => {
+		let mounted = true;
+		
 		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
+			if (user && mounted) {
 				// User is already logged in, redirect to their dashboard
 				try {
 					const userDocRef = doc(db, 'user', user.uid);
@@ -33,7 +35,7 @@ export default function LoginPage() {
 						role = userDoc.data().role || 'student';
 					}
 
-					// Set session cookies
+					// Set session cookies BEFORE redirect
 					await fetch('/api/auth/session', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
@@ -42,7 +44,11 @@ export default function LoginPage() {
 							email: user.email,
 							role: role,
 						}),
+						credentials: 'include', // Ensure cookies are sent
 					});
+
+					// Small delay to ensure cookies are set
+					await new Promise(resolve => setTimeout(resolve, 100));
 
 					// Redirect based on role
 					let redirectPath;
@@ -56,15 +62,26 @@ export default function LoginPage() {
 						redirectPath = '/dashboard';
 					}
 
-					router.push(redirectPath);
+					// Warm up the dashboard route for faster navigation
+					router.prefetch(redirectPath);
+
+					// Use window.location for full redirect to ensure cookies are read
+					window.location.href = redirectPath;
+					return; // Exit early, don't set checkingAuth to false
 				} catch (err) {
 					console.error('Error checking auth state:', err);
+					if (mounted) setCheckingAuth(false);
 				}
+			} else if (mounted) {
+				// No user, show login form
+				setCheckingAuth(false);
 			}
-			setCheckingAuth(false);
 		});
 
-		return () => unsubscribe();
+		return () => {
+			mounted = false;
+			unsubscribe();
+		};
 	}, [router]);
 
 	async function onSubmit(e) {
@@ -121,7 +138,11 @@ export default function LoginPage() {
 					email: user.email,
 					role: role,
 				}),
+				credentials: 'include', // Ensure cookies are sent
 			});
+
+			// Small delay to ensure cookies are set before redirect
+			await new Promise(resolve => setTimeout(resolve, 100));
 
 			// Step 4: Redirect based on role
 			let redirectPath;

@@ -8,7 +8,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import CourseCard from '../CourseCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search } from 'lucide-react';
+import { Search, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ExploreCoursesPage() {
@@ -84,7 +84,10 @@ export default function ExploreCoursesPage() {
 			<div>
 				<div className="flex items-center gap-3 mb-4">
 					<Link href="/courses">
-						<Button variant="ghost" size="sm">← Back to My Courses</Button>
+						<Button variant="ghost" size="sm" className="flex items-center gap-2">
+						<ArrowLeft className="h-5 w-5" />
+						Back to My Courses
+					</Button>
 					</Link>
 				</div>
 				<div className="flex items-center justify-between gap-4">

@@ -13,6 +13,7 @@ import { ArrowLeft, ArrowRight, BookOpen, Download, FileText, File, ShieldCheck,
 import Link from 'next/link';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import LessonExercise from '@/components/LessonExercise';
 
 export default function LessonPage() {
 	const params = useParams();
@@ -715,6 +716,15 @@ export default function LessonPage() {
 						)}
 					</CardContent>
 				</Card>
+
+				{/* Exercises Section */}
+				{userRole && user && (
+					<LessonExercise 
+						lessonId={lessonId} 
+						userRole={userRole} 
+						userId={user.uid}
+					/>
+				)}
 
 				{/* Style for lesson content */}
 				<style jsx global>{`

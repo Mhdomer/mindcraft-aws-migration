@@ -27,7 +27,7 @@ export default function AILearningHelper({
 
 	/**
 	 * Format Learning Content
-	 * Placeholder: Simulates AI formatting with a delay
+	 * Uses real Gemini AI to improve and structure lesson content
 	 */
 	async function handleFormatContent() {
 		if (!currentContent.trim()) {
@@ -39,14 +39,56 @@ export default function AILearningHelper({
 		setFormatSuccess(false);
 
 		try {
-			// Simulate AI processing delay
-			await new Promise(resolve => setTimeout(resolve, 2000));
+			const response = await fetch('/api/ai', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					action: 'improve_lesson',
+					input: currentContent,
+					language: 'en', // Can be made dynamic later
+					options: {
+						includeSampleCode: true,
+					},
+				}),
+			});
 
-			// Placeholder: Format content (remove extra whitespace, fix formatting)
-			const formatted = formatContentPlaceholder(currentContent);
+			if (!response.ok) {
+				throw new Error('Failed to format content');
+			}
+
+			const data = await response.json();
+			
+			// Combine explanation and examples into formatted HTML
+			let formatted = '';
+			if (data.summary) {
+				formatted += `<h2>${data.summary}</h2>\n\n`;
+			}
+			if (data.objectives && data.objectives.length > 0) {
+				formatted += `<h3>Learning Objectives</h3>\n<ul>\n`;
+				data.objectives.forEach(obj => {
+					formatted += `<li>${obj}</li>\n`;
+				});
+				formatted += `</ul>\n\n`;
+			}
+			if (data.explanation) {
+				formatted += data.explanation + '\n\n';
+			}
+			if (data.examples && data.examples.length > 0) {
+				formatted += `<h3>Examples</h3>\n`;
+				data.examples.forEach(example => {
+					if (example.code) {
+						formatted += `<pre><code>${example.code}</code></pre>\n`;
+					}
+					if (example.explain) {
+						formatted += `<p>${example.explain}</p>\n`;
+					}
+				});
+			}
 			
 			if (onFormatContent) {
-				onFormatContent(formatted);
+				onFormatContent(formatted.trim() || currentContent);
 			}
 
 			setFormatSuccess(true);
@@ -61,7 +103,7 @@ export default function AILearningHelper({
 
 	/**
 	 * Generate Learning Content
-	 * Placeholder: Simulates AI content generation with a delay
+	 * Uses real Gemini AI to generate lesson content from title
 	 */
 	async function handleGenerateContent() {
 		if (!lessonTitle.trim()) {
@@ -73,14 +115,57 @@ export default function AILearningHelper({
 		setGenerateSuccess(false);
 
 		try {
-			// Simulate AI processing delay
-			await new Promise(resolve => setTimeout(resolve, 3000));
+			const response = await fetch('/api/ai', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					action: 'improve_lesson',
+					input: `Lesson topic: ${lessonTitle}`,
+					language: 'en', // Can be made dynamic later
+					options: {
+						lessonTitle: lessonTitle,
+						includeSampleCode: true,
+					},
+				}),
+			});
 
-			// Placeholder: Generate content based on lesson title
-			const generated = generateContentPlaceholder(lessonTitle);
+			if (!response.ok) {
+				throw new Error('Failed to generate content');
+			}
+
+			const data = await response.json();
+			
+			// Combine all parts into formatted HTML
+			let generated = '';
+			if (data.summary) {
+				generated += `<h2>${data.summary}</h2>\n\n`;
+			}
+			if (data.objectives && data.objectives.length > 0) {
+				generated += `<h3>Learning Objectives</h3>\n<ul>\n`;
+				data.objectives.forEach(obj => {
+					generated += `<li>${obj}</li>\n`;
+				});
+				generated += `</ul>\n\n`;
+			}
+			if (data.explanation) {
+				generated += data.explanation + '\n\n';
+			}
+			if (data.examples && data.examples.length > 0) {
+				generated += `<h3>Examples</h3>\n`;
+				data.examples.forEach(example => {
+					if (example.code) {
+						generated += `<pre><code>${example.code}</code></pre>\n`;
+					}
+					if (example.explain) {
+						generated += `<p>${example.explain}</p>\n`;
+					}
+				});
+			}
 			
 			if (onGenerateContent) {
-				onGenerateContent(generated);
+				onGenerateContent(generated.trim());
 			}
 
 			setGenerateSuccess(true);
@@ -93,47 +178,6 @@ export default function AILearningHelper({
 		}
 	}
 
-	/**
-	 * Placeholder: Format content (remove extra whitespace, fix line breaks)
-	 */
-	function formatContentPlaceholder(content) {
-		// Remove excessive whitespace
-		let formatted = content.replace(/\s+/g, ' ');
-		
-		// Fix paragraph breaks
-		formatted = formatted.replace(/<\/p>\s*<p>/g, '</p>\n<p>');
-		
-		// Clean up HTML formatting
-		formatted = formatted.trim();
-		
-		return formatted;
-	}
-
-	/**
-	 * Placeholder: Generate content based on lesson title
-	 */
-	function generateContentPlaceholder(title) {
-		return `
-			<h2>Introduction to ${title}</h2>
-			<p>Welcome to this lesson on <strong>${title}</strong>. In this module, we will explore the fundamental concepts and practical applications.</p>
-			
-			<h3>Learning Objectives</h3>
-			<ul>
-				<li>Understand the core concepts of ${title}</li>
-				<li>Apply ${title} principles in practical scenarios</li>
-				<li>Analyze real-world examples</li>
-			</ul>
-			
-			<h3>Key Concepts</h3>
-			<p>Let's begin by examining the key concepts that form the foundation of ${title}.</p>
-			
-			<h3>Practical Examples</h3>
-			<p>Here are some practical examples to help you understand how ${title} is applied in real-world situations.</p>
-			
-			<h3>Summary</h3>
-			<p>In this lesson, we've covered the essential aspects of ${title}. Continue practicing to master these concepts.</p>
-		`;
-	}
 
 	return (
 		<Card className="border-primary/20 bg-primary/5">
@@ -209,12 +253,6 @@ export default function AILearningHelper({
 					</div>
 				</div>
 
-				{/* Info Note */}
-				<div className="pt-2 border-t border-border">
-					<p className="text-caption text-muted-foreground italic">
-						Note: This is a placeholder implementation. Actual AI integration will be added in future updates.
-					</p>
-				</div>
 			</CardContent>
 		</Card>
 	);

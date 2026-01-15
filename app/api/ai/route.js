@@ -451,31 +451,313 @@ export async function POST(request) {
 			return NextResponse.json({ error: 'Missing action' }, { status: 400 });
 		}
 
-		// Deterministic stub outputs
+		// UC011-01: Lesson Content Generation - Real Gemini AI
 		if (action === 'improve_lesson') {
-			const resp = sampleImproveLesson(Boolean(options.includeSampleCode ?? true), language);
-			return NextResponse.json(resp);
+			try {
+				const lessonMaterial = input || options.inputText || '';
+				const includeSampleCode = Boolean(options.includeSampleCode ?? true);
+				const lessonTitle = options.lessonTitle || '';
+
+				const prompt = `You are an educational content generator for database systems courses designed for secondary school students (age 16-17).
+
+Your task is to generate structured lesson content based on the provided material. Focus on database systems topics including SQL, relational databases, data modeling, normalization, indexing, transactions, ACID properties, and database security.
+
+${lessonTitle ? `Lesson Title: ${lessonTitle}\n\n` : ''}${lessonMaterial ? `Lesson Material:\n${lessonMaterial}\n\n` : ''}Generate structured lesson content in ${language === 'bm' ? 'Bahasa Malaysia' : 'English'} with the following format:
+
+{
+  "summary": "A brief 2-3 sentence summary of the lesson topic",
+  "objectives": [
+    "Learning objective 1",
+    "Learning objective 2",
+    "Learning objective 3"
+  ],
+  "explanation": "A clear, structured explanation of the concept suitable for 16-17 year old students. Use markdown formatting with headings, bullet points, and code blocks where appropriate.",
+  "examples": [
+    {
+      "code": "${includeSampleCode ? 'SQL code example here' : ''}",
+      "explain": "Explanation of what the code does and why it's important"
+    }
+  ],
+  "exercises": [
+    {
+      "type": "short_answer",
+      "prompt": "Practice question",
+      "answer": "Expected answer",
+      "rubric": "What makes a good answer"
+    }
+  ]
+}
+
+Guidelines:
+- Keep explanations clear and age-appropriate
+- Use database-focused examples (SQL queries, table design, etc.)
+- Make content engaging and educational
+- Include practical examples students can relate to
+- Structure content with proper headings and formatting
+${includeSampleCode ? '- Include SQL code examples with explanations' : '- Focus on conceptual explanations without code examples'}
+
+Return ONLY valid JSON, no additional text before or after.`;
+
+				const response = await generateJSON(prompt, {
+					temperature: 0.7,
+					maxTokens: 3000,
+				});
+
+				// Ensure response has required structure
+				const formattedResponse = {
+					language,
+					summary: response.summary || 'Lesson content generated',
+					objectives: Array.isArray(response.objectives) ? response.objectives : [],
+					explanation: response.explanation || response.response || '',
+					examples: Array.isArray(response.examples) ? response.examples : [],
+					exercises: Array.isArray(response.exercises) ? response.exercises : [],
+				};
+
+				return NextResponse.json(formattedResponse);
+			} catch (err) {
+				console.error('❌ Gemini AI Error (Lesson Generation):', err.message);
+				console.error('📋 Full error:', err);
+				// Fallback to stub if AI fails
+				const resp = sampleImproveLesson(Boolean(options.includeSampleCode ?? true), language);
+				return NextResponse.json(resp);
+			}
 		}
+
+		// UC011-02: Exercise Generation - Real Gemini AI
 		if (action === 'generate_exercises') {
-			const resp = sampleGenerateExercises(options.numQuestions ?? 5, options.difficulty || 'beginner');
-			return NextResponse.json(resp);
+			try {
+				const numQuestions = options.numQuestions ?? 5;
+				const difficulty = options.difficulty || 'beginner';
+				const lessonContent = input || options.lessonContent || '';
+
+				const prompt = `You are an educational exercise generator for database systems courses designed for secondary school students (age 16-17).
+
+Generate ${numQuestions} practice exercises based on the lesson content. Focus on database systems topics: SQL queries, table design, normalization, indexing, transactions, ACID properties, and database security.
+
+${lessonContent ? `Lesson Content:\n${lessonContent}\n\n` : ''}Generate exercises in ${language === 'bm' ? 'Bahasa Malaysia' : 'English'} with difficulty level: ${difficulty}.
+
+Return a JSON object with this structure:
+{
+  "exercises": [
+    {
+      "type": "mcq" | "short_answer" | "coding",
+      "question": "The exercise question",
+      "options": ["Option 1", "Option 2", "Option 3", "Option 4"], // Only for MCQ
+      "answer": "Correct answer (string for MCQ index, string/number for short_answer, string for coding)",
+      "explanation": "Brief explanation of the answer",
+      "difficulty": "${difficulty}"
+    }
+  ]
+}
+
+Guidelines:
+- Mix question types (MCQ, short answer, coding)
+- For MCQ: Provide 4 options, answer should be the index (0-3) as string
+- For short_answer: Answer can be string or number
+- For coding: Provide SQL code question, answer is the SQL code
+- Make questions age-appropriate and database-focused
+- Include clear explanations
+
+Return ONLY valid JSON, no additional text.`;
+
+				const response = await generateJSON(prompt, {
+					temperature: 0.8,
+					maxTokens: 2500,
+				});
+
+				// Format response to match expected structure
+				const exercises = Array.isArray(response.exercises) ? response.exercises : [];
+				const formattedExercises = exercises.map((ex, idx) => ({
+					id: idx + 1,
+					type: ex.type || (idx % 2 === 0 ? 'mcq' : 'short_answer'),
+					question: ex.question || ex.prompt || `Exercise ${idx + 1}`,
+					options: ex.options || ex.choices,
+					answer: ex.answer || ex.correctAnswer || '',
+					explanation: ex.explanation || ex.rubric || '',
+					difficulty: ex.difficulty || difficulty,
+				}));
+
+				return NextResponse.json({
+					difficulty,
+					questions: formattedExercises,
+					exercises: formattedExercises, // Also include as 'exercises' for compatibility
+				});
+			} catch (err) {
+				console.error('❌ Gemini AI Error (Exercise Generation):', err.message);
+				console.error('📋 Full error:', err);
+				// Fallback to stub if AI fails
+				const resp = sampleGenerateExercises(options.numQuestions ?? 5, options.difficulty || 'beginner');
+				return NextResponse.json(resp);
+			}
 		}
-		if (action === 'generate_mcq') {
-			const resp = sampleGenerateMcq(options.numQuestions ?? 5);
-			return NextResponse.json(resp);
-		}
-		if (action === 'generate_assignment') {
-			const resp = sampleGenerateAssignment(options.courseTitle || '', options.courseDescription || '');
-			return NextResponse.json(resp);
-		}
+		// UC011-02: Assessment Generation - Real Gemini AI
 		if (action === 'generate_assessment') {
-			const resp = sampleGenerateAssessment(
-				options.courseTitle || '', 
-				options.courseDescription || '',
-				options.type || 'quiz',
-				options.numQuestions || 5
-			);
-			return NextResponse.json(resp);
+			try {
+				const courseTitle = options.courseTitle || '';
+				const courseDescription = options.courseDescription || '';
+				const assessmentType = options.type || 'quiz';
+				const numQuestions = options.numQuestions || 5;
+
+				const prompt = `You are an educational assessment generator for database systems courses designed for secondary school students (age 16-17).
+
+Generate an assessment with ${numQuestions} questions based on the course information. Focus on database systems topics: SQL queries, table design, normalization, indexing, transactions, ACID properties, and database security.
+
+Course Title: ${courseTitle || 'Database Systems'}
+${courseDescription ? `Course Description: ${courseDescription}\n\n` : ''}Generate a ${assessmentType} assessment in ${language === 'bm' ? 'Bahasa Malaysia' : 'English'}.
+
+Return a JSON object with this structure:
+{
+  "title": "Assessment title",
+  "description": "HTML formatted description with instructions",
+  "questions": [
+    {
+      "type": "mcq" | "text",
+      "question": "The question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"], // Only for MCQ
+      "correctAnswer": 0, // Index for MCQ (0-3), string for text questions
+      "points": 1,
+      "rubric": "What makes a good answer (for text questions)"
+    }
+  ]
+}
+
+Guidelines:
+- Mix question types appropriately for ${assessmentType}
+- For MCQ: Provide 4 options, correctAnswer is index (0-3)
+- For text questions: correctAnswer is a sample answer string
+- Make questions age-appropriate and database-focused
+- Include clear, educational questions
+- Description should include instructions and overview
+
+Return ONLY valid JSON, no additional text.`;
+
+				const response = await generateJSON(prompt, {
+					temperature: 0.7,
+					maxTokens: 3000,
+				});
+
+				// Ensure response has required structure
+				const formattedResponse = {
+					title: response.title || `${courseTitle || 'Database'} Assessment`,
+					description: response.description || `<h2>Assessment Overview</h2><p>This assessment tests your understanding of database systems concepts.</p>`,
+					questions: Array.isArray(response.questions) ? response.questions.map((q, idx) => ({
+						type: q.type || (idx % 2 === 0 ? 'mcq' : 'text'),
+						question: q.question || `Question ${idx + 1}`,
+						options: q.options || (q.type === 'mcq' ? ['Option A', 'Option B', 'Option C', 'Option D'] : undefined),
+						correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : (q.type === 'mcq' ? 0 : 'Sample answer'),
+						points: q.points || 1,
+						rubric: q.rubric || '',
+					})) : [],
+				};
+
+				return NextResponse.json(formattedResponse);
+			} catch (err) {
+				console.error('❌ Gemini AI Error (Assessment Generation):', err.message);
+				console.error('📋 Full error:', err);
+				// Fallback to stub if AI fails
+				const resp = sampleGenerateAssessment(
+					options.courseTitle || '', 
+					options.courseDescription || '',
+					options.type || 'quiz',
+					options.numQuestions || 5
+				);
+				return NextResponse.json(resp);
+			}
+		}
+
+		// UC011-02: Assignment Generation - Real Gemini AI
+		if (action === 'generate_assignment') {
+			try {
+				const courseTitle = options.courseTitle || '';
+				const courseDescription = options.courseDescription || '';
+
+				const prompt = `You are an educational assignment generator for database systems courses designed for secondary school students (age 16-17).
+
+Generate an assignment prompt based on the course information. Focus on database systems topics: SQL queries, table design, normalization, indexing, transactions, ACID properties, and database security.
+
+Course Title: ${courseTitle || 'Database Systems'}
+${courseDescription ? `Course Description: ${courseDescription}\n\n` : ''}Generate an assignment in ${language === 'bm' ? 'Bahasa Malaysia' : 'English'}.
+
+Return a JSON object with this structure:
+{
+  "title": "Assignment title",
+  "description": "HTML formatted description with overview, objectives, requirements, submission guidelines, and evaluation criteria"
+}
+
+Guidelines:
+- Create a practical, hands-on assignment
+- Include clear learning objectives
+- Provide specific requirements and deliverables
+- Include submission guidelines
+- Add evaluation criteria/rubric
+- Make it age-appropriate and database-focused
+- Use HTML formatting with headings, lists, and emphasis
+
+Return ONLY valid JSON, no additional text.`;
+
+				const response = await generateJSON(prompt, {
+					temperature: 0.8,
+					maxTokens: 2500,
+				});
+
+				// Ensure response has required structure
+				const formattedResponse = {
+					title: response.title || `${courseTitle || 'Database'} Assignment`,
+					description: response.description || `<h2>Assignment Overview</h2><p>Complete this assignment to demonstrate your understanding of database systems.</p>`,
+				};
+
+				return NextResponse.json(formattedResponse);
+			} catch (err) {
+				console.error('❌ Gemini AI Error (Assignment Generation):', err.message);
+				console.error('📋 Full error:', err);
+				// Fallback to stub if AI fails
+				const resp = sampleGenerateAssignment(options.courseTitle || '', options.courseDescription || '');
+				return NextResponse.json(resp);
+			}
+		}
+
+		// Legacy: MCQ generation (uses assessment generation with MCQ type)
+		if (action === 'generate_mcq') {
+			// Use assessment generation logic with MCQ type
+			try {
+				const numQuestions = options.numQuestions || 5;
+				const courseTitle = options.courseTitle || 'Database Systems';
+				const courseDescription = options.courseDescription || '';
+
+				const prompt = `You are an educational MCQ generator for database systems courses designed for secondary school students (age 16-17).
+
+Generate ${numQuestions} multiple choice questions (MCQ) focused on database systems topics: SQL queries, table design, normalization, indexing, transactions, ACID properties, and database security.
+
+Course: ${courseTitle}
+${courseDescription ? `Description: ${courseDescription}\n\n` : ''}Generate questions in ${language === 'bm' ? 'Bahasa Malaysia' : 'English'}.
+
+Return a JSON object:
+{
+  "questions": [
+    {
+      "question": "The question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswer": 0, // Index 0-3
+      "explanation": "Why this answer is correct"
+    }
+  ]
+}
+
+Return ONLY valid JSON.`;
+
+				const response = await generateJSON(prompt, {
+					temperature: 0.7,
+					maxTokens: 2000,
+				});
+
+				const questions = Array.isArray(response.questions) ? response.questions : [];
+				return NextResponse.json({ questions });
+			} catch (err) {
+				console.error('❌ Gemini AI Error (MCQ Generation):', err.message);
+				// Fallback to stub
+				const resp = sampleGenerateMcq(options.numQuestions ?? 5);
+				return NextResponse.json(resp);
+			}
 		}
 		
 		// US012-01: Coding Help - Using Firebase AI (database-focused)
@@ -552,6 +834,97 @@ Be concise, database-oriented, and educational.`;
 		}
 		
 		// US012-02: Concept Explanation - Using Firebase AI (database-first)
+		// Phase 2: Contextual AI Assistant
+		if (action === 'contextual_help') {
+			try {
+				const userQuery = input || '';
+				const pageContext = options.pageContext || {};
+				const pageType = options.pageType || 'general';
+				const restrictions = options.restrictions || null;
+
+				if (!userQuery.trim()) {
+					return NextResponse.json({ error: 'Query is required' }, { status: 400 });
+				}
+
+				// Build context-aware prompt
+				let prompt = `You are an educational AI assistant for database systems courses designed for secondary school students (age 16-17).
+
+Current Context:
+- Page Type: ${pageType}
+${pageContext.lessonId ? `- Lesson ID: ${pageContext.lessonId}\n` : ''}${pageContext.courseId ? `- Course ID: ${pageContext.courseId}\n` : ''}${restrictions ? `- Restrictions: ${restrictions}\n` : ''}
+
+User Question: ${userQuery}
+
+${restrictions ? `IMPORTANT: ${restrictions}\n\n` : ''}Provide a helpful, educational response in ${language === 'bm' ? 'Bahasa Malaysia' : 'English'} that:
+- Answers the user's question clearly and concisely
+- Uses age-appropriate language (16-17 years old)
+- Focuses on database systems concepts (SQL, normalization, indexing, transactions, etc.)
+- Provides examples when helpful
+${restrictions ? '- Follows the restrictions above (provide hints, not direct answers)' : '- Provides full explanations and guidance'}
+
+Response:`;
+
+				const response = await generateText(prompt, {
+					temperature: 0.7,
+					maxTokens: 1500,
+				});
+
+				return NextResponse.json({
+					response: response,
+					pageContext,
+					pageType,
+				});
+			} catch (err) {
+				console.error('❌ Gemini AI Error (Contextual Help):', err.message);
+				return NextResponse.json({
+					error: 'Failed to get AI response',
+					message: language === 'bm' ? 'Ralat mendapatkan respons AI' : 'Error getting AI response',
+				}, { status: 500 });
+			}
+		}
+
+		// Phase 4: AI-Powered Analytics Explanations
+		if (action === 'explain_analytics') {
+			try {
+				const inputData = JSON.parse(input || '{}');
+				const { chartType, chartTitle, data } = inputData;
+
+				const prompt = `You are an educational analytics interpreter for database systems courses designed for secondary school students (age 16-17).
+
+Analyze the following chart/statistic and provide a concise, insightful explanation in ${language === 'bm' ? 'Bahasa Malaysia' : 'English'}.
+
+Chart Type: ${chartType || 'Unknown'}
+Chart Title: ${chartTitle || 'Performance Chart'}
+Data: ${JSON.stringify(data)}
+
+Provide a 2-3 sentence explanation that:
+- Explains what the chart/statistic shows about the student's learning progress
+- Highlights key trends, strengths, or areas for improvement
+- Uses encouraging, age-appropriate language
+- Focuses on actionable insights
+
+Keep it concise and educational. Return ONLY the explanation text, no additional formatting.`;
+
+				const response = await generateText(prompt, {
+					temperature: 0.7,
+					maxTokens: 300,
+				});
+
+				return NextResponse.json({
+					insight: response.trim(),
+					chartType,
+					chartTitle,
+				});
+			} catch (err) {
+				console.error('❌ Gemini AI Error (Analytics Explanation):', err.message);
+				return NextResponse.json({
+					insight: language === 'bm' 
+						? 'Tidak dapat menganalisis data pada masa ini.' 
+						: 'Unable to analyze data at this time.',
+				});
+			}
+		}
+
 		if (action === 'explain_concept') {
 			try {
 				// Check if Firebase is properly configured

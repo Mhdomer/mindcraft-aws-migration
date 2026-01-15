@@ -170,7 +170,7 @@ export default function MyCoursesPage() {
 						{isStudent && (
 							<Link href="/courses/explore">
 								<Button size="lg" variant="outline">
-									<Search className="h-4 w-4 mr-2" />
+									<Search className="h-5 w-5 mr-2" />
 									Explore Courses
 								</Button>
 							</Link>
@@ -194,7 +194,7 @@ export default function MyCoursesPage() {
 								</p>
 								<Link href="/courses/explore">
 									<Button size="lg">
-										<Search className="h-4 w-4 mr-2" />
+										<Search className="h-5 w-5 mr-2" />
 										Explore Courses
 									</Button>
 								</Link>
@@ -232,7 +232,7 @@ export default function MyCoursesPage() {
 									</CardHeader>
 									<CardContent className="space-y-4">
 										<div className="flex items-center gap-2 text-caption text-muted-foreground">
-											<BookOpen className="h-4 w-4" />
+											<BookOpen className="h-5 w-5" />
 											<span>By: {course.authorName || 'Unknown'}</span>
 										</div>
 
@@ -251,7 +251,7 @@ export default function MyCoursesPage() {
 												<Button variant="default" className="w-full">
 													{isStudent ? (
 														<>
-															<PlayCircle className="h-4 w-4 mr-2" />
+															<PlayCircle className="h-5 w-5 mr-2" />
 															Continue Learning
 														</>
 													) : (
