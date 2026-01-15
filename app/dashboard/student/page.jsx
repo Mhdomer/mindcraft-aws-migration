@@ -4,67 +4,45 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '@/firebase';
 import { useAuth } from '@/app/contexts/AuthContext';
+import { useLanguage } from '@/app/contexts/LanguageContext';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tooltip } from '@/components/ui/tooltip';
 import Link from 'next/link';
-import { BookOpen, FileQuestion, TrendingUp, Brain, ArrowRight, FileText, ClipboardCheck, Gamepad2, ChevronDown, ChevronUp, Lightbulb, AlertCircle, CheckCircle, Loader2, Sparkles } from 'lucide-react';
-import { useLanguage } from '@/app/contexts/LanguageContext';
+import { BookOpen, FileQuestion, TrendingUp, Brain, ArrowRight, FileText, ClipboardCheck, Gamepad2, ChevronDown, ChevronUp, Lightbulb, AlertCircle, CheckCircle, Sparkles } from 'lucide-react';
 import { Metric, Flex, Text, ProgressBar } from '@tremor/react';
 
 export default function StudentDashboard() {
-	const { user, userData } = useAuth();
-	const { language } = useLanguage();
+    const { user, userData } = useAuth();
+    const { language } = useLanguage();
 
-	const [loading, setLoading] = useState(true);
-	const [userName, setUserName] = useState('');
-	const [enrolledCourses, setEnrolledCourses] = useState(0);
-	const [pendingTasks, setPendingTasks] = useState(0);
-	const [overallProgress, setOverallProgress] = useState(0);
-	const [recentAssessments, setRecentAssessments] = useState([]);
-	const [recentCourses, setRecentCourses] = useState([]);
-	const [recommendations, setRecommendations] = useState([]);
-	const [recommendationsLoading, setRecommendationsLoading] = useState(true);
-	const [expandedRecIndex, setExpandedRecIndex] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [userName, setUserName] = useState('');
+    const [enrolledCourses, setEnrolledCourses] = useState(0);
+    const [pendingTasks, setPendingTasks] = useState(0);
+    const [overallProgress, setOverallProgress] = useState(0);
+    const [recentAssessments, setRecentAssessments] = useState([]);
+    const [recentCourses, setRecentCourses] = useState([]);
+    const [recommendations, setRecommendations] = useState([]);
+    const [expandedRecIndex, setExpandedRecIndex] = useState(null);
 
-	const tooltips = {
-		en: {
-			myCourses: 'View all your enrolled courses and continue learning',
-			assessments: 'Take quizzes and exams to test your knowledge',
-			assignments: 'View and submit your assignments',
-			progress: 'Track your learning progress and achievements',
-			aiAssistant: 'Get help from AI assistant for concepts and questions',
-			gameLevels: 'Play interactive learning games',
-		},
-		bm: {
-			myCourses: 'Lihat semua kursus yang anda daftar dan teruskan pembelajaran',
-			assessments: 'Ambil kuiz dan peperiksaan untuk menguji pengetahuan anda',
-			assignments: 'Lihat dan hantar tugasan anda',
-			progress: 'Jejaki kemajuan pembelajaran dan pencapaian anda',
-			aiAssistant: 'Dapatkan bantuan daripada pembantu AI untuk konsep dan soalan',
-			gameLevels: 'Main permainan pembelajaran interaktif',
-		},
-	};
-	const t = tooltips[language] || tooltips.en;
-
-	useEffect(() => {
-		if (user) {
-			setUserName(user.displayName || userData?.name || '');
-			loadDashboardData(user.uid);
-		} else if (!user && !userData) {
-			// If we know auth check is done (loading is false in context, but here loading is local dashboard loading)
-			// effectively if no user, we stop loading dashboard
-			if (userData === null) setLoading(false);
-		}
-	}, [user, userData]);
+    useEffect(() => {
+        if (user) {
+            setUserName(user.displayName || userData?.name || '');
+            loadDashboardData(user.uid);
+        } else if (!user && !userData) {
+            // If we know auth check is done (loading is false in context, but here loading is local dashboard loading)
+            // effectively if no user, we stop loading dashboard
+            if (userData === null) setLoading(false);
+        }
+    }, [user, userData]);
 
     async function loadDashboardData(userId) {
         setLoading(true);
         try {
             // 1. Fetch Enrollments
             const enrollmentsQuery = query(
-                collection(db, 'enrollment'),
+                collection(db, 'progress'),
                 where('studentId', '==', userId)
             );
             const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
@@ -177,7 +155,7 @@ export default function StudentDashboard() {
             setOverallProgress(Math.min(avgProgress, 100)); // Ensure it never exceeds 100%
 
             // Load recommendations preview
-            loadRecommendationsPreview(userId);
+            loadRecommendationsPreview();
         } catch (err) {
             console.error('Error loading dashboard data:', err);
         } finally {
@@ -185,53 +163,31 @@ export default function StudentDashboard() {
         }
     }
 
-    async function loadRecommendationsPreview(userId) {
-        if (!userId) {
-            setRecommendationsLoading(false);
-            return;
-        }
+    async function loadRecommendationsPreview() {
+        if (!user?.uid) return;
 
-        setRecommendationsLoading(true);
         try {
-            // Use the same static recommendations as the main page for consistency
-            // Get one of each priority: high, medium, low
-            const staticRecommendations = [
-                {
-                    id: 'db-normalization',
-                    title: 'Database Normalization',
-                    priority: 'high',
-                    why: 'Normalization is fundamental to database design. Understanding how to organize data into well-structured tables reduces redundancy and improves data integrity.',
-                    overview: 'Learn about the different normal forms (1NF, 2NF, 3NF, BCNF) and how to apply them to your database designs.',
-                    topics: ['First Normal Form (1NF)', 'Second Normal Form (2NF)', 'Third Normal Form (3NF)', 'Boyce-Codd Normal Form (BCNF)', 'Practical examples'],
-                    actionPath: '/courses'
+            // Fetch recommendations client-side to avoid server permission issues
+            const response = await fetch('/api/ai/recommendations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
-                {
-                    id: 'indexing-strategies',
-                    title: 'Database Indexing Strategies',
-                    priority: 'medium',
-                    why: 'Proper indexing dramatically improves query performance. Understanding when and how to create indexes is critical.',
-                    overview: 'Explore different types of indexes and learn when to create indexes for optimal performance.',
-                    topics: ['Types of indexes', 'Composite indexes', 'Index maintenance', 'Query optimization', 'Index monitoring'],
-                    actionPath: '/courses'
-                },
-                {
-                    id: 'stored-procedures',
-                    title: 'Stored Procedures & Functions',
-                    priority: 'low',
-                    why: 'Stored procedures and functions encapsulate business logic in the database, improving performance and maintainability.',
-                    overview: 'Learn to create, use, and optimize stored procedures and functions.',
-                    topics: ['Creating stored procedures', 'Input and output parameters', 'User-defined functions', 'Error handling in procedures', 'Performance considerations'],
-                    actionPath: '/courses'
-                },
-            ];
+                body: JSON.stringify({ language: 'en' }),
+                credentials: 'include', // Include cookies for authentication
+            });
 
-            // One of each priority: high, medium, low
-            setRecommendations(staticRecommendations);
+            if (response.ok) {
+                const data = await response.json();
+                setRecommendations((data.recommendations || []).slice(0, 3)); // Show only first 3
+            } else {
+                // If API fails, just show empty state - don't crash
+                setRecommendations([]);
+            }
         } catch (err) {
             console.error('Error loading recommendations:', err);
+            // Silently fail - recommendations are optional
             setRecommendations([]);
-        } finally {
-            setRecommendationsLoading(false);
         }
     }
 
@@ -249,15 +205,19 @@ export default function StudentDashboard() {
                     <div>
                         <h1 className="text-h1 text-neutralDark flex items-center gap-3">
                             <span className="bg-gradient-to-r from-primary to-emerald-600 bg-clip-text text-transparent">
-                                {userName ? `Welcome back, ${userName}` : 'Student Dashboard'}
+                                {userName
+                                    ? (language === 'bm' ? `Selamat kembali, ${userName}` : `Welcome back, ${userName}`)
+                                    : (language === 'bm' ? 'Papan Pemuka Pelajar' : 'Student Dashboard')}
                             </span>
                             <Sparkles className="h-6 w-6 text-yellow-400 animate-pulse hidden md:block" />
                         </h1>
-                        <p className="text-body text-muted-foreground mt-1">Ready to continue your learning journey today?</p>
+                        <p className="text-body text-muted-foreground mt-1">
+                            {language === 'bm' ? 'Bersedia untuk meneruskan perjalanan pembelajaran anda hari ini?' : 'Ready to continue your learning journey today?'}
+                        </p>
                     </div>
                     <div className="hidden md:block">
                         <p className="text-sm font-medium text-muted-foreground bg-white/50 px-4 py-2 rounded-full border border-gray-100">
-                            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                            {new Date().toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                         </p>
                     </div>
                 </div>
@@ -272,14 +232,18 @@ export default function StudentDashboard() {
                                     <div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
                                         <BookOpen className="h-5 w-5 text-primary" />
                                     </div>
-                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Enrolled Courses</CardTitle>
+                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
+                                        {language === 'bm' ? 'Kursus Berdaftar' : 'Enrolled Courses'}
+                                    </CardTitle>
                                 </Flex>
                             </CardHeader>
                             <CardContent className="z-10 relative">
                                 <Metric className="text-4xl font-bold text-neutralDark">
                                     {loading ? '-' : enrolledCourses}
                                 </Metric>
-                                <Text className="text-sm text-muted-foreground mt-1">Active learning paths</Text>
+                                <Text className="text-sm text-muted-foreground mt-1">
+                                    {language === 'bm' ? 'Laluan pembelajaran aktif' : 'Active learning paths'}
+                                </Text>
                             </CardContent>
                         </Card>
                     </Link>
@@ -292,7 +256,9 @@ export default function StudentDashboard() {
                                     <div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
                                         <TrendingUp className="h-5 w-5 text-indigo-500" />
                                     </div>
-                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Overall Progress</CardTitle>
+                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
+                                        {language === 'bm' ? 'Kemajuan Keseluruhan' : 'Overall Progress'}
+                                    </CardTitle>
                                 </Flex>
                             </CardHeader>
                             <CardContent className="z-10 relative">
@@ -300,7 +266,9 @@ export default function StudentDashboard() {
                                     <Metric className="text-4xl font-bold text-neutralDark">{overallProgress}%</Metric>
                                 </div>
                                 <ProgressBar value={overallProgress} color="indigo" className="mt-3 h-2 rounded-full" />
-                                <Text className="text-sm text-muted-foreground mt-2">Completion rate across all courses</Text>
+                                <Text className="text-sm text-muted-foreground mt-2">
+                                    {language === 'bm' ? 'Kadar penyelesaian semua kursus' : 'Completion rate across all courses'}
+                                </Text>
                             </CardContent>
                         </Card>
                     </Link>
@@ -313,14 +281,18 @@ export default function StudentDashboard() {
                                     <div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
                                         <FileQuestion className="h-5 w-5 text-orange-500" />
                                     </div>
-                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Pending Tasks</CardTitle>
+                                    <CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
+                                        {language === 'bm' ? 'Tugasan Tertunda' : 'Pending Tasks'}
+                                    </CardTitle>
                                 </Flex>
                             </CardHeader>
                             <CardContent className="z-10 relative">
                                 <Metric className="text-4xl font-bold text-neutralDark">
                                     {loading ? '-' : pendingTasks}
                                 </Metric>
-                                <Text className="text-sm text-muted-foreground mt-1">Assessments & assignments to do</Text>
+                                <Text className="text-sm text-muted-foreground mt-1">
+                                    {language === 'bm' ? 'Penilaian & tugasan untuk dilakukan' : 'Assessments & assignments to do'}
+                                </Text>
                             </CardContent>
                         </Card>
                     </Link>
@@ -330,7 +302,9 @@ export default function StudentDashboard() {
                 <div>
                     <div className="flex items-center gap-2 mb-6">
                         <div className="h-6 w-1 bg-primary rounded-full"></div>
-                        <h2 className="text-h2 text-neutralDark">Quick Access</h2>
+                        <h2 className="text-h2 text-neutralDark">
+                            {language === 'bm' ? 'Akses Pantas' : 'Quick Access'}
+                        </h2>
                     </div>
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                         <Link href="/courses" className="group">
@@ -340,11 +314,15 @@ export default function StudentDashboard() {
                                         <BookOpen className="h-8 w-8 text-primary group-hover:scale-110 transition-transform duration-300" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">My Courses</h3>
-                                        <p className="text-sm text-muted-foreground">Access your learning materials</p>
+                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">
+                                            {language === 'bm' ? 'Kursus Saya' : 'My Courses'}
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            {language === 'bm' ? 'Akses bahan pembelajaran anda' : 'Access your learning materials'}
+                                        </p>
                                     </div>
                                     <Button size="sm" variant="ghost" className="text-primary mt-2 group-hover:bg-primary/10">
-                                        View Courses <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        {language === 'bm' ? 'Lihat Kursus' : 'View Courses'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -357,13 +335,17 @@ export default function StudentDashboard() {
                                         <FileQuestion className="h-8 w-8 text-orange-600 group-hover:scale-110 transition-transform duration-300" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">Assessments</h3>
+                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">
+                                            {language === 'bm' ? 'Penilaian' : 'Assessments'}
+                                        </h3>
                                         <p className="text-sm text-muted-foreground">
-                                            {pendingTasks > 0 ? `${pendingTasks} pending tasks` : 'Take quizzes and exams'}
+                                            {pendingTasks > 0
+                                                ? (language === 'bm' ? `${pendingTasks} tugasan tertunda` : `${pendingTasks} pending tasks`)
+                                                : (language === 'bm' ? 'Ambil kuiz dan peperiksaan' : 'Take quizzes and exams')}
                                         </p>
                                     </div>
                                     <Button size="sm" variant="ghost" className="text-orange-600 mt-2 group-hover:bg-orange-100">
-                                        View Assessments <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        {language === 'bm' ? 'Lihat Penilaian' : 'View Assessments'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -376,11 +358,15 @@ export default function StudentDashboard() {
                                         <FileText className="h-8 w-8 text-blue-600 group-hover:scale-110 transition-transform duration-300" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">Assignments</h3>
-                                        <p className="text-sm text-muted-foreground">Submit your homework</p>
+                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">
+                                            {language === 'bm' ? 'Tugasan' : 'Assignments'}
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            {language === 'bm' ? 'Hantar kerja rumah anda' : 'Submit your homework'}
+                                        </p>
                                     </div>
                                     <Button size="sm" variant="ghost" className="text-blue-600 mt-2 group-hover:bg-blue-100">
-                                        View Assignments <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        {language === 'bm' ? 'Lihat Tugasan' : 'View Assignments'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -393,11 +379,15 @@ export default function StudentDashboard() {
                                         <TrendingUp className="h-8 w-8 text-green-600 group-hover:scale-110 transition-transform duration-300" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">My Progress</h3>
-                                        <p className="text-sm text-muted-foreground">Track your performance</p>
+                                        <h3 className="text-lg font-semibold text-neutralDark mb-1">
+                                            {language === 'bm' ? 'Kemajuan Saya' : 'My Progress'}
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            {language === 'bm' ? 'Jejak prestasi anda' : 'Track your performance'}
+                                        </p>
                                     </div>
                                     <Button size="sm" variant="ghost" className="text-green-600 mt-2 group-hover:bg-green-100">
-                                        View Stats <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        {language === 'bm' ? 'Lihat Statistik' : 'View Stats'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -411,12 +401,14 @@ export default function StudentDashboard() {
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-2">
                                 <div className="h-6 w-1 bg-orange-500 rounded-full"></div>
-                                <h2 className="text-h2 text-neutralDark">Priorities</h2>
+                                <h2 className="text-h2 text-neutralDark">
+                                    {language === 'bm' ? 'Keutamaan' : 'Priorities'}
+                                </h2>
                             </div>
                             {recentAssessments.length > 0 && (
                                 <Link href="/assessments">
                                     <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-neutralDark">
-                                        View All
+                                        {language === 'bm' ? 'Lihat Semua' : 'View All'}
                                     </Button>
                                 </Link>
                             )}
@@ -431,11 +423,11 @@ export default function StudentDashboard() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <h4 className="font-semibold text-neutralDark truncate">{assessment.title}</h4>
-                                            <p className="text-sm text-muted-foreground capitalize">{assessment.type || 'Assessment'}</p>
+                                            <p className="text-sm text-muted-foreground capitalize">{assessment.type || (language === 'bm' ? 'Penilaian' : 'Assessment')}</p>
                                         </div>
                                         <Link href={`/assessments/${assessment.id}/take`}>
                                             <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-4 shadow-sm hover:shadow">
-                                                Start
+                                                {language === 'bm' ? 'Mula' : 'Start'}
                                             </Button>
                                         </Link>
                                     </div>
@@ -446,8 +438,12 @@ export default function StudentDashboard() {
                                 <div className="inline-flex p-4 bg-gray-50 rounded-full mb-3">
                                     <CheckCircle className="h-6 w-6 text-gray-400" />
                                 </div>
-                                <p className="text-neutralDark font-medium">All caught up!</p>
-                                <p className="text-sm text-muted-foreground">No pending assessments at the moment.</p>
+                                <p className="text-neutralDark font-medium">
+                                    {language === 'bm' ? 'Semua telah selesai!' : 'All caught up!'}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                    {language === 'bm' ? 'Tiada penilaian tertunda pada masa ini.' : 'No pending assessments at the moment.'}
+                                </p>
                             </div>
                         )}
                     </div>
@@ -460,11 +456,13 @@ export default function StudentDashboard() {
                                 <div className="flex items-center justify-between mb-6">
                                     <div className="flex items-center gap-2">
                                         <div className="h-6 w-1 bg-primary rounded-full"></div>
-                                        <h2 className="text-h2 text-neutralDark">Recent Courses</h2>
+                                        <h2 className="text-h2 text-neutralDark">
+                                            {language === 'bm' ? 'Kursus Terkini' : 'Recent Courses'}
+                                        </h2>
                                     </div>
                                     <Link href="/courses">
                                         <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-neutralDark">
-                                            View All
+                                            {language === 'bm' ? 'Lihat Semua' : 'View All'}
                                         </Button>
                                     </Link>
                                 </div>
@@ -479,7 +477,7 @@ export default function StudentDashboard() {
                                                 <div className="flex-1 min-w-0">
                                                     <h4 className="font-semibold text-neutralDark truncate group-hover:text-primary transition-colors">{course.title}</h4>
                                                 </div>
-                                                <ChevronDown className="h-5 w-5 text-gray-300 -rotate-90 group-hover:text-primary transition-colors" />
+                                                <ChevronDown className="h-4 w-4 text-gray-300 -rotate-90 group-hover:text-primary transition-colors" />
                                             </div>
                                         </Link>
                                     ))}
@@ -493,13 +491,13 @@ export default function StudentDashboard() {
                                 <div className="flex items-center gap-2">
                                     <div className="h-6 w-1 bg-purple-500 rounded-full"></div>
                                     <h2 className="text-h2 text-neutralDark flex items-center gap-2">
-                                        AI Insights
-                                        <Sparkles className="h-5 w-5 text-purple-500" />
+                                        {language === 'bm' ? 'Wawasan AI' : 'AI Insights'}
+                                        <Sparkles className="h-4 w-4 text-purple-500" />
                                     </h2>
                                 </div>
                                 <Link href="/ai">
                                     <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-neutralDark">
-                                        AI Assistant
+                                        {language === 'bm' ? 'Pembantu AI' : 'AI Assistant'}
                                     </Button>
                                 </Link>
                             </div>
@@ -510,26 +508,18 @@ export default function StudentDashboard() {
                                         const isExpanded = expandedRecIndex === index;
                                         const getPriorityIcon = (priority) => {
                                             switch (priority) {
-                                                case 'high': return <AlertCircle className="h-6 w-6 text-red-500" />;
-                                                case 'medium': return <TrendingUp className="h-6 w-6 text-yellow-500" />;
-                                                case 'low': return <CheckCircle className="h-6 w-6 text-green-500" />;
-                                                default: return <Lightbulb className="h-6 w-6 text-purple-500" />;
-                                            }
-                                        };
-                                        const getPriorityBorderColor = (priority) => {
-                                            switch (priority) {
-                                                case 'high': return 'border-l-red-500';
-                                                case 'medium': return 'border-l-yellow-500';
-                                                case 'low': return 'border-l-green-500';
-                                                default: return 'border-l-purple-500';
+                                                case 'high': return <AlertCircle className="h-5 w-5 text-red-500" />;
+                                                case 'medium': return <TrendingUp className="h-5 w-5 text-yellow-500" />;
+                                                case 'low': return <CheckCircle className="h-5 w-5 text-green-500" />;
+                                                default: return <Lightbulb className="h-5 w-5 text-purple-500" />;
                                             }
                                         };
 
                                         return (
                                             <div
-                                                key={rec.id || index}
+                                                key={index}
                                                 className={`
-													bg-white rounded-xl border-l-4 ${getPriorityBorderColor(rec.priority)} border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer
+													bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer
 													${isExpanded ? 'ring-2 ring-purple-100' : ''}
 												`}
                                                 onClick={() => setExpandedRecIndex(isExpanded ? null : index)}
@@ -541,80 +531,23 @@ export default function StudentDashboard() {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center justify-between">
                                                             <h3 className="text-sm font-semibold text-neutralDark">{rec.title}</h3>
-                                                            {isExpanded ? <ChevronUp className="h-5 w-5 text-gray-400" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
+                                                            {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
                                                         </div>
-                                                        {isExpanded && (
-                                                            <div className={`mt-3 text-sm text-muted-foreground border-t pt-3 animate-fadeIn space-y-3 ${
-                                                                rec.priority === 'high' ? 'border-red-500/20' :
-                                                                rec.priority === 'medium' ? 'border-yellow-500/20' :
-                                                                rec.priority === 'low' ? 'border-green-500/20' : 'border-gray-50'
-                                                            }`}>
-                                                                <div>
-                                                                    <h4 className={`text-xs font-semibold mb-1 flex items-center gap-1 ${
-                                                                        rec.priority === 'high' ? 'text-red-700 dark:text-red-400' :
-                                                                        rec.priority === 'medium' ? 'text-yellow-700 dark:text-yellow-400' :
-                                                                        rec.priority === 'low' ? 'text-green-700 dark:text-green-400' : 'text-neutralDark'
-                                                                    }`}>
-                                                                        <Lightbulb className={`h-4 w-4 ${
-                                                                            rec.priority === 'high' ? 'text-red-500' :
-                                                                            rec.priority === 'medium' ? 'text-yellow-500' :
-                                                                            rec.priority === 'low' ? 'text-green-500' : 'text-primary'
-                                                                        }`} />
-                                                                        Why This Matters
-                                                                    </h4>
-                                                                    <p className="text-xs text-muted-foreground leading-relaxed">
-                                                                        {rec.why}
-                                                                    </p>
-                                                                </div>
-                                                                <div>
-                                                                    <h4 className={`text-xs font-semibold mb-1 flex items-center gap-1 ${
-                                                                        rec.priority === 'high' ? 'text-red-700 dark:text-red-400' :
-                                                                        rec.priority === 'medium' ? 'text-yellow-700 dark:text-yellow-400' :
-                                                                        rec.priority === 'low' ? 'text-green-700 dark:text-green-400' : 'text-neutralDark'
-                                                                    }`}>
-                                                                        <BookOpen className={`h-4 w-4 ${
-                                                                            rec.priority === 'high' ? 'text-red-500' :
-                                                                            rec.priority === 'medium' ? 'text-yellow-500' :
-                                                                            rec.priority === 'low' ? 'text-green-500' : 'text-primary'
-                                                                        }`} />
-                                                                        Overview
-                                                                    </h4>
-                                                                    <p className="text-xs text-muted-foreground leading-relaxed">
-                                                                        {rec.overview}
-                                                                    </p>
-                                                                </div>
-                                                                <div className="flex gap-2 pt-2">
+                                                        {(isExpanded) && (
+                                                            <div className="mt-3 text-sm text-muted-foreground border-t border-gray-50 pt-3 animate-fadeIn">
+                                                                <p className="mb-3">{rec.description}</p>
+                                                                {rec.action?.path && (
                                                                     <Button
                                                                         size="sm"
-                                                                        className={
-                                                                            rec.priority === 'high' ? 'bg-red-500 hover:bg-red-600 text-white' :
-                                                                            rec.priority === 'medium' ? 'bg-yellow-500 hover:bg-yellow-600 text-white' :
-                                                                            rec.priority === 'low' ? 'bg-green-500 hover:bg-green-600 text-white' : ''
-                                                                        }
+                                                                        className="w-full bg-purple-50 hover:bg-purple-100 text-purple-700 border-none"
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
-                                                                            window.location.href = rec.actionPath || '/courses';
+                                                                            window.location.href = rec.action.path;
                                                                         }}
                                                                     >
-                                                                        Explore Courses
-                                                                        <ArrowRight className="h-5 w-5 ml-1" />
+                                                                        {rec.action.label || (language === 'bm' ? 'Lihat' : 'View')} <ArrowRight className="h-3 w-3 ml-2" />
                                                                     </Button>
-                                                                    <Button
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        className={
-                                                                            rec.priority === 'high' ? 'border-red-500 text-red-500 hover:bg-red-50' :
-                                                                            rec.priority === 'medium' ? 'border-yellow-500 text-yellow-500 hover:bg-yellow-50' :
-                                                                            rec.priority === 'low' ? 'border-green-500 text-green-500 hover:bg-green-50' : ''
-                                                                        }
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            window.location.href = `/ai/explain?topic=${encodeURIComponent(`Database topic: ${rec.title}`)}`;
-                                                                        }}
-                                                                    >
-                                                                        Ask AI
-                                                                    </Button>
-                                                                </div>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>
@@ -626,8 +559,12 @@ export default function StudentDashboard() {
                             ) : (
                                 <div className="bg-purple-50/50 rounded-xl p-6 text-center border border-purple-100">
                                     <Brain className="h-8 w-8 text-purple-300 mx-auto mb-2" />
-                                    <p className="text-sm text-purple-900 font-medium">AI is analyzing your progress...</p>
-                                    <p className="text-xs text-purple-600/70 mt-1">Check back later for personalized tips.</p>
+                                    <p className="text-sm text-purple-900 font-medium">
+                                        {language === 'bm' ? 'AI sedang menganalisis kemajuan anda...' : 'AI is analyzing your progress...'}
+                                    </p>
+                                    <p className="text-xs text-purple-600/70 mt-1">
+                                        {language === 'bm' ? 'Semak semula kemudian untuk petua peribadi.' : 'Check back later for personalized tips.'}
+                                    </p>
                                 </div>
                             )}
                         </div>

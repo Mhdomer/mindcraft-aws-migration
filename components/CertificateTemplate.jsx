@@ -1,7 +1,7 @@
 import React, { forwardRef } from 'react';
 import { Award, GraduationCap } from 'lucide-react';
 
-const CertificateTemplate = forwardRef(({ studentName, courseName, completionDate, instructorName }, ref) => {
+const CertificateTemplate = forwardRef(({ studentName, courseName, completionDate, instructorName, language = 'en' }, ref) => {
     return (
         <div ref={ref} className="w-[800px] h-[600px] bg-white p-8 relative overflow-hidden text-neutral-900 font-serif" style={{ minWidth: '800px', minHeight: '600px' }}>
             {/* Decorative Border */}
@@ -20,10 +20,10 @@ const CertificateTemplate = forwardRef(({ studentName, courseName, completionDat
                         <Award size={32} />
                     </div>
                     <h1 className="text-4xl font-bold tracking-widest uppercase text-amber-600 mb-2 font-serif">
-                        Certificate of Completion
+                        {language === 'bm' ? 'Sijil Tamat Kursus' : 'Certificate of Completion'}
                     </h1>
                     <p className="text-sm text-neutral-500 uppercase tracking-[0.2em] font-sans">
-                        This certifies that
+                        {language === 'bm' ? 'Ini memperakui bahawa' : 'This certifies that'}
                     </p>
                 </div>
 
@@ -38,7 +38,7 @@ const CertificateTemplate = forwardRef(({ studentName, courseName, completionDat
 
                     {/* Completion Text */}
                     <p className="text-neutral-600 font-sans text-lg tracking-wide">
-                        has successfully completed the course
+                        {language === 'bm' ? 'telah berjaya menamatkan kursus' : 'has successfully completed the course'}
                     </p>
 
                     {/* Course Title */}
@@ -48,7 +48,9 @@ const CertificateTemplate = forwardRef(({ studentName, courseName, completionDat
 
                     {/* Description */}
                     <p className="text-neutral-500 text-sm max-w-lg mx-auto leading-relaxed mt-2 font-sans">
-                        Demonstrating exceptional dedication and mastery of the curriculum, including all required modules, assessments, and practical assignments.
+                        {language === 'bm'
+                            ? 'Mempamerkan dedikasi dan penguasaan kurikulum yang luar biasa, termasuk semua modul, penilaian, dan tugasan praktikal yang diperlukan.'
+                            : 'Demonstrating exceptional dedication and mastery of the curriculum, including all required modules, assessments, and practical assignments.'}
                     </p>
                 </div>
 
@@ -57,7 +59,9 @@ const CertificateTemplate = forwardRef(({ studentName, courseName, completionDat
                     <div className="text-center flex flex-col items-center">
                         <span className="font-sans text-xl text-neutral-800 mb-1 font-semibold">{completionDate}</span>
                         <div className="w-48 border-b border-neutral-300 mb-2"></div>
-                        <p className="text-xs uppercase tracking-wider text-neutral-400 font-sans">Date Completed</p>
+                        <p className="text-xs uppercase tracking-wider text-neutral-400 font-sans">
+                            {language === 'bm' ? 'Tarikh Tamat' : 'Date Completed'}
+                        </p>
                     </div>
 
                     <div className="flex items-center gap-2 mb-2">
@@ -66,7 +70,9 @@ const CertificateTemplate = forwardRef(({ studentName, courseName, completionDat
                         </div>
                         <div className="text-left">
                             <p className="text-xs font-bold text-amber-600 uppercase tracking-wider">MindCraft</p>
-                            <p className="text-[10px] text-neutral-400 uppercase">Academy</p>
+                            <p className="text-xs text-neutral-400 uppercase">
+                                {language === 'bm' ? 'Akademi' : 'Academy'}
+                            </p>
                         </div>
                     </div>
 
@@ -75,7 +81,9 @@ const CertificateTemplate = forwardRef(({ studentName, courseName, completionDat
                             {instructorName || 'MindCraft Instructor'}
                         </span>
                         <div className="w-48 border-b border-neutral-300 mb-2"></div>
-                        <p className="text-xs uppercase tracking-wider text-neutral-400 font-sans">Instructor Signature</p>
+                        <p className="text-xs uppercase tracking-wider text-neutral-400 font-sans">
+                            {language === 'bm' ? 'Tandatangan Pengajar' : 'Instructor Signature'}
+                        </p>
                     </div>
                 </div>
             </div>

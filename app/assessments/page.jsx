@@ -98,11 +98,11 @@ export default function AssessmentsPage() {
 				}
 
 				try {
-					const enrollmentsQuery = query(
-						collection(db, 'enrollment'),
+					const enrollmentQuery = query(
+						collection(db, 'progress'),
 						where('studentId', '==', currentUserId)
 					);
-					const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
+					const enrollmentsSnapshot = await getDocs(enrollmentQuery);
 					enrolledCourseIds = enrollmentsSnapshot.docs.map(doc => {
 						const data = doc.data();
 						return data.courseId;

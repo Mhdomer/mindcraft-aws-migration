@@ -80,7 +80,7 @@ export default function CourseManagement({ course, currentUserId, currentRole, o
 
 			const enrollmentRefs = [];
 			const enrollmentsSnap = await getDocs(
-				query(collection(db, 'enrollment'), where('courseId', '==', course.id))
+				query(collection(db, 'progress'), where('courseId', '==', course.id))
 			);
 			for (const d of enrollmentsSnap.docs) {
 				enrollmentRefs.push(d.ref);

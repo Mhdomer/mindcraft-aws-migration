@@ -90,6 +90,37 @@ export function AuthProvider({ children }) {
         };
     }, []);
 
+    // Session Timeout Logic (1 Hour)
+    useEffect(() => {
+        if (!user) return;
+
+        let timeoutId;
+        const TIMEOUT_DURATION = 3600000; // 1 hour in milliseconds
+
+        const resetTimer = () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                console.log('Session expired due to inactivity.');
+                auth.signOut();
+            }, TIMEOUT_DURATION);
+        };
+
+        // Events to listen for
+        const events = ['mousedown', 'keydown', 'touchstart', 'mousemove', 'scroll'];
+
+        // Add listeners
+        events.forEach(event => document.addEventListener(event, resetTimer));
+
+        // Start timer initially
+        resetTimer();
+
+        // Cleanup
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            events.forEach(event => document.removeEventListener(event, resetTimer));
+        };
+    }, [user]);
+
     return (
         <AuthContext.Provider value={{ user, userData, loading }}>
             {children}

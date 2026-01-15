@@ -6,10 +6,12 @@ import Link from 'next/link';
 import { FileText, BookOpen, ClipboardCheck, Brain, ArrowRight, Sparkles, Plus, GraduationCap, Gamepad2 } from 'lucide-react';
 import { Metric, Flex, Text } from '@tremor/react';
 import { useAuth } from '@/app/contexts/AuthContext';
+import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useState, useEffect } from 'react';
 
 export default function TeacherDashboard() {
 	const { user, userData } = useAuth();
+	const { language } = useLanguage();
 	const [userName, setUserName] = useState('');
 	const [loading, setLoading] = useState(true);
 	const [stats, setStats] = useState({
@@ -31,10 +33,28 @@ export default function TeacherDashboard() {
 	async function fetchDashboardData(userId) {
 		setLoading(true);
 		try {
-			// 1. Fetch Teacher's Courses
-			const coursesQuery = query(collection(db, 'course'), where('createdBy', '==', userId));
-			const coursesSnapshot = await getDocs(coursesQuery);
-			const courses = coursesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+			// 1. Fetch Teacher's Courses (robust strategy)
+			const coursesQueryById = query(collection(db, 'course'), where('createdBy', '==', userId));
+
+			// Fallback/Legacy support: Query by author name matches too
+			// This handles cases where data was manually seeded or auth uids changed
+			const userNameAttempt = user.displayName || userData?.name;
+			let coursesQueryByName = null;
+			if (userNameAttempt) {
+				coursesQueryByName = query(collection(db, 'course'), where('authorName', '==', userNameAttempt));
+			}
+
+			const [snapId, snapName] = await Promise.all([
+				getDocs(coursesQueryById),
+				coursesQueryByName ? getDocs(coursesQueryByName) : Promise.resolve({ docs: [] })
+			]);
+
+			// Merge and Deduplicate
+			const courseMap = new Map();
+			snapId.docs.forEach(doc => courseMap.set(doc.id, { id: doc.id, ...doc.data() }));
+			snapName.docs.forEach(doc => courseMap.set(doc.id, { id: doc.id, ...doc.data() }));
+
+			const courses = Array.from(courseMap.values());
 			const courseIds = courses.map(c => c.id);
 
 			let totalStudents = 0;
@@ -50,7 +70,7 @@ export default function TeacherDashboard() {
 				}
 
 				for (const chunk of chunks) {
-					const enrollmentsQuery = query(collection(db, 'enrollment'), where('courseId', 'in', chunk));
+					const enrollmentsQuery = query(collection(db, 'progress'), where('courseId', 'in', chunk));
 					const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
 					totalStudents += enrollmentsSnapshot.size;
 
@@ -115,7 +135,7 @@ export default function TeacherDashboard() {
 									activities.push({
 										type: 'submission',
 										date: data.submittedAt?.toDate ? data.submittedAt.toDate() : new Date(),
-										title: 'New Submission',
+										title: language === 'bm' ? 'Tugasan Baharu' : 'New Submission',
 										id: d.id
 									});
 								}
@@ -159,15 +179,21 @@ export default function TeacherDashboard() {
 					<div>
 						<h1 className="text-h1 text-neutralDark flex items-center gap-3">
 							<span className="bg-gradient-to-r from-primary to-emerald-600 bg-clip-text text-transparent">
-								{userName ? `Welcome back, ${userName}` : 'Teacher Dashboard'}
+								{userName
+									? (language === 'bm' ? `Selamat kembali, ${userName}` : `Welcome back, ${userName}`)
+									: (language === 'bm' ? 'Papan Pemuka Guru' : 'Teacher Dashboard')}
 							</span>
 							<Sparkles className="h-6 w-6 text-yellow-400 animate-pulse hidden md:block" />
 						</h1>
-						<p className="text-body text-muted-foreground mt-1">Manage your courses, students, and grading from here.</p>
+						<p className="text-body text-muted-foreground mt-1">
+							{language === 'bm'
+								? 'Urus kursus, pelajar dan penggredan anda dari sini.'
+								: 'Manage your courses, students, and grading from here.'}
+						</p>
 					</div>
 					<div className="hidden md:block">
 						<p className="text-sm font-medium text-muted-foreground bg-white/50 px-4 py-2 rounded-full border border-gray-100">
-							{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+							{new Date().toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
 						</p>
 					</div>
 				</div>
@@ -182,12 +208,16 @@ export default function TeacherDashboard() {
 									<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
 										<BookOpen className="h-5 w-5 text-primary" />
 									</div>
-									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">My Courses</CardTitle>
+									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
+										{language === 'bm' ? 'Kursus Saya' : 'My Courses'}
+									</CardTitle>
 								</Flex>
 							</CardHeader>
 							<CardContent className="z-10 relative">
 								<Metric className="text-4xl font-bold text-neutralDark">{loading ? '-' : stats.courses}</Metric>
-								<Text className="text-sm text-muted-foreground mt-1">Published and draft content</Text>
+								<Text className="text-sm text-muted-foreground mt-1">
+									{language === 'bm' ? 'Kandungan diterbitkan dan draf' : 'Published and draft content'}
+								</Text>
 							</CardContent>
 						</Card>
 					</Link>
@@ -200,12 +230,16 @@ export default function TeacherDashboard() {
 									<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
 										<ClipboardCheck className="h-5 w-5 text-orange-500" />
 									</div>
-									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Pending Grades</CardTitle>
+									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
+										{language === 'bm' ? 'Gred Tertunda' : 'Pending Grades'}
+									</CardTitle>
 								</Flex>
 							</CardHeader>
 							<CardContent className="z-10 relative">
 								<Metric className="text-4xl font-bold text-neutralDark">{loading ? '-' : stats.pendingGrades}</Metric>
-								<Text className="text-sm text-muted-foreground mt-1">Assignments requiring review</Text>
+								<Text className="text-sm text-muted-foreground mt-1">
+									{language === 'bm' ? 'Tugasan memerlukan semakan' : 'Assignments requiring review'}
+								</Text>
 							</CardContent>
 						</Card>
 					</Link>
@@ -218,12 +252,16 @@ export default function TeacherDashboard() {
 									<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
 										<GraduationCap className="h-5 w-5 text-sky-500" />
 									</div>
-									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">Total Students</CardTitle>
+									<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
+										{language === 'bm' ? 'Jumlah Pelajar' : 'Total Students'}
+									</CardTitle>
 								</Flex>
 							</CardHeader>
 							<CardContent className="z-10 relative">
 								<Metric className="text-4xl font-bold text-neutralDark">{loading ? '-' : stats.students}</Metric>
-								<Text className="text-sm text-muted-foreground mt-1">Enrolled across all courses</Text>
+								<Text className="text-sm text-muted-foreground mt-1">
+									{language === 'bm' ? 'Mendaftar di semua kursus' : 'Enrolled across all courses'}
+								</Text>
 							</CardContent>
 						</Card>
 					</Link>
@@ -233,7 +271,9 @@ export default function TeacherDashboard() {
 				<div>
 					<div className="flex items-center gap-2 mb-6">
 						<div className="h-6 w-1 bg-primary rounded-full"></div>
-						<h2 className="text-h2 text-neutralDark">Quick Actions</h2>
+						<h2 className="text-h2 text-neutralDark">
+							{language === 'bm' ? 'Tindakan Pantas' : 'Quick Actions'}
+						</h2>
 					</div>
 					<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
 						<Link href="/dashboard/courses/new" className="group">
@@ -243,11 +283,15 @@ export default function TeacherDashboard() {
 										<Plus className="h-8 w-8 text-emerald-600 group-hover:scale-110 transition-transform duration-300" />
 									</div>
 									<div>
-										<h3 className="text-lg font-semibold text-neutralDark mb-1">Create Course</h3>
-										<p className="text-sm text-muted-foreground">Start building new content</p>
+										<h3 className="text-lg font-semibold text-neutralDark mb-1">
+											{language === 'bm' ? 'Cipta Kursus' : 'Create Course'}
+										</h3>
+										<p className="text-sm text-muted-foreground">
+											{language === 'bm' ? 'Mula membina kandungan baharu' : 'Start building new content'}
+										</p>
 									</div>
 									<Button size="sm" variant="ghost" className="text-emerald-600 mt-2 group-hover:bg-emerald-100">
-										Create Now <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+										{language === 'bm' ? 'Cipta Sekarang' : 'Create Now'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
 									</Button>
 								</CardContent>
 							</Card>
@@ -260,11 +304,15 @@ export default function TeacherDashboard() {
 										<BookOpen className="h-8 w-8 text-blue-600 group-hover:scale-110 transition-transform duration-300" />
 									</div>
 									<div>
-										<h3 className="text-lg font-semibold text-neutralDark mb-1">My Courses</h3>
-										<p className="text-sm text-muted-foreground">Manage existing courses</p>
+										<h3 className="text-lg font-semibold text-neutralDark mb-1">
+											{language === 'bm' ? 'Kursus Saya' : 'My Courses'}
+										</h3>
+										<p className="text-sm text-muted-foreground">
+											{language === 'bm' ? 'Urus kursus sedia ada' : 'Manage existing courses'}
+										</p>
 									</div>
 									<Button size="sm" variant="ghost" className="text-blue-600 mt-2 group-hover:bg-blue-100">
-										View All <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+										{language === 'bm' ? 'Lihat Semua' : 'View All'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
 									</Button>
 								</CardContent>
 							</Card>
@@ -277,11 +325,15 @@ export default function TeacherDashboard() {
 										<ClipboardCheck className="h-8 w-8 text-orange-600 group-hover:scale-110 transition-transform duration-300" />
 									</div>
 									<div>
-										<h3 className="text-lg font-semibold text-neutralDark mb-1">Assignments</h3>
-										<p className="text-sm text-muted-foreground">Review and grade work</p>
+										<h3 className="text-lg font-semibold text-neutralDark mb-1">
+											{language === 'bm' ? 'Tugasan' : 'Assignments'}
+										</h3>
+										<p className="text-sm text-muted-foreground">
+											{language === 'bm' ? 'Semak dan gred kerja' : 'Review and grade work'}
+										</p>
 									</div>
 									<Button size="sm" variant="ghost" className="text-orange-600 mt-2 group-hover:bg-orange-100">
-										Manage <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+										{language === 'bm' ? 'Urus' : 'Manage'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
 									</Button>
 								</CardContent>
 							</Card>
@@ -294,11 +346,15 @@ export default function TeacherDashboard() {
 										<Gamepad2 className="h-8 w-8 text-purple-600 group-hover:scale-110 transition-transform duration-300" />
 									</div>
 									<div>
-										<h3 className="text-lg font-semibold text-neutralDark mb-1">Game Levels</h3>
-										<p className="text-sm text-muted-foreground">Level management</p>
+										<h3 className="text-lg font-semibold text-neutralDark mb-1">
+											{language === 'bm' ? 'Tahap Permainan' : 'Game Levels'}
+										</h3>
+										<p className="text-sm text-muted-foreground">
+											{language === 'bm' ? 'Pengurusan tahap' : 'Level management'}
+										</p>
 									</div>
 									<Button size="sm" variant="ghost" className="text-purple-600 mt-2 group-hover:bg-purple-100">
-										Manage <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+										{language === 'bm' ? 'Urus' : 'Manage'} <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
 									</Button>
 								</CardContent>
 							</Card>
@@ -310,12 +366,16 @@ export default function TeacherDashboard() {
 				<div>
 					<div className="flex items-center gap-2 mb-6">
 						<div className="h-6 w-1 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
-						<h2 className="text-h2 text-neutralDark">Recent Activity</h2>
+						<h2 className="text-h2 text-neutralDark">
+							{language === 'bm' ? 'Aktiviti Terkini' : 'Recent Activity'}
+						</h2>
 					</div>
 
 					{loading ? (
 						<div className="flex items-center justify-center p-12 bg-white rounded-2xl shadow-sm border border-neutral-100">
-							<p className="text-muted-foreground">Loading activity...</p>
+							<p className="text-muted-foreground">
+								{language === 'bm' ? 'Memuatkan aktiviti...' : 'Loading activity...'}
+							</p>
 						</div>
 					) : recentActivity.length > 0 ? (
 						<div className="bg-white rounded-2xl shadow-sm border border-neutral-100 overflow-hidden">
@@ -332,17 +392,19 @@ export default function TeacherDashboard() {
 										</div>
 										<div className="flex-1">
 											<p className="font-medium text-neutralDark">
-												{activity.type === 'enrollment' ? 'New student enrolled' : 'New submission received'}
+												{activity.type === 'enrollment'
+													? (language === 'bm' ? 'Pelajar baharu mendaftar' : 'New student enrolled')
+													: (language === 'bm' ? 'Tugasan baharu diterima' : 'New submission received')}
 											</p>
 											<p className="text-xs text-muted-foreground">
-												{activity.date.toLocaleDateString(undefined, {
+												{activity.date.toLocaleDateString(language === 'bm' ? 'ms-MY' : undefined, {
 													month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
 												})}
 											</p>
 										</div>
 										<Link href={activity.type === 'enrollment' ? '/admin/users' : '/assignments'}>
 											<Button variant="ghost" size="sm" className="hidden sm:flex">
-												View <ArrowRight className="h-4 w-4 ml-2" />
+												{language === 'bm' ? 'Lihat' : 'View'} <ArrowRight className="h-4 w-4 ml-2" />
 											</Button>
 										</Link>
 									</div>
@@ -354,13 +416,17 @@ export default function TeacherDashboard() {
 							<div className="p-4 bg-gray-50 rounded-full mb-4">
 								<Sparkles className="h-8 w-8 text-gray-300" />
 							</div>
-							<h3 className="text-lg font-semibold text-neutralDark mb-2">No data yet</h3>
+							<h3 className="text-lg font-semibold text-neutralDark mb-2">
+								{language === 'bm' ? 'Tiada data lagi' : 'No data yet'}
+							</h3>
 							<p className="text-sm text-muted-foreground max-w-sm mb-4">
-								When students enroll or submit work, you'll see the activity here. Create your first course to get started!
+								{language === 'bm'
+									? 'Apabila pelajar mendaftar atau menghantar kerja, anda akan melihat aktiviti di sini. Cipta kursus pertama anda untuk bermula!'
+									: "When students enroll or submit work, you'll see the activity here. Create your first course to get started!"}
 							</p>
 							<Link href="/dashboard/courses/new">
 								<Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
-									Create Course <Plus className="h-4 w-4 ml-2" />
+									{language === 'bm' ? 'Cipta Kursus' : 'Create Course'} <Plus className="h-4 w-4 ml-2" />
 								</Button>
 							</Link>
 						</div>
