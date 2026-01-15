@@ -151,8 +151,12 @@ export default function AnalyticsPage() {
 		}
 		setAnalyticsLoading(true);
 		try {
-			// 2. Fetch Enrollments
-			const enrollmentsQuery = query(collection(db, 'progress'), where('courseId', 'in', courseIds));
+			// Get all enrollments for this course
+			// Try querying by courseId field first
+			const enrollmentsQuery = query(
+				collection(db, 'progress'),
+				where('courseId', '==', selectedCourseId)
+			);
 			const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
 			let enrollments = enrollmentsSnapshot.docs.map(doc => ({
 				id: doc.id,
@@ -178,7 +182,7 @@ export default function AnalyticsPage() {
 
 					// Find all enrollments for this student
 					const student4EnrollmentsQuery = query(
-						collection(db, 'enrollment'),
+						collection(db, 'progress'),
 						where('studentId', '==', student4.id)
 					);
 					const student4EnrollmentsSnapshot = await getDocs(student4EnrollmentsQuery);
@@ -216,7 +220,7 @@ export default function AnalyticsPage() {
 											console.log('Analytics Debug - COURSE ID MISMATCH! Using correct course ID...');
 											// Re-query with correct course ID
 											const correctQuery = query(
-												collection(db, 'enrollment'),
+												collection(db, 'progress'),
 												where('courseId', '==', courseIdToCheck)
 											);
 											const correctSnapshot = await getDocs(correctQuery);
@@ -270,7 +274,7 @@ export default function AnalyticsPage() {
 			// This handles cases where courseId might be stored differently
 			if (enrollments.length === 0) {
 				console.log('Analytics Debug - No enrollments found with courseId field, trying alternative method...');
-				const allEnrollmentsSnapshot = await getDocs(collection(db, 'enrollment'));
+				const allEnrollmentsSnapshot = await getDocs(collection(db, 'progress'));
 				const allEnrollments = allEnrollmentsSnapshot.docs.map(doc => ({
 					id: doc.id,
 					...doc.data(),
@@ -298,7 +302,7 @@ export default function AnalyticsPage() {
 					if (sqlCourse.id !== courseId) {
 						console.log('Analytics Debug - Course ID mismatch! Trying with correct course ID...');
 						const correctEnrollmentsQuery = query(
-							collection(db, 'enrollment'),
+							collection(db, 'progress'),
 							where('courseId', '==', sqlCourse.id)
 						);
 						const correctEnrollmentsSnapshot = await getDocs(correctEnrollmentsQuery);

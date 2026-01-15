@@ -13,7 +13,6 @@ import { ArrowLeft, ArrowRight, BookOpen, Download, FileText, File, ShieldCheck,
 import Link from 'next/link';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import LessonExercise from '@/components/LessonExercise';
 
 export default function LessonPage() {
 	const params = useParams();
@@ -64,7 +63,7 @@ export default function LessonPage() {
 						if (role === 'student') {
 							try {
 								const enrollmentId = `${currentUser.uid}_${courseId}`;
-								const enrollmentDoc = await getDoc(doc(db, 'progress', enrollmentId));
+								const enrollmentDoc = await getDoc(doc(db, 'enrollment', enrollmentId));
 								const enrolled = enrollmentDoc.exists();
 								setIsEnrolled(enrolled);
 
@@ -431,7 +430,7 @@ export default function LessonPage() {
 		setCompleting(true);
 		try {
 			const enrollmentId = `${user.uid}_${courseId}`;
-			const enrollmentRef = doc(db, 'progress', enrollmentId);
+			const enrollmentRef = doc(db, 'enrollment', enrollmentId);
 			const newStatus = !isCompleted;
 
 			// 1. Update the completedLessons array
@@ -716,15 +715,6 @@ export default function LessonPage() {
 						)}
 					</CardContent>
 				</Card>
-
-				{/* Exercises Section */}
-				{userRole && user && (
-					<LessonExercise 
-						lessonId={lessonId} 
-						userRole={userRole} 
-						userId={user.uid}
-					/>
-				)}
 
 				{/* Style for lesson content */}
 				<style jsx global>{`

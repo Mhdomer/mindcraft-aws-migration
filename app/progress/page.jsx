@@ -21,7 +21,6 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { useRef } from 'react';
 import CertificateTemplate from '@/components/CertificateTemplate';
-import AIInsight from '@/components/AIInsight';
 
 const ACHIEVEMENT_DEFINITIONS = {
 	'first-step': {
@@ -483,7 +482,7 @@ export default function ProgressPage() {
 		try {
 			if (!userId) return;
 
-			// Get all enrollments for this student - now stored in 'progress' collection
+			// Get all enrollments for this student
 			const enrollmentsQuery = query(
 				collection(db, 'progress'),
 				where('studentId', '==', userId)
@@ -1495,41 +1494,35 @@ export default function ProgressPage() {
 										</div>
 									</CardHeader>
 									<CardContent>
-										<BarChart
-											className="h-72"
-											data={courseProgress
-												.slice()
-												.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
-												.map(c => ({
-													name: c.courseTitle,
-													[c.courseTitle]: c.avgAssessmentScore || 0
-												}))
-											}
-											index="name"
-											categories={courseProgress
-												.slice()
-												.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
-												.map(c => c.courseTitle)
-											}
-											colors={['blue', 'emerald', 'violet', 'amber', 'cyan', 'rose']}
-											valueFormatter={(number) => `${number}%`}
-											yAxisWidth={48}
-											showLegend={false}
-											showAnimation={!isPrinting}
-										/>
-										<AIInsight
-											chartType="bar"
-											chartTitle={language === 'bm' ? 'Prestasi Kursus' : 'Course Performance'}
-											data={courseProgress
-												.slice()
-												.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
-												.map(c => ({
-													name: c.courseTitle,
-													score: c.avgAssessmentScore || 0
-												}))
-											}
-											onDataChange={courseProgress}
-										/>
+										<ResponsiveContainer width="100%" height={288}>
+											<RechartsLineChart data={scoreTrend.filter(item => selectedPerformanceCourseId === 'all' || item.courseId === selectedPerformanceCourseId)}>
+												<CartesianGrid strokeDasharray="3 3" vertical={false} />
+												<XAxis
+													dataKey="date"
+													interval={0}
+													tick={{ fontSize: 12, fill: '#6b7280' }}
+													padding={{ left: 20, right: 20 }}
+												/>
+												<YAxis
+													width={48}
+													tick={{ fontSize: 12, fill: '#6b7280' }}
+													tickFormatter={(value) => `${value}%`}
+													domain={[0, 100]}
+												/>
+												<RechartsTooltip
+													formatter={(value) => [`${value}%`, 'Score']}
+													contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+												/>
+												<Line
+													type="monotone"
+													dataKey="score"
+													stroke="#3b82f6"
+													strokeWidth={2}
+													dot={{ r: 4, fill: '#3b82f6' }}
+													isAnimationActive={!isPrinting}
+												/>
+											</RechartsLineChart>
+										</ResponsiveContainer>
 									</CardContent>
 								</Card>
 							</div>
@@ -1564,74 +1557,12 @@ export default function ProgressPage() {
 											showLegend={false}
 											showAnimation={!isPrinting}
 										/>
-										<AIInsight
-											chartType="bar"
-											chartTitle={language === 'bm' ? 'Kemajuan Kursus' : 'Course Progress'}
-											data={courseProgress
-												.slice()
-												.sort((a, b) => new Date(a.enrolledAt) - new Date(b.enrolledAt))
-												.map(c => ({
-													name: c.courseTitle,
-													progress: c.overallProgress || 0
-												}))
-											}
-											onDataChange={courseProgress}
-										/>
 									</CardContent>
 								</Card>
 							</div>
 						)}
 
-						{/* Score Trend */}
-						{(currentView === 'trend' || (currentView === 'hub' && reportConfig.includeTrend)) && scoreTrend.length > 0 && (
-							<div className={currentView !== 'trend' && !isPrinting ? 'hidden print:block mb-8 break-inside-avoid print-content-managed' : 'mb-8 break-inside-avoid print-content-managed'}>
-								<Card className="shadow-sm border-neutral-200">
-									<CardHeader>
-										<CardTitle className="text-lg font-semibold text-neutralDark flex items-center gap-2">
-											<TrendingUp className="h-5 w-5 text-indigo-500" />
-											{language === 'bm' ? 'Trend Prestasi Penilaian' : 'Assessment Score Trend'}
-										</CardTitle>
-									</CardHeader>
-									<CardContent>
-										<ResponsiveContainer width="100%" height={288}>
-											<RechartsLineChart data={scoreTrend}>
-												<CartesianGrid strokeDasharray="3 3" vertical={false} />
-												<XAxis
-													dataKey="date"
-													interval={0}
-													tick={{ fontSize: 12, fill: '#6b7280' }}
-													padding={{ left: 20, right: 20 }}
-												/>
-												<YAxis
-													width={48}
-													tick={{ fontSize: 12, fill: '#6b7280' }}
-													tickFormatter={(value) => `${value}%`}
-													domain={[0, 100]}
-												/>
-												<RechartsTooltip
-													formatter={(value) => [`${value}%`, 'Score']}
-													contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-												/>
-												<Line
-													type="monotone"
-													dataKey="score"
-													stroke="#3b82f6"
-													strokeWidth={2}
-													dot={{ r: 4, fill: '#3b82f6' }}
-													isAnimationActive={!isPrinting}
-												/>
-											</RechartsLineChart>
-										</ResponsiveContainer>
-										<AIInsight
-											chartType="line"
-											chartTitle={language === 'bm' ? 'Trend Prestasi Penilaian' : 'Assessment Score Trend'}
-											data={scoreTrend}
-											onDataChange={scoreTrend}
-										/>
-									</CardContent>
-								</Card>
-							</div>
-						)}
+
 					</div>
 				)}
 

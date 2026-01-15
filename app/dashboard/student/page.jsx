@@ -43,7 +43,7 @@ export default function StudentDashboard() {
             // 1. Fetch Enrollments
             const enrollmentsQuery = query(
                 collection(db, 'progress'),
-                where('studentId', '==', user.uid)
+                where('studentId', '==', userId)
             );
             const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
             const enrollments = enrollmentsSnapshot.docs.map(doc => ({

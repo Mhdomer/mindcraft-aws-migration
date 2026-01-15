@@ -55,7 +55,7 @@ export default function MyCoursesPage() {
 				if (currentRole === 'student' && userId) {
 					// Get all enrollments for this student
 					const enrollmentsQuery = query(
-						collection(db, 'enrollment'),
+						collection(db, 'progress'),
 						where('studentId', '==', userId)
 					);
 					const enrollmentsSnap = await getDocs(enrollmentsQuery);

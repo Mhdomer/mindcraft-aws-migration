@@ -52,7 +52,7 @@ export default function AssignmentsPage() {
 			if (userRole === 'student') {
 				// 1. Get student's enrolled course IDs
 				const enrollmentsQuery = query(
-					collection(db, 'enrollment'),
+					collection(db, 'progress'),
 					where('studentId', '==', currentUserId)
 				);
 				const enrollmentSnapshot = await getDocs(enrollmentsQuery);
