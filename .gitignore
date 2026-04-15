@@ -25,6 +25,8 @@ firebase-admin-key.json
 Thumbs.db
 .idea/
 .vscode/
+.cursor/
+.cursorignore
 
 # Firebase local emulators/state
 .firebase/
@@ -36,16 +38,17 @@ coverage/
 # Misc
 *.local
 
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfvars
+terraform/.terraform.lock.hcl
+
 # Merge guides and analysis (internal use only)
 MERGE_*.md
 BRANCH_ANALYSIS.json
 CHECK_GIT_PATH.md
 GIT_SETUP_GUIDE.md
 PULL_INSTRUCTIONS.md
-
-# Migration scripts (internal use only)
-scripts/rename-collections.js
-scripts/analyze-branches.js
-scripts/safe-extract.js
-docs/COLLECTION_RENAME_MIGRATION.md
 
