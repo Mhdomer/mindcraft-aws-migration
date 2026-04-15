@@ -1,7 +1,7 @@
 {
 	"username": "admin",
 	"email": "admin@mindcraft.local",
-	"password": "admin123"
+	"note": "Credentials managed via Firebase Auth — not stored in files"
 }
 
 
