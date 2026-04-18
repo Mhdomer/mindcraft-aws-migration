@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import Assignment from '../models/Assignment.js';
+import Submission from '../models/Submission.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
@@ -76,6 +77,7 @@ router.delete('/:id', requireAuth, requireRole('teacher', 'admin'), async (req, 
     const isOwner = assignment.createdBy.toString() === req.user.id;
     if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
 
+    await Submission.deleteMany({ assignmentId: assignment._id });
     await assignment.deleteOne();
     res.json({ message: 'Assignment deleted' });
   } catch (err) {

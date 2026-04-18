@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, query, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +14,7 @@ import RichTextEditor from '@/app/components/RichTextEditor';
 
 export default function CreateAssignmentPage() {
 	const router = useRouter();
+	const { userData } = useAuth();
 	const [title, setTitle] = useState('');
 	const [description, setDescription] = useState('');
 	const [courseId, setCourseId] = useState('');
@@ -25,47 +25,21 @@ export default function CreateAssignmentPage() {
 	const [courses, setCourses] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
-	const [currentUserId, setCurrentUserId] = useState(null);
-	const [userRole, setUserRole] = useState(null);
 	const [generating, setGenerating] = useState(false);
 
-	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				setCurrentUserId(user.uid);
-				const { doc, getDoc } = await import('firebase/firestore');
-				const userDoc = await getDoc(doc(db, 'user', user.uid));
-				if (userDoc.exists()) {
-					const role = userDoc.data().role;
-					setUserRole(role);
-					if (role !== 'teacher' && role !== 'admin') {
-						router.push('/dashboard/student');
-					}
-				}
-			} else {
-				router.push('/login');
-			}
-		});
-
-		return () => unsubscribe();
-	}, [router]);
+	const userRole = userData?.role;
 
 	useEffect(() => {
-		if (userRole === 'teacher' || userRole === 'admin') {
-			loadCourses();
-		}
-	}, [userRole]);
+		if (!userData) return;
+		if (userRole !== 'teacher' && userRole !== 'admin') { router.push('/dashboard/student'); return; }
+		loadCourses();
+	}, [userData]);
 
 	async function loadCourses() {
 		setLoading(true);
 		try {
-			const coursesQuery = query(collection(db, 'course'));
-			const snapshot = await getDocs(coursesQuery);
-			const loadedCourses = snapshot.docs.map(doc => ({
-				id: doc.id,
-				...doc.data(),
-			}));
-			setCourses(loadedCourses);
+			const { courses: list } = await api.get('/api/courses');
+			setCourses(list.map(c => ({ ...c, id: c._id })));
 		} catch (err) {
 			console.error('Error loading courses:', err);
 		} finally {
@@ -74,53 +48,31 @@ export default function CreateAssignmentPage() {
 	}
 
 	function handleCourseChange(e) {
-		const selectedCourseId = e.target.value;
-		setCourseId(selectedCourseId);
-		const selectedCourse = courses.find(c => c.id === selectedCourseId);
-		setCourseTitle(selectedCourse ? selectedCourse.title : '');
+		const id = e.target.value;
+		setCourseId(id);
+		const c = courses.find(c => c.id === id || c._id === id);
+		setCourseTitle(c ? c.title : '');
 	}
 
 	async function handleGenerateContent() {
-		if (!courseId) {
-			alert('Please select a course first');
-			return;
-		}
-
+		if (!courseId) { alert('Please select a course first'); return; }
 		setGenerating(true);
 		try {
 			const selectedCourse = courses.find(c => c.id === courseId);
-			const courseTitle = selectedCourse?.title || '';
-			const courseDescription = selectedCourse?.description || '';
-
-			const response = await fetch('/api/ai', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
-					action: 'generate_assignment',
-					options: {
-						courseTitle,
-						courseDescription,
-					},
-				}),
+			const data = await api.post('/api/ai', {
+				action: 'generate_assignment',
+				context: { topic: selectedCourse?.title, courseDescription: selectedCourse?.description }
 			});
-
-			if (!response.ok) {
-				throw new Error('Failed to generate content');
-			}
-
-			const data = await response.json();
-			
-			// Populate the form fields with generated content
-			if (data.title) {
-				setTitle(data.title);
-			}
-			if (data.description) {
-				setDescription(data.description);
+			if (data.response) {
+				try {
+					const parsed = JSON.parse(data.response.match(/\{[\s\S]*\}/)?.[0] || '{}');
+					if (parsed.title) setTitle(parsed.title);
+					if (parsed.description) setDescription(parsed.description);
+				} catch {
+					setDescription(data.response);
+				}
 			}
 		} catch (err) {
-			console.error('Error generating assignment content:', err);
 			alert('Failed to generate content: ' + (err.message || 'Unknown error'));
 		} finally {
 			setGenerating(false);
@@ -129,43 +81,21 @@ export default function CreateAssignmentPage() {
 
 	async function handleSubmit(e) {
 		e.preventDefault();
-
-		if (!title.trim()) {
-			alert('Assignment title is required');
-			return;
-		}
-
-		if (!courseId) {
-			alert('Please select a course');
-			return;
-		}
-
+		if (!title.trim()) { alert('Assignment title is required'); return; }
+		if (!courseId) { alert('Please select a course'); return; }
 		setSubmitting(true);
-
 		try {
-			if (!auth.currentUser) {
-				throw new Error('You must be signed in to create assignments');
-			}
-
-			const assignmentData = {
+			await api.post('/api/assignments', {
 				title: title.trim(),
 				description: description.trim() || '',
 				courseId,
 				courseTitle,
-				deadline: deadline ? new Date(deadline) : null,
+				deadline: deadline ? new Date(deadline).toISOString() : null,
 				status,
-				isOpen: true, // New assignments are open by default
 				allowLateSubmissions,
-				createdBy: auth.currentUser.uid,
-				createdAt: serverTimestamp(),
-				updatedAt: serverTimestamp(),
-			};
-
-			await addDoc(collection(db, 'assignment'), assignmentData);
-
+			});
 			router.push('/assignments');
 		} catch (err) {
-			console.error('Error creating assignment:', err);
 			alert('Failed to create assignment: ' + (err.message || 'Unknown error'));
 		} finally {
 			setSubmitting(false);
@@ -175,42 +105,22 @@ export default function CreateAssignmentPage() {
 	if (loading) {
 		return (
 			<div className="space-y-8">
-				<div>
-					<h1 className="text-h1 text-neutralDark mb-2">Create Assignment</h1>
-					<p className="text-body text-muted-foreground">Loading...</p>
-				</div>
-			</div>
-		);
-	}
-
-	if (userRole !== 'teacher' && userRole !== 'admin') {
-		return (
-			<div className="space-y-8">
-				<div>
-					<h1 className="text-h1 text-neutralDark mb-2">Create Assignment</h1>
-					<p className="text-body text-muted-foreground">Access denied.</p>
-				</div>
+				<h1 className="text-h1 text-neutralDark mb-2">Create Assignment</h1>
+				<p className="text-body text-muted-foreground">Loading...</p>
 			</div>
 		);
 	}
 
 	return (
 		<div className="space-y-8">
-			{/* Header */}
 			<div>
-				<Link href="/assignments">
-					<Button variant="ghost" className="mb-4" title="Back to Assignments">
-						<ArrowLeft className="h-4 w-4 mr-2" />
-						Back to Assignments
-					</Button>
-				</Link>
+				<Link href="/assignments"><Button variant="ghost" className="mb-4"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Assignments</Button></Link>
 				<h1 className="text-h1 text-neutralDark mb-2">Create Assignment</h1>
 				<p className="text-body text-muted-foreground">Create a new assignment for your course</p>
 			</div>
 
 			<form onSubmit={handleSubmit}>
 				<div className="space-y-6">
-					{/* Basic Information */}
 					<Card>
 						<CardHeader>
 							<CardTitle>Basic Information</CardTitle>
@@ -218,77 +128,30 @@ export default function CreateAssignmentPage() {
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<div>
-								<label htmlFor="title" className="block text-sm font-medium mb-2">
-									Assignment Title <span className="text-destructive">*</span>
-								</label>
-								<Input
-									id="title"
-									value={title}
-									onChange={(e) => setTitle(e.target.value)}
-									placeholder="e.g., Python Programming Project"
-									required
-								/>
+								<label className="block text-sm font-medium mb-2">Assignment Title <span className="text-destructive">*</span></label>
+								<Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g., Python Programming Project" required />
 							</div>
-
 							<div>
-								<label htmlFor="course" className="block text-sm font-medium mb-2">
-									Course <span className="text-destructive">*</span>
-								</label>
-								<select
-									id="course"
-									value={courseId}
-									onChange={handleCourseChange}
-									className="w-full px-3 py-2 border border-border rounded-md bg-white"
-									required
-								>
+								<label className="block text-sm font-medium mb-2">Course <span className="text-destructive">*</span></label>
+								<select value={courseId} onChange={handleCourseChange} className="w-full px-3 py-2 border border-border rounded-md bg-white" required>
 									<option value="">Select a course</option>
 									{courses.map((course) => (
-										<option key={course.id} value={course.id}>
-											{course.title}
-										</option>
+										<option key={course.id} value={course.id}>{course.title}</option>
 									))}
 								</select>
 							</div>
-
 							<div>
 								<div className="flex items-center justify-between mb-2">
-									<label htmlFor="description" className="block text-sm font-medium">
-										Description
-									</label>
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										onClick={handleGenerateContent}
-										disabled={generating || !courseId}
-										className="flex items-center gap-2"
-									>
-										{generating ? (
-											<>
-												<Loader2 className="h-4 w-4 animate-spin" />
-												Generating...
-											</>
-										) : (
-											<>
-												<Sparkles className="h-4 w-4" />
-												Generate Content
-											</>
-										)}
+									<label className="block text-sm font-medium">Description</label>
+									<Button type="button" variant="outline" size="sm" onClick={handleGenerateContent} disabled={generating || !courseId}>
+										{generating ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Generating...</> : <><Sparkles className="h-4 w-4 mr-1" /> Generate Content</>}
 									</Button>
 								</div>
-								<RichTextEditor
-									value={description}
-									onChange={setDescription}
-									placeholder="Enter assignment description and instructions..."
-								/>
-								<p className="text-xs text-muted-foreground mt-1">
-									Click "Generate Content" to create a sample assignment scaffold based on the selected course
-								</p>
+								<RichTextEditor value={description} onChange={setDescription} placeholder="Enter assignment description and instructions..." />
 							</div>
 						</CardContent>
 					</Card>
 
-					{/* Settings */}
 					<Card>
 						<CardHeader>
 							<CardTitle>Settings</CardTitle>
@@ -296,84 +159,34 @@ export default function CreateAssignmentPage() {
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<div className="w-1/2">
-								<label htmlFor="deadline" className="block text-sm font-medium mb-2">
-									Deadline
-								</label>
-								<Input
-									id="deadline"
-									type="datetime-local"
-									value={deadline}
-									onChange={(e) => setDeadline(e.target.value)}
-								/>
-								<p className="text-xs text-muted-foreground mt-1">
-									Set a deadline for when students must submit their work
-								</p>
+								<label className="block text-sm font-medium mb-2">Deadline</label>
+								<Input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
 							</div>
-
 							<div className="flex items-center gap-3">
-								<Switch
-									id="allowLateSubmissions"
-									checked={allowLateSubmissions}
-									onCheckedChange={setAllowLateSubmissions}
-								/>
-								<div className="flex-1">
-									<label htmlFor="allowLateSubmissions" className="text-sm font-medium cursor-pointer">
-										Allow late submissions
-									</label>
-									<p className="text-xs text-muted-foreground mt-1">
-										When enabled, students can submit work after the deadline has passed
-									</p>
+								<Switch checked={allowLateSubmissions} onCheckedChange={setAllowLateSubmissions} />
+								<div>
+									<p className="text-sm font-medium">Allow late submissions</p>
+									<p className="text-xs text-muted-foreground">Students can submit after the deadline</p>
 								</div>
 							</div>
-
 							<div className="w-1/2">
-								<label htmlFor="status" className="block text-sm font-medium mb-2">
-									Status
-								</label>
-								<select
-									id="status"
-									value={status}
-									onChange={(e) => setStatus(e.target.value)}
-									className="w-full px-3 py-2 border border-border rounded-md bg-white"
-								>
+								<label className="block text-sm font-medium mb-2">Status</label>
+								<select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2 border border-border rounded-md bg-white">
 									<option value="draft">Draft</option>
 									<option value="published">Published</option>
 								</select>
-								<p className="text-xs text-muted-foreground mt-1">
-									Draft assignments are only visible to you. Published assignments are visible to students.
-								</p>
 							</div>
 						</CardContent>
 					</Card>
 
-					{/* Actions */}
 					<div className="flex gap-4 w-1/2 mx-auto justify-center">
-						<Button
-							type="submit"
-							disabled={submitting}
-							title="Create Assignment"
-						>
-							{submitting ? (
-								<>
-									<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-									Creating...
-								</>
-							) : (
-								<>
-									<Save className="h-4 w-4 mr-2" />
-									Create Assignment
-								</>
-							)}
+						<Button type="submit" disabled={submitting}>
+							{submitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating...</> : <><Save className="h-4 w-4 mr-2" /> Create Assignment</>}
 						</Button>
-						<Link href="/assignments">
-							<Button variant="outline" type="button" title="Cancel">
-								Cancel
-							</Button>
-						</Link>
+						<Link href="/assignments"><Button variant="outline" type="button">Cancel</Button></Link>
 					</div>
 				</div>
 			</form>
 		</div>
 	);
 }
-
