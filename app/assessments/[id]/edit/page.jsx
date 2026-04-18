@@ -2,20 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, query, getDocs } from 'firebase/firestore';
-import { db, auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Save, Loader2, Sparkles, Plus, X, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { Switch } from '@/components/ui/switch';
 import RichTextEditor from '@/app/components/RichTextEditor';
 
 export default function EditAssessmentPage() {
 	const params = useParams();
 	const router = useRouter();
+	const { userData, loading: authLoading } = useAuth();
 	const assessmentId = params.id;
 
 	const [title, setTitle] = useState('');
@@ -28,122 +28,26 @@ export default function EditAssessmentPage() {
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
 	const [deleting, setDeleting] = useState(false);
-	const [currentUserId, setCurrentUserId] = useState(null);
-	const [userRole, setUserRole] = useState(null);
 	const [error, setError] = useState('');
 	const [generating, setGenerating] = useState(false);
-	const [published, setPublished] = useState(false);
+	const [status, setStatus] = useState('draft');
 	const [config, setConfig] = useState({
 		startDate: '',
 		endDate: '',
 		timer: '',
 		attempts: 1,
 		passingPercentage: 40,
+		allowLateSubmission: false,
 	});
 
-	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				setCurrentUserId(user.uid);
-				const { doc, getDoc } = await import('firebase/firestore');
-				const userDoc = await getDoc(doc(db, 'user', user.uid));
-				if (userDoc.exists()) {
-					const role = userDoc.data().role;
-					setUserRole(role);
-					if (role !== 'teacher' && role !== 'admin') {
-						router.push('/dashboard/student');
-					}
-				}
-			} else {
-				router.push('/login');
-			}
-		});
-
-		return () => unsubscribe();
-	}, [router]);
+	const userRole = userData?.role;
 
 	useEffect(() => {
-		if ((userRole === 'teacher' || userRole === 'admin') && currentUserId) {
-			loadData();
-		}
-	}, [assessmentId, userRole, currentUserId]);
-
-	async function loadData() {
-		setLoading(true);
-		try {
-			// Load courses
-			const coursesQuery = query(collection(db, 'course'));
-			const coursesSnapshot = await getDocs(coursesQuery);
-			const loadedCourses = coursesSnapshot.docs.map(doc => ({
-				id: doc.id,
-				...doc.data(),
-			}));
-			setCourses(loadedCourses);
-
-			// Load assessment
-			const assessmentDoc = await getDoc(doc(db, 'assessment', assessmentId));
-			if (!assessmentDoc.exists()) {
-				setError('Assessment not found');
-				setLoading(false);
-				return;
-			}
-
-			const assessmentData = assessmentDoc.data();
-
-			// Check permissions
-			const currentUser = auth.currentUser;
-			if (currentUser && assessmentData.createdBy !== currentUser.uid && userRole !== 'admin') {
-				setError('You do not have permission to edit this assessment');
-				setLoading(false);
-				return;
-			}
-
-			setTitle(assessmentData.title || '');
-			setDescription(assessmentData.description || '');
-			setCourseId(assessmentData.courseId || '');
-			setCourseTitle(assessmentData.courseTitle || '');
-			setType(assessmentData.type || 'quiz');
-			setPublished(assessmentData.published || false);
-
-			// Load questions
-			if (assessmentData.questions && Array.isArray(assessmentData.questions)) {
-				setQuestions(assessmentData.questions.map((q, idx) => ({
-					id: `question_${idx}_${Date.now()}`,
-					type: q.type || 'mcq',
-					expectedType: q.expectedType || 'string',
-					question: q.question || '',
-					options: q.options || ['', '', '', ''],
-					correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : 0,
-					points: q.points || 1,
-				})));
-			}
-
-			// Load config
-			if (assessmentData.config) {
-				const configData = assessmentData.config;
-				const startDate = configData.startDate
-					? (configData.startDate.toDate ? configData.startDate.toDate() : new Date(configData.startDate))
-					: null;
-				const endDate = configData.endDate
-					? (configData.endDate.toDate ? configData.endDate.toDate() : new Date(configData.endDate))
-					: null;
-
-				setConfig({
-					startDate: startDate ? formatDateForInput(startDate) : '',
-					endDate: endDate ? formatDateForInput(endDate) : '',
-					timer: configData.timer || '',
-					attempts: configData.attempts || 1,
-					passingPercentage: configData.passingPercentage !== undefined ? configData.passingPercentage : 40,
-					allowLateSubmission: configData.allowLateSubmission || false,
-				});
-			}
-		} catch (err) {
-			console.error('Error loading data:', err);
-			setError('Failed to load assessment');
-		} finally {
-			setLoading(false);
-		}
-	}
+		if (authLoading) return;
+		if (!userData) return;
+		if (userRole !== 'teacher' && userRole !== 'admin') { router.push('/dashboard/student'); return; }
+		loadData();
+	}, [userData, authLoading]);
 
 	function formatDateForInput(date) {
 		const d = date instanceof Date ? date : new Date(date);
@@ -151,19 +55,63 @@ export default function EditAssessmentPage() {
 		const month = String(d.getMonth() + 1).padStart(2, '0');
 		const day = String(d.getDate()).padStart(2, '0');
 		const hours = String(d.getHours()).padStart(2, '0');
-		const minutes = String(d.getMinutes()).padStart(2, '0');
-		return `${year}-${month}-${day}T${hours}:${minutes}`;
+		const mins = String(d.getMinutes()).padStart(2, '0');
+		return `${year}-${month}-${day}T${hours}:${mins}`;
+	}
+
+	async function loadData() {
+		setLoading(true);
+		try {
+			const [{ courses: courseList }, { assessment: a }] = await Promise.all([
+				api.get('/api/courses'),
+				api.get(`/api/assessments/${assessmentId}`),
+			]);
+
+			setCourses(courseList.map(c => ({ ...c, id: c._id })));
+
+			setTitle(a.title || '');
+			setDescription(a.description || '');
+			setCourseId(a.courseId?.toString() || '');
+			setCourseTitle(a.courseTitle || '');
+			setType(a.type || 'quiz');
+			setStatus(a.status || 'draft');
+
+			if (a.questions && Array.isArray(a.questions)) {
+				setQuestions(a.questions.map((q, idx) => ({
+					id: `q_${idx}_${Date.now()}`,
+					type: q.type || 'mcq',
+					expectedType: q.expectedType || 'string',
+					question: q.question || q.prompt || '',
+					options: q.options || ['', '', '', ''],
+					correctAnswer: (q.correctAnswer ?? q.answer) !== undefined ? (q.correctAnswer ?? q.answer) : 0,
+					points: q.points || 1,
+				})));
+			}
+
+			setConfig({
+				startDate: a.startDate ? formatDateForInput(a.startDate) : '',
+				endDate: a.endDate ? formatDateForInput(a.endDate) : '',
+				timer: a.timer || '',
+				attempts: a.attempts || 1,
+				passingPercentage: a.passingPercentage ?? 40,
+				allowLateSubmission: a.allowLateSubmission || false,
+			});
+		} catch (err) {
+			setError(err.message || 'Failed to load assessment');
+		} finally {
+			setLoading(false);
+		}
 	}
 
 	function handleCourseChange(e) {
-		const selectedCourseId = e.target.value;
-		setCourseId(selectedCourseId);
-		const selectedCourse = courses.find(c => c.id === selectedCourseId);
-		setCourseTitle(selectedCourse ? selectedCourse.title : '');
+		const id = e.target.value;
+		setCourseId(id);
+		const c = courses.find(c => c.id === id || c._id === id);
+		setCourseTitle(c ? c.title : '');
 	}
 
 	function addQuestion() {
-		const newQuestion = {
+		setQuestions([...questions, {
 			id: Date.now().toString(),
 			type: 'mcq',
 			expectedType: 'string',
@@ -171,24 +119,19 @@ export default function EditAssessmentPage() {
 			options: ['', '', '', ''],
 			correctAnswer: 0,
 			points: 1,
-		};
-		setQuestions([...questions, newQuestion]);
+		}]);
 	}
 
 	function updateQuestion(questionId, field, value) {
-		setQuestions(questions.map(q =>
-			q.id === questionId ? { ...q, [field]: value } : q
-		));
+		setQuestions(questions.map(q => q.id === questionId ? { ...q, [field]: value } : q));
 	}
 
 	function updateQuestionOption(questionId, optionIndex, value) {
 		setQuestions(questions.map(q => {
-			if (q.id === questionId) {
-				const newOptions = [...q.options];
-				newOptions[optionIndex] = value;
-				return { ...q, options: newOptions };
-			}
-			return q;
+			if (q.id !== questionId) return q;
+			const newOptions = [...q.options];
+			newOptions[optionIndex] = value;
+			return { ...q, options: newOptions };
 		}));
 	}
 
@@ -197,76 +140,40 @@ export default function EditAssessmentPage() {
 	}
 
 	function addOption(questionId) {
-		setQuestions(questions.map(q => {
-			if (q.id === questionId) {
-				return { ...q, options: [...q.options, ''] };
-			}
-			return q;
-		}));
+		setQuestions(questions.map(q => q.id === questionId ? { ...q, options: [...q.options, ''] } : q));
 	}
 
 	function removeOption(questionId, optionIndex) {
 		setQuestions(questions.map(q => {
-			if (q.id === questionId && q.options.length > 2) {
-				const newOptions = q.options.filter((_, idx) => idx !== optionIndex);
-				return {
-					...q,
-					options: newOptions,
-					correctAnswer: q.correctAnswer >= newOptions.length ? 0 : q.correctAnswer
-				};
-			}
-			return q;
+			if (q.id !== questionId || q.options.length <= 2) return q;
+			const newOptions = q.options.filter((_, idx) => idx !== optionIndex);
+			return { ...q, options: newOptions, correctAnswer: q.correctAnswer >= newOptions.length ? 0 : q.correctAnswer };
 		}));
 	}
 
 	async function handleGenerateContent() {
-		if (!courseId) {
-			alert('Please select a course first');
-			return;
-		}
-
+		if (!courseId) { alert('Please select a course first'); return; }
 		setGenerating(true);
 		try {
 			const selectedCourse = courses.find(c => c.id === courseId);
-			const courseTitle = selectedCourse?.title || '';
-			const courseDescription = selectedCourse?.description || '';
-
-			const response = await fetch('/api/ai', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
-					action: 'generate_assessment',
-					options: {
-						courseTitle,
-						courseDescription,
-						type,
-						numQuestions: 5,
-					},
-				}),
+			const data = await api.post('/api/ai', {
+				action: 'generate_assessment',
+				options: { courseTitle: selectedCourse?.title, courseDescription: selectedCourse?.description, type, numQuestions: 5 },
 			});
-
-			if (!response.ok) {
-				throw new Error('Failed to generate content');
-			}
-
-			const data = await response.json();
-
-			if (data.title) {
-				setTitle(data.title);
-			}
-			if (data.description) {
-				setDescription(data.description);
-			}
+			if (data.title) setTitle(data.title);
+			if (data.description) setDescription(data.description);
 			if (data.questions && Array.isArray(data.questions)) {
 				setQuestions(data.questions.map((q, idx) => ({
 					id: `generated_${Date.now()}_${idx}`,
-					...q,
+					type: q.type || 'mcq',
+					expectedType: q.expectedType || 'string',
+					question: q.question || q.prompt || '',
+					options: q.options || ['', '', '', ''],
+					correctAnswer: q.correctAnswer ?? q.answer ?? 0,
+					points: q.points || 1,
 				})));
 			}
 		} catch (err) {
-			console.error('Error generating assessment content:', err);
 			alert('Failed to generate content: ' + (err.message || 'Unknown error'));
 		} finally {
 			setGenerating(false);
@@ -275,96 +182,50 @@ export default function EditAssessmentPage() {
 
 	async function handleSubmit(e) {
 		e.preventDefault();
+		if (!title.trim()) { alert('Assessment title is required'); return; }
+		if (!courseId) { alert('Please select a course'); return; }
+		if (questions.length === 0) { alert('Please add at least one question'); return; }
 
-		if (!title.trim()) {
-			alert('Assessment title is required');
-			return;
-		}
-
-		if (!courseId) {
-			alert('Please select a course');
-			return;
-		}
-
-		if (questions.length === 0) {
-			alert('Please add at least one question');
-			return;
-		}
-
-		// Validate questions
 		for (const q of questions) {
-			if (!q.question.trim()) {
-				alert('All questions must have a question text');
-				return;
-			}
+			if (!q.question.trim()) { alert('All questions must have a question text'); return; }
 			if (q.type === 'mcq') {
-				if (q.options.length < 2) {
-					alert('MCQ questions must have at least 2 options');
-					return;
-				}
-				if (q.options.some(opt => !opt.trim())) {
-					alert('All MCQ options must be filled');
-					return;
-				}
+				if (q.options.length < 2) { alert('MCQ questions must have at least 2 options'); return; }
+				if (q.options.some(opt => !opt.trim())) { alert('All MCQ options must be filled'); return; }
 			}
-			if (q.type === 'text') {
-				if (q.expectedType === 'number') {
-					if (isNaN(parseFloat(q.correctAnswer))) {
-						alert('Numeric questions must have a valid number as the correct answer');
-						return;
-					}
-				}
+			if (q.type === 'text' && q.expectedType === 'number') {
+				if (isNaN(parseFloat(q.correctAnswer))) { alert('Numeric questions must have a valid number as the correct answer'); return; }
 			}
 		}
 
 		setSubmitting(true);
-
 		try {
-			if (!auth.currentUser) {
-				throw new Error('You must be signed in to update assessments');
-			}
-
-			const assessmentData = {
+			await api.put(`/api/assessments/${assessmentId}`, {
 				title: title.trim(),
 				description: description.trim() || '',
 				courseId,
 				courseTitle,
 				type,
+				status,
 				questions: questions.map(q => {
-					const questionData = {
+					const out = {
 						type: q.type,
 						question: q.question.trim(),
-						correctAnswer: q.type === 'mcq' ? q.correctAnswer : q.correctAnswer || '',
+						correctAnswer: q.type === 'mcq' ? q.correctAnswer : (q.correctAnswer || ''),
 						points: q.points || 1,
 					};
-
-					if (q.type === 'text') {
-						questionData.expectedType = q.expectedType || 'string';
-					}
-
-					if (q.type === 'mcq') {
-						questionData.options = q.options.map(opt => opt.trim());
-					}
-
-					return questionData;
+					if (q.type === 'text') out.expectedType = q.expectedType || 'string';
+					if (q.type === 'mcq') out.options = q.options.map(opt => opt.trim());
+					return out;
 				}),
-				published,
-				updatedAt: serverTimestamp(),
-				config: {
-					startDate: config.startDate ? new Date(config.startDate) : null,
-					endDate: config.endDate ? new Date(config.endDate) : null,
-					timer: config.timer ? parseInt(config.timer) : null,
-					attempts: config.attempts ? parseInt(config.attempts) : null,
-					passingPercentage: config.passingPercentage ? parseInt(config.passingPercentage) : 40,
-					allowLateSubmission: config.allowLateSubmission || false,
-				},
-			};
-
-			await updateDoc(doc(db, 'assessment', assessmentId), assessmentData);
-
+				timer: config.timer ? parseInt(config.timer) : null,
+				startDate: config.startDate ? new Date(config.startDate).toISOString() : null,
+				endDate: config.endDate ? new Date(config.endDate).toISOString() : null,
+				attempts: config.attempts ? parseInt(config.attempts) : 1,
+				passingPercentage: config.passingPercentage ? parseInt(config.passingPercentage) : 40,
+				allowLateSubmission: config.allowLateSubmission || false,
+			});
 			router.push('/assessments');
 		} catch (err) {
-			console.error('Error updating assessment:', err);
 			alert('Failed to update assessment: ' + (err.message || 'Unknown error'));
 		} finally {
 			setSubmitting(false);
@@ -372,17 +233,12 @@ export default function EditAssessmentPage() {
 	}
 
 	async function handleDelete() {
-		if (!confirm('Are you sure you want to delete this assessment? This action cannot be undone.')) {
-			return;
-		}
-
+		if (!confirm('Are you sure you want to delete this assessment? This action cannot be undone.')) return;
 		setDeleting(true);
-
 		try {
-			await deleteDoc(doc(db, 'assessment', assessmentId));
+			await api.delete(`/api/assessments/${assessmentId}`);
 			router.push('/assessments');
 		} catch (err) {
-			console.error('Error deleting assessment:', err);
 			alert('Failed to delete assessment: ' + (err.message || 'Unknown error'));
 			setDeleting(false);
 		}
@@ -391,10 +247,8 @@ export default function EditAssessmentPage() {
 	if (loading) {
 		return (
 			<div className="space-y-8">
-				<div>
-					<h1 className="text-h1 text-neutralDark mb-2">Edit Assessment</h1>
-					<p className="text-body text-muted-foreground">Loading...</p>
-				</div>
+				<h1 className="text-h1 text-neutralDark mb-2">Edit Assessment</h1>
+				<p className="text-body text-muted-foreground">Loading...</p>
 			</div>
 		);
 	}
@@ -402,139 +256,54 @@ export default function EditAssessmentPage() {
 	if (error) {
 		return (
 			<div className="space-y-8">
-				<Link href="/assessments">
-					<Button variant="ghost" className="mb-4" title="Back to Assessments">
-						<ArrowLeft className="h-4 w-4 mr-2" />
-						Back to Assessments
-					</Button>
-				</Link>
-				<Card>
-					<CardContent className="py-12 text-center">
-						<p className="text-body text-destructive">{error}</p>
-					</CardContent>
-				</Card>
-			</div>
-		);
-	}
-
-	if (userRole !== 'teacher' && userRole !== 'admin') {
-		return (
-			<div className="space-y-8">
-				<div>
-					<h1 className="text-h1 text-neutralDark mb-2">Edit Assessment</h1>
-					<p className="text-body text-muted-foreground">Access denied.</p>
-				</div>
+				<Link href="/assessments"><Button variant="ghost" className="mb-4"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Assessments</Button></Link>
+				<Card><CardContent className="py-12 text-center"><p className="text-body text-destructive">{error}</p></CardContent></Card>
 			</div>
 		);
 	}
 
 	return (
 		<div className="space-y-8">
-			{/* Header */}
 			<div>
-				<Link href="/assessments">
-					<Button variant="ghost" className="mb-4" title="Back to Assessments">
-						<ArrowLeft className="h-4 w-4 mr-2" />
-						Back to Assessments
-					</Button>
-				</Link>
+				<Link href="/assessments"><Button variant="ghost" className="mb-4"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Assessments</Button></Link>
 				<h1 className="text-h1 text-neutralDark mb-2">Edit Assessment</h1>
 				<p className="text-body text-muted-foreground">Update assessment details and questions</p>
 			</div>
 
 			<form onSubmit={handleSubmit}>
 				<div className="space-y-6">
-					{/* Basic Information */}
+					{/* Basic Info */}
 					<Card>
-						<CardHeader>
-							<CardTitle>Basic Information</CardTitle>
-							<CardDescription>Update the assessment details</CardDescription>
-						</CardHeader>
+						<CardHeader><CardTitle>Basic Information</CardTitle><CardDescription>Update the assessment details</CardDescription></CardHeader>
 						<CardContent className="space-y-4">
 							<div>
-								<label htmlFor="title" className="block text-sm font-medium mb-2">
-									Assessment Title <span className="text-destructive">*</span>
-								</label>
-								<Input
-									id="title"
-									value={title}
-									onChange={(e) => setTitle(e.target.value)}
-									placeholder="e.g., Python Fundamentals Quiz"
-									required
-								/>
+								<label className="block text-sm font-medium mb-2">Assessment Title <span className="text-destructive">*</span></label>
+								<Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g., Python Fundamentals Quiz" required />
 							</div>
-
 							<div>
-								<label htmlFor="course" className="block text-sm font-medium mb-2">
-									Course <span className="text-destructive">*</span>
-								</label>
-								<select
-									id="course"
-									value={courseId}
-									onChange={handleCourseChange}
-									className="w-full px-3 py-2 border border-border rounded-md bg-white"
-									required
-								>
+								<label className="block text-sm font-medium mb-2">Course <span className="text-destructive">*</span></label>
+								<select value={courseId} onChange={handleCourseChange} className="w-full px-3 py-2 border border-border rounded-md bg-white" required>
 									<option value="">Select a course</option>
-									{courses.map((course) => (
-										<option key={course.id} value={course.id}>
-											{course.title}
-										</option>
-									))}
+									{courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
 								</select>
 							</div>
-
 							<div>
-								<label htmlFor="type" className="block text-sm font-medium mb-2">
-									Assessment Type <span className="text-destructive">*</span>
-								</label>
-								<select
-									id="type"
-									value={type}
-									onChange={(e) => setType(e.target.value)}
-									className="w-full px-3 py-2 border border-border rounded-md bg-white"
-									required
-								>
+								<label className="block text-sm font-medium mb-2">Assessment Type</label>
+								<select value={type} onChange={(e) => setType(e.target.value)} className="w-full px-3 py-2 border border-border rounded-md bg-white">
 									<option value="quiz">Quiz</option>
+									<option value="exam">Exam</option>
 									<option value="assignment">Assignment</option>
 									<option value="coding">Coding Challenge</option>
 								</select>
 							</div>
-
 							<div>
 								<div className="flex items-center justify-between mb-2">
-									<label htmlFor="description" className="block text-sm font-medium">
-										Description
-									</label>
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										onClick={handleGenerateContent}
-										disabled={generating || !courseId}
-										className="flex items-center gap-2"
-									>
-										{generating ? (
-											<>
-												<Loader2 className="h-5 w-5 animate-spin" />
-												Generating...
-											</>
-										) : (
-											<>
-												<Sparkles className="h-5 w-5" />
-												Generate Content
-											</>
-										)}
+									<label className="block text-sm font-medium">Description</label>
+									<Button type="button" variant="outline" size="sm" onClick={handleGenerateContent} disabled={generating || !courseId}>
+										{generating ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Generating...</> : <><Sparkles className="h-4 w-4 mr-1" /> Generate Content</>}
 									</Button>
 								</div>
-								<RichTextEditor
-									value={description}
-									onChange={setDescription}
-									placeholder="Enter assessment description and instructions..."
-								/>
-								<p className="text-xs text-muted-foreground mt-1">
-									Click "Generate Content" to create a sample assessment scaffold based on the selected course
-								</p>
+								<RichTextEditor value={description} onChange={setDescription} placeholder="Enter assessment description and instructions..." />
 							</div>
 						</CardContent>
 					</Card>
@@ -543,159 +312,74 @@ export default function EditAssessmentPage() {
 					<Card>
 						<CardHeader>
 							<div className="flex items-center justify-between">
-								<div>
-									<CardTitle>Questions</CardTitle>
-									<CardDescription>Update questions for your assessment</CardDescription>
-								</div>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={addQuestion}
-								>
-									<Plus className="h-5 w-5 mr-2" />
-									Add Question
-								</Button>
+								<div><CardTitle>Questions</CardTitle><CardDescription>Update questions for your assessment</CardDescription></div>
+								<Button type="button" variant="outline" size="sm" onClick={addQuestion}><Plus className="h-4 w-4 mr-1" /> Add Question</Button>
 							</div>
 						</CardHeader>
 						<CardContent className="space-y-6">
 							{questions.length === 0 ? (
-								<div className="text-center py-8 text-muted-foreground">
-									<p>No questions added yet. Click "Add Question" to get started.</p>
-								</div>
+								<div className="text-center py-8 text-muted-foreground">No questions yet. Click "Add Question" to get started.</div>
 							) : (
 								questions.map((question, index) => (
 									<div key={question.id} className="border border-border rounded-lg p-4 space-y-4">
 										<div className="flex items-start justify-between">
 											<h4 className="font-medium text-lg">Question {index + 1}</h4>
-											<Button
-												type="button"
-												variant="ghost"
-												size="sm"
-												onClick={() => removeQuestion(question.id)}
-												className="text-destructive hover:text-destructive"
-											>
-												<Trash2 className="h-5 w-5" />
+											<Button type="button" variant="ghost" size="sm" onClick={() => removeQuestion(question.id)} className="text-destructive hover:text-destructive">
+												<Trash2 className="h-4 w-4" />
 											</Button>
 										</div>
 
 										<div>
-											<label className="block text-sm font-medium mb-2">
-												Question Type
-											</label>
-											<select
-												value={question.type}
-												onChange={(e) => updateQuestion(question.id, 'type', e.target.value)}
-												className="w-full px-3 py-2 border border-border rounded-md bg-white"
-											>
+											<label className="block text-sm font-medium mb-2">Question Type</label>
+											<select value={question.type} onChange={(e) => updateQuestion(question.id, 'type', e.target.value)} className="w-full px-3 py-2 border border-border rounded-md bg-white">
 												<option value="mcq">Multiple Choice (MCQ)</option>
 												<option value="text">Text-based Answer</option>
 											</select>
 										</div>
 
 										<div>
-											<label className="block text-sm font-medium mb-2">
-												Question Text <span className="text-destructive">*</span>
-											</label>
-											<Input
-												value={question.question}
-												onChange={(e) => updateQuestion(question.id, 'question', e.target.value)}
-												placeholder="Enter your question here..."
-												required
-											/>
+											<label className="block text-sm font-medium mb-2">Question Text <span className="text-destructive">*</span></label>
+											<Input value={question.question} onChange={(e) => updateQuestion(question.id, 'question', e.target.value)} placeholder="Enter your question here..." required />
 										</div>
 
 										{question.type === 'mcq' ? (
 											<div className="space-y-3">
 												<div className="flex items-center justify-between">
 													<label className="block text-sm font-medium">Answer Options</label>
-													<Button
-														type="button"
-														variant="ghost"
-														size="sm"
-														onClick={() => addOption(question.id)}
-													>
-														<Plus className="h-5 w-5 mr-1" />
-														Add Option
-													</Button>
+													<Button type="button" variant="ghost" size="sm" onClick={() => addOption(question.id)}><Plus className="h-4 w-4 mr-1" /> Add Option</Button>
 												</div>
 												{question.options.map((option, optIndex) => (
 													<div key={optIndex} className="flex items-center gap-2">
-														<input
-															type="radio"
-															name={`correct_${question.id}`}
-															checked={question.correctAnswer === optIndex}
-															onChange={() => updateQuestion(question.id, 'correctAnswer', optIndex)}
-															className="w-5 h-5"
-														/>
-														<Input
-															value={option}
-															onChange={(e) => updateQuestionOption(question.id, optIndex, e.target.value)}
-															placeholder={`Option ${optIndex + 1}`}
-															className="flex-1"
-														/>
+														<input type="radio" name={`correct_${question.id}`} checked={question.correctAnswer === optIndex} onChange={() => updateQuestion(question.id, 'correctAnswer', optIndex)} className="w-5 h-5" />
+														<Input value={option} onChange={(e) => updateQuestionOption(question.id, optIndex, e.target.value)} placeholder={`Option ${optIndex + 1}`} className="flex-1" />
 														{question.options.length > 2 && (
-															<Button
-																type="button"
-																variant="ghost"
-																size="sm"
-																onClick={() => removeOption(question.id, optIndex)}
-															>
-																<X className="h-5 w-5" />
-															</Button>
+															<Button type="button" variant="ghost" size="sm" onClick={() => removeOption(question.id, optIndex)}><X className="h-4 w-4" /></Button>
 														)}
 													</div>
 												))}
-												<p className="text-xs text-muted-foreground">
-													Select the radio button next to the correct answer
-												</p>
+												<p className="text-xs text-muted-foreground">Select the radio button next to the correct answer</p>
 											</div>
 										) : (
 											<div className="space-y-4">
 												<div>
-													<label className="block text-sm font-medium mb-2">
-														Expected Answer Type
-													</label>
-													<select
-														value={question.expectedType || 'string'}
-														onChange={(e) => updateQuestion(question.id, 'expectedType', e.target.value)}
-														className="w-full px-3 py-2 border border-border rounded-md bg-white"
-													>
+													<label className="block text-sm font-medium mb-2">Expected Answer Type</label>
+													<select value={question.expectedType || 'string'} onChange={(e) => updateQuestion(question.id, 'expectedType', e.target.value)} className="w-full px-3 py-2 border border-border rounded-md bg-white">
 														<option value="string">String (Text)</option>
 														<option value="number">Number</option>
 													</select>
 												</div>
 												<div>
-													<label className="block text-sm font-medium mb-2">
-														Correct Answer (for reference)
-													</label>
-													<Input
-														type={question.expectedType === 'number' ? 'number' : 'text'}
-														value={question.correctAnswer || ''}
-														onChange={(e) => updateQuestion(question.id, 'correctAnswer', e.target.value)}
-														placeholder={question.expectedType === 'number' ? "Enter the expected numeric answer..." : "Enter the expected text answer..."}
-													/>
+													<label className="block text-sm font-medium mb-2">Correct Answer</label>
+													<Input type={question.expectedType === 'number' ? 'number' : 'text'} value={question.correctAnswer || ''} onChange={(e) => updateQuestion(question.id, 'correctAnswer', e.target.value)} placeholder="Enter the expected answer..." />
 												</div>
 											</div>
 										)}
 
 										<div>
-											<label className="block text-sm font-medium mb-2">
-												Points
-											</label>
+											<label className="block text-sm font-medium mb-2">Points</label>
 											<div className="flex gap-2">
-												{[1, 2, 3, 4, 5].map((points) => (
-													<button
-														key={points}
-														type="button"
-														onClick={() => updateQuestion(question.id, 'points', points)}
-														className={`px-4 py-2 rounded-md font-medium transition-all ${(question.points || 1) === points
-															? 'bg-primary text-white shadow-sm'
-															: 'bg-neutralLight text-neutralDark hover:bg-primary/10 border border-border'
-															}`}
-													>
-														{points}
-													</button>
+												{[1, 2, 3, 4, 5].map(pts => (
+													<button key={pts} type="button" onClick={() => updateQuestion(question.id, 'points', pts)} className={`px-4 py-2 rounded-md font-medium transition-all ${(question.points || 1) === pts ? 'bg-primary text-white shadow-sm' : 'bg-neutralLight text-neutralDark hover:bg-primary/10 border border-border'}`}>{pts}</button>
 												))}
 											</div>
 										</div>
@@ -707,157 +391,67 @@ export default function EditAssessmentPage() {
 
 					{/* Settings */}
 					<Card>
-						<CardHeader>
-							<CardTitle>Settings</CardTitle>
-							<CardDescription>Configure assessment settings</CardDescription>
-						</CardHeader>
+						<CardHeader><CardTitle>Settings</CardTitle><CardDescription>Configure assessment settings</CardDescription></CardHeader>
 						<CardContent className="space-y-4">
-							<div className="flex items-center gap-3">
-								<input
-									type="checkbox"
-									id="published"
-									checked={published}
-									onChange={(e) => setPublished(e.target.checked)}
-									className="w-5 h-5"
-								/>
-								<label htmlFor="published" className="text-sm font-medium cursor-pointer">
-									Publish (visible to students)
-								</label>
+							<div>
+								<label className="block text-sm font-medium mb-2">Status</label>
+								<select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2 border border-border rounded-md bg-white">
+									<option value="draft">Draft</option>
+									<option value="published">Published</option>
+								</select>
 							</div>
 
 							<div className="flex flex-col space-y-4">
 								<div>
-									<label htmlFor="startDate" className="block text-sm font-medium mb-2">
-										Start Date
-									</label>
-									<Input
-										id="startDate"
-										type="datetime-local"
-										value={config.startDate}
-										onChange={(e) => setConfig({ ...config, startDate: e.target.value })}
-									/>
+									<label className="block text-sm font-medium mb-2">Start Date</label>
+									<Input type="datetime-local" value={config.startDate} onChange={(e) => setConfig({ ...config, startDate: e.target.value })} />
 								</div>
 								<div>
-									<label htmlFor="endDate" className="block text-sm font-medium mb-2">
-										End Date
-									</label>
-									<Input
-										id="endDate"
-										type="datetime-local"
-										value={config.endDate}
-										onChange={(e) => setConfig({ ...config, endDate: e.target.value })}
-									/>
+									<label className="block text-sm font-medium mb-2">End Date</label>
+									<Input type="datetime-local" value={config.endDate} onChange={(e) => setConfig({ ...config, endDate: e.target.value })} />
 								</div>
 								<div>
-									<label htmlFor="timer" className="block text-sm font-medium mb-2">
-										Timer (minutes)
-									</label>
-									<Input
-										id="timer"
-										type="number"
-										value={config.timer}
-										onChange={(e) => setConfig({ ...config, timer: e.target.value })}
-										placeholder="e.g., 60"
-									/>
+									<label className="block text-sm font-medium mb-2">Timer (minutes)</label>
+									<Input type="number" value={config.timer} onChange={(e) => setConfig({ ...config, timer: e.target.value })} placeholder="e.g., 60" />
 									<div className="flex flex-wrap gap-2 mt-2">
-										{[15, 30, 45, 60, 90, 120].map((time) => (
-											<Button
-												key={time}
-												type="button"
-												variant="outline"
-												size="sm"
-												onClick={() => setConfig({ ...config, timer: time })}
-												className={parseInt(config.timer) === time ? 'bg-primary text-white hover:bg-primary/90' : ''}
-											>
+										{[15, 30, 45, 60, 90, 120].map(time => (
+											<Button key={time} type="button" variant="outline" size="sm" onClick={() => setConfig({ ...config, timer: time })} className={parseInt(config.timer) === time ? 'bg-primary text-white hover:bg-primary/90' : ''}>
 												{time}m
 											</Button>
 										))}
 									</div>
 								</div>
 								<div>
-									<label htmlFor="attempts" className="block text-sm font-medium mb-2">
-										Max Attempts
-									</label>
-									<Input
-										id="attempts"
-										type="number"
-										value={config.attempts}
-										onChange={(e) => setConfig({ ...config, attempts: parseInt(e.target.value) || 1 })}
-										min="1"
-									/>
+									<label className="block text-sm font-medium mb-2">Max Attempts</label>
+									<Input type="number" value={config.attempts} onChange={(e) => setConfig({ ...config, attempts: parseInt(e.target.value) || 1 })} min="1" />
 								</div>
-
-
-								<div className="mt-2">
-									<div className="flex items-center justify-between p-4 border border-border rounded-lg bg-neutral-50/50">
-										<div className="space-y-0.5">
-											<label htmlFor="allowLateSubmission" className="text-base font-medium text-neutralDark cursor-pointer">
-												Allow Late Submissions
-											</label>
-											<p className="text-sm text-muted-foreground">
-												If enabled, students can submit answers after the deadline (marked as late)
-											</p>
-										</div>
-										<Switch
-											id="allowLateSubmission"
-											checked={config.allowLateSubmission || false}
-											onCheckedChange={(checked) => setConfig({ ...config, allowLateSubmission: checked })}
-											className="data-[state=checked]:bg-primary scale-125"
-										/>
-									</div>
+								<div>
+									<label className="block text-sm font-medium mb-2">Passing Percentage (%)</label>
+									<Input type="number" value={config.passingPercentage} onChange={(e) => setConfig({ ...config, passingPercentage: parseInt(e.target.value) || 0 })} min="0" max="100" />
 								</div>
+							</div>
+
+							<div className="flex items-center justify-between p-4 border border-border rounded-lg bg-neutral-50/50">
+								<div>
+									<p className="text-sm font-medium text-neutralDark">Allow Late Submissions</p>
+									<p className="text-xs text-muted-foreground">Students can submit after the deadline (marked as late)</p>
+								</div>
+								<Switch checked={config.allowLateSubmission || false} onCheckedChange={(checked) => setConfig({ ...config, allowLateSubmission: checked })} />
 							</div>
 						</CardContent>
 					</Card>
 
-					{/* Actions */}
 					<div className="flex gap-4 w-1/2 mx-auto justify-center">
-						<Button
-							type="submit"
-							disabled={submitting}
-							title="Save Changes"
-						>
-							{submitting ? (
-								<>
-									<Loader2 className="h-5 w-5 mr-2 animate-spin" />
-									Saving...
-								</>
-							) : (
-								<>
-									<Save className="h-5 w-5 mr-2" />
-									Save Changes
-								</>
-							)}
+						<Button type="submit" disabled={submitting}>
+							{submitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : <><Save className="h-4 w-4 mr-2" /> Save Changes</>}
 						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							onClick={handleDelete}
-							disabled={deleting}
-							className="text-destructive hover:text-destructive"
-							title="Delete Assessment"
-						>
-							{deleting ? (
-								<>
-									<Loader2 className="h-5 w-5 mr-2 animate-spin" />
-									Deleting...
-								</>
-							) : (
-								<>
-									<Trash2 className="h-5 w-5 mr-2" />
-									Delete
-								</>
-							)}
+						<Button type="button" variant="outline" onClick={handleDelete} disabled={deleting} className="text-destructive hover:text-destructive">
+							{deleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting...</> : <><Trash2 className="h-4 w-4 mr-2" /> Delete</>}
 						</Button>
-						<Link href="/assessments">
-							<Button variant="outline" type="button" title="Cancel">
-								Cancel
-							</Button>
-						</Link>
+						<Link href="/assessments"><Button variant="outline" type="button">Cancel</Button></Link>
 					</div>
 				</div>
 			</form>
 		</div>
 	);
 }
-

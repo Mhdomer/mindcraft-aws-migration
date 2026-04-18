@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
-import { db, auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft, ClipboardCheck, User, Calendar, CheckCircle, Clock, AlertCircle, Edit, Search, Filter } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, Calendar, CheckCircle, Clock, AlertCircle, Edit, Search, Filter } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { Input } from '@/components/ui/input';
 
@@ -16,96 +15,38 @@ export default function AssessmentSubmissionsPage() {
 	const params = useParams();
 	const router = useRouter();
 	const { language } = useLanguage();
+	const { userData, loading: authLoading } = useAuth();
 	const assessmentId = params.id;
 
 	const [assessment, setAssessment] = useState(null);
 	const [submissions, setSubmissions] = useState([]);
 	const [filteredSubmissions, setFilteredSubmissions] = useState([]);
-	const [students, setStudents] = useState({});
 	const [loading, setLoading] = useState(true);
-	const [userRole, setUserRole] = useState(null);
 	const [searchQuery, setSearchQuery] = useState('');
-	const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'pending', 'graded', 'released'
+	const [statusFilter, setStatusFilter] = useState('all');
+
+	const userRole = userData?.role;
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				const { doc, getDoc } = await import('firebase/firestore');
-				const userDoc = await getDoc(doc(db, 'user', user.uid));
-				if (userDoc.exists()) {
-					const role = userDoc.data().role;
-					setUserRole(role);
-					if (role === 'teacher' || role === 'admin') {
-						loadData();
-					} else {
-						router.push('/dashboard/student');
-					}
-				}
-			} else {
-				router.push('/login');
-			}
-		});
-
-		return () => unsubscribe();
-	}, [router]);
+		if (authLoading) return;
+		if (!userData) return;
+		if (userRole === 'teacher' || userRole === 'admin') {
+			loadData();
+		} else {
+			router.push('/dashboard/student');
+		}
+	}, [userData, authLoading]);
 
 	async function loadData() {
 		setLoading(true);
 		try {
-			// Load assessment
-			const assessmentDoc = await getDoc(doc(db, 'assessment', assessmentId));
-			if (!assessmentDoc.exists()) {
-				setLoading(false);
-				return;
-			}
-			setAssessment({ id: assessmentDoc.id, ...assessmentDoc.data() });
-
-			// Load submissions
-			let submissionsSnapshot;
-			try {
-				const submissionsQuery = query(
-					collection(db, 'submission'),
-					where('assessmentId', '==', assessmentId),
-					orderBy('submittedAt', 'desc')
-				);
-				submissionsSnapshot = await getDocs(submissionsQuery);
-			} catch (err) {
-				console.warn('OrderBy submittedAt failed, falling back to in-memory sort', err);
-				const fallbackQuery = query(
-					collection(db, 'submission'),
-					where('assessmentId', '==', assessmentId)
-				);
-				submissionsSnapshot = await getDocs(fallbackQuery);
-			}
-			const loadedSubmissions = submissionsSnapshot.docs.map(doc => ({
-				id: doc.id,
-				...doc.data(),
-			}));
-
-			// Sort in memory to handle fallback case
-			loadedSubmissions.sort((a, b) => {
-				const aTime = a.submittedAt?.toDate?.() || a.submittedAt || 0;
-				const bTime = b.submittedAt?.toDate?.() || b.submittedAt || 0;
-				return bTime - aTime;
-			});
-
-			setSubmissions(loadedSubmissions);
-
-			// Load student info
-			const studentIds = [...new Set(loadedSubmissions.map(s => s.studentId))];
-			const studentData = {};
-			for (const studentId of studentIds) {
-				try {
-					const studentDoc = await getDoc(doc(db, 'user', studentId));
-					if (studentDoc.exists()) {
-						studentData[studentId] = { id: studentDoc.id, ...studentDoc.data() };
-					}
-				} catch (err) {
-					console.error(`Error loading student ${studentId}:`, err);
-				}
-			}
-			setStudents(studentData);
-			setFilteredSubmissions(loadedSubmissions);
+			const [{ assessment: a }, { submissions: subs }] = await Promise.all([
+				api.get(`/api/assessments/${assessmentId}`),
+				api.get(`/api/submissions?assessmentId=${assessmentId}`),
+			]);
+			setAssessment({ ...a, id: a._id });
+			setSubmissions(subs);
+			setFilteredSubmissions(subs);
 		} catch (err) {
 			console.error('Error loading data:', err);
 		} finally {
@@ -113,75 +54,55 @@ export default function AssessmentSubmissionsPage() {
 		}
 	}
 
-	// Filter submissions based on search and status
 	useEffect(() => {
 		let filtered = [...submissions];
-
-		// Filter by search query (student name or email)
 		if (searchQuery.trim()) {
-			const query = searchQuery.toLowerCase();
-			filtered = filtered.filter(sub => {
-				const student = students[sub.studentId];
-				const name = (student?.name || '').toLowerCase();
-				const email = (student?.email || '').toLowerCase();
-				return name.includes(query) || email.includes(query);
-			});
+			const q = searchQuery.toLowerCase();
+			filtered = filtered.filter(s =>
+				(s.studentName || '').toLowerCase().includes(q) ||
+				(s.studentEmail || '').toLowerCase().includes(q)
+			);
 		}
-
-		// Filter by status
 		if (statusFilter !== 'all') {
-			filtered = filtered.filter(sub => {
-				const isGraded = sub.grade !== undefined || sub.feedback;
-				const isReleased = sub.feedbackReleased;
+			filtered = filtered.filter(s => {
+				const isGraded = s.grade !== undefined && s.grade !== null || s.feedback;
+				const isReleased = s.feedbackReleased;
 				if (statusFilter === 'pending') return !isGraded;
 				if (statusFilter === 'graded') return isGraded && !isReleased;
 				if (statusFilter === 'released') return isReleased;
 				return true;
 			});
 		}
-
 		setFilteredSubmissions(filtered);
-	}, [submissions, searchQuery, statusFilter, students]);
+	}, [submissions, searchQuery, statusFilter]);
 
-	function formatDate(timestamp) {
-		if (!timestamp) return language === 'bm' ? 'Tiada' : 'N/A';
-		const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-		return date.toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
+	function formatDate(ts) {
+		if (!ts) return language === 'bm' ? 'Tiada' : 'N/A';
+		return new Date(ts).toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', {
+			year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
 		});
 	}
 
 	function getGrade(score, total) {
-		if (!total || total === 0) return { grade: 'F', status: 'Gagal', color: 'text-destructive' };
-		const percentage = Math.round((score / total) * 100);
-
-		if (percentage >= 90) return { grade: 'A+', status: 'Cemerlang Tertinggi', color: 'text-success' };
-		if (percentage >= 80) return { grade: 'A', status: 'Cemerlang Tinggi', color: 'text-success' };
-		if (percentage >= 70) return { grade: 'A-', status: 'Cemerlang', color: 'text-success' };
-		if (percentage >= 65) return { grade: 'B+', status: 'Kepujian Tertinggi', color: 'text-info' };
-		if (percentage >= 60) return { grade: 'B', status: 'Kepujian Tinggi', color: 'text-info' };
-		if (percentage >= 55) return { grade: 'C+', status: 'Kepujian Atas', color: 'text-warning' };
-		if (percentage >= 50) return { grade: 'C', status: 'Kepujian', color: 'text-warning' };
-		if (percentage >= 45) return { grade: 'D', status: 'Lulus Atas', color: 'text-orange-500' };
-		if (percentage >= 40) return { grade: 'E', status: 'Lulus', color: 'text-orange-500' };
-		return { grade: 'G', status: 'Gagal', color: 'text-destructive' };
+		if (!total || total === 0) return { grade: 'F', color: 'text-destructive' };
+		const pct = Math.round((score / total) * 100);
+		if (pct >= 90) return { grade: 'A+', color: 'text-success' };
+		if (pct >= 80) return { grade: 'A', color: 'text-success' };
+		if (pct >= 70) return { grade: 'A-', color: 'text-success' };
+		if (pct >= 65) return { grade: 'B+', color: 'text-info' };
+		if (pct >= 60) return { grade: 'B', color: 'text-info' };
+		if (pct >= 55) return { grade: 'C+', color: 'text-warning' };
+		if (pct >= 50) return { grade: 'C', color: 'text-warning' };
+		if (pct >= 45) return { grade: 'D', color: 'text-orange-500' };
+		if (pct >= 40) return { grade: 'E', color: 'text-orange-500' };
+		return { grade: 'G', color: 'text-destructive' };
 	}
 
 	if (loading) {
 		return (
 			<div className="space-y-8">
-				<div>
-					<h1 className="text-h1 text-neutralDark mb-2">
-						{language === 'bm' ? 'Penyerahan' : 'Submissions'}
-					</h1>
-					<p className="text-body text-muted-foreground">
-						{language === 'bm' ? 'Memuatkan...' : 'Loading...'}
-					</p>
-				</div>
+				<h1 className="text-h1 text-neutralDark mb-2">{language === 'bm' ? 'Penyerahan' : 'Submissions'}</h1>
+				<p className="text-body text-muted-foreground">{language === 'bm' ? 'Memuatkan...' : 'Loading...'}</p>
 			</div>
 		);
 	}
@@ -189,40 +110,22 @@ export default function AssessmentSubmissionsPage() {
 	if (!assessment) {
 		return (
 			<div className="space-y-8">
-				<Link href="/assessments">
-					<Button variant="ghost" className="mb-4">
-						<ArrowLeft className="h-4 w-4 mr-2" />
-						{language === 'bm' ? 'Kembali' : 'Back'}
-					</Button>
-				</Link>
-				<Card>
-					<CardContent className="py-12 text-center">
-						<p className="text-body text-muted-foreground">
-							{language === 'bm' ? 'Penilaian tidak dijumpai' : 'Assessment not found'}
-						</p>
-					</CardContent>
-				</Card>
+				<Link href="/assessments"><Button variant="ghost" className="mb-4"><ArrowLeft className="h-4 w-4 mr-2" />{language === 'bm' ? 'Kembali' : 'Back'}</Button></Link>
+				<Card><CardContent className="py-12 text-center"><p className="text-body text-muted-foreground">{language === 'bm' ? 'Penilaian tidak dijumpai' : 'Assessment not found'}</p></CardContent></Card>
 			</div>
 		);
 	}
 
 	return (
 		<div className="space-y-8">
-			{/* Header */}
 			<div>
 				<Link href="/assessments">
-					<Button variant="ghost" className="mb-4">
-						<ArrowLeft className="h-4 w-4 mr-2" />
-						{language === 'bm' ? 'Kembali ke Penilaian' : 'Back to Assessments'}
-					</Button>
+					<Button variant="ghost" className="mb-4"><ArrowLeft className="h-4 w-4 mr-2" />{language === 'bm' ? 'Kembali ke Penilaian' : 'Back to Assessments'}</Button>
 				</Link>
 				<h1 className="text-h1 text-neutralDark mb-2">{assessment.title}</h1>
-				<p className="text-body text-muted-foreground">
-					{language === 'bm' ? 'Lihat dan gred semua penyerahan' : 'View and grade all submissions'}
-				</p>
+				<p className="text-body text-muted-foreground">{language === 'bm' ? 'Lihat dan gred semua penyerahan' : 'View and grade all submissions'}</p>
 			</div>
 
-			{/* Filters and Search */}
 			{submissions.length > 0 && (
 				<Card>
 					<CardContent className="pt-6">
@@ -239,11 +142,7 @@ export default function AssessmentSubmissionsPage() {
 							</div>
 							<div className="flex items-center gap-2">
 								<Filter className="h-4 w-4 text-muted-foreground" />
-								<select
-									value={statusFilter}
-									onChange={(e) => setStatusFilter(e.target.value)}
-									className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-								>
+								<select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
 									<option value="all">{language === 'bm' ? 'Semua Status' : 'All Status'}</option>
 									<option value="pending">{language === 'bm' ? 'Menunggu Gred' : 'Pending Grade'}</option>
 									<option value="graded">{language === 'bm' ? 'Sudah Digred' : 'Graded'}</option>
@@ -262,33 +161,29 @@ export default function AssessmentSubmissionsPage() {
 				</Card>
 			)}
 
-			{/* Submissions List */}
 			{filteredSubmissions.length === 0 ? (
 				<Card>
 					<CardContent className="py-12 text-center">
 						<ClipboardCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
 						<p className="text-body text-muted-foreground">
-							{language === 'bm'
-								? 'Tiada penyerahan lagi untuk penilaian ini.'
-								: 'No submissions yet for this assessment.'}
+							{language === 'bm' ? 'Tiada penyerahan lagi untuk penilaian ini.' : 'No submissions yet for this assessment.'}
 						</p>
 					</CardContent>
 				</Card>
 			) : (
 				<div className="space-y-4">
 					{filteredSubmissions.map((submission) => {
-						const student = students[submission.studentId];
-						const isGraded = submission.grade !== undefined || submission.feedback;
+						const subId = submission._id || submission.id;
+						const isGraded = (submission.grade !== undefined && submission.grade !== null) || submission.feedback;
 						const isReleased = submission.feedbackReleased;
+						const hasScore = submission.score !== null && submission.score !== undefined && submission.totalPoints;
 
 						return (
-							<Card key={submission.id} className="card-hover">
+							<Card key={subId} className="card-hover">
 								<CardHeader>
 									<div className="flex items-start justify-between">
 										<div className="flex-1">
-											<CardTitle className="text-h4 mb-2">
-												{student?.name || student?.email || 'Unknown Student'}
-											</CardTitle>
+											<CardTitle className="text-h4 mb-2">{submission.studentName || submission.studentEmail || 'Unknown Student'}</CardTitle>
 											<div className="flex flex-wrap gap-2">
 												{submission.submittedAt && (
 													<div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -296,67 +191,51 @@ export default function AssessmentSubmissionsPage() {
 														{language === 'bm' ? 'Dihantar:' : 'Submitted:'} {formatDate(submission.submittedAt)}
 													</div>
 												)}
-												{submission.score !== undefined && submission.totalPoints && (
+												{hasScore && (
 													<div className="text-sm font-medium flex items-center gap-2">
 														<span>{language === 'bm' ? 'Skor:' : 'Score:'} {submission.score} / {submission.totalPoints}</span>
 														<span className="text-muted-foreground">|</span>
 														{(() => {
 															const gradeInfo = getGrade(submission.score, submission.totalPoints);
-															return (
-																<span className={`${gradeInfo.color} font-bold`}>
-																	{gradeInfo.grade} ({gradeInfo.status})
-																</span>
-															);
+															return <span className={`${gradeInfo.color} font-bold`}>{gradeInfo.grade}</span>;
 														})()}
 													</div>
 												)}
 												{isReleased ? (
 													<span className="text-xs bg-success/10 text-success px-2.5 py-1.5 rounded-md font-medium border border-success/20 flex items-center gap-1.5">
-														<CheckCircle className="h-3.5 w-3.5" />
-														{language === 'bm' ? 'Telah dilepaskan' : 'Released'}
+														<CheckCircle className="h-3.5 w-3.5" /> {language === 'bm' ? 'Telah dilepaskan' : 'Released'}
 													</span>
 												) : isGraded ? (
 													<span className="text-xs bg-warning/10 text-warning px-2.5 py-1.5 rounded-md font-medium border border-warning/20 flex items-center gap-1.5">
-														<Clock className="h-3.5 w-3.5" />
-														{language === 'bm' ? 'Belum dilepaskan' : 'Not Released'}
+														<Clock className="h-3.5 w-3.5" /> {language === 'bm' ? 'Belum dilepaskan' : 'Not Released'}
 													</span>
 												) : (
 													<span className="text-xs bg-info/10 text-info px-2.5 py-1.5 rounded-md font-medium border border-info/20 flex items-center gap-1.5">
-														<AlertCircle className="h-3.5 w-3.5" />
-														{language === 'bm' ? 'Menunggu gred' : 'Pending Grade'}
+														<AlertCircle className="h-3.5 w-3.5" /> {language === 'bm' ? 'Menunggu gred' : 'Pending Grade'}
 													</span>
 												)}
 											</div>
 										</div>
-										<Link href={`/submissions/${submission.id}/grade`}>
-											<Button variant="outline" size="sm">
-												<Edit className="h-4 w-4 mr-2" />
-												{language === 'bm' ? 'Gred' : 'Grade'}
-											</Button>
+										<Link href={`/submissions/${subId}/grade`}>
+											<Button variant="outline" size="sm"><Edit className="h-4 w-4 mr-2" />{language === 'bm' ? 'Gred' : 'Grade'}</Button>
 										</Link>
 									</div>
 								</CardHeader>
 								<CardContent>
 									<div className="space-y-3">
 										{submission.answers && Object.keys(submission.answers).length > 0 && (
-											<div>
-												<p className="text-sm font-medium mb-2">
-													{language === 'bm' ? 'Jawapan:' : 'Answers:'} {Object.keys(submission.answers).length} {language === 'bm' ? 'soalan' : 'questions'}
-												</p>
-											</div>
+											<p className="text-sm font-medium">
+												{language === 'bm' ? 'Jawapan:' : 'Answers:'} {Object.keys(submission.answers).length} {language === 'bm' ? 'soalan' : 'questions'}
+											</p>
 										)}
-										{submission.grade !== undefined && (
-											<div>
-												<p className="text-sm font-medium">
-													{language === 'bm' ? 'Gred:' : 'Grade:'} <span className="text-primary font-bold">{submission.grade}%</span>
-												</p>
-											</div>
+										{submission.grade !== undefined && submission.grade !== null && (
+											<p className="text-sm font-medium">
+												{language === 'bm' ? 'Gred:' : 'Grade:'} <span className="text-primary font-bold">{submission.grade}%</span>
+											</p>
 										)}
 										{submission.feedback && isReleased && (
 											<div>
-												<p className="text-sm font-medium mb-1">
-													{language === 'bm' ? 'Maklum Balas:' : 'Feedback:'}
-												</p>
+												<p className="text-sm font-medium mb-1">{language === 'bm' ? 'Maklum Balas:' : 'Feedback:'}</p>
 												<div className="text-sm text-muted-foreground p-3 bg-neutralLight rounded-lg" dangerouslySetInnerHTML={{ __html: submission.feedback }} />
 											</div>
 										)}
@@ -370,4 +249,3 @@ export default function AssessmentSubmissionsPage() {
 		</div>
 	);
 }
-

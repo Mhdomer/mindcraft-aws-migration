@@ -31,7 +31,7 @@ router.get('/', requireAuth, async (req, res) => {
 // POST /api/submissions
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { assignmentId, assessmentId, content } = req.body;
+    const { assignmentId, assessmentId, content, answers, score, totalPoints, isAutoSubmit, isLate } = req.body;
     if (!assignmentId && !assessmentId) return res.status(400).json({ error: 'assignmentId or assessmentId is required' });
 
     const student = await User.findById(req.user.id).select('name email');
@@ -41,7 +41,12 @@ router.post('/', requireAuth, async (req, res) => {
       studentEmail: student.email,
       assignmentId: assignmentId || null,
       assessmentId: assessmentId || null,
-      content,
+      content: content || '',
+      answers: answers || null,
+      score: score ?? null,
+      totalPoints: totalPoints ?? null,
+      isAutoSubmit: isAutoSubmit || false,
+      isLate: isLate || false,
     });
     res.status(201).json({ submission });
   } catch (err) {
