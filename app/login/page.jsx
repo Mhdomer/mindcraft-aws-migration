@@ -3,170 +3,50 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '@/firebase';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Torch from '@/components/pixel-ui/Torch';
 
+function dashboardPath(role) {
+	if (role === 'admin')   return '/dashboard/admin';
+	if (role === 'teacher') return '/dashboard/teacher';
+	return '/dashboard/student';
+}
+
 export default function LoginPage() {
-	const [email, setEmail] = useState('');
-	const [password, setPassword] = useState('');
-	const [error, setError] = useState('');
-	const [loading, setLoading] = useState(false);
+	const [email, setEmail]           = useState('');
+	const [password, setPassword]     = useState('');
+	const [error, setError]           = useState('');
+	const [loading, setLoading]       = useState(false);
 	const [checkingAuth, setCheckingAuth] = useState(true);
-	const router = useRouter();
+	const { userData } = useAuth();
 
-	// Check if user is already authenticated and redirect
+	// Already logged in — go straight to dashboard
 	useEffect(() => {
-		let mounted = true;
-		
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user && mounted) {
-				// User is already logged in, redirect to their dashboard
-				try {
-					const userDocRef = doc(db, 'user', user.uid);
-					const userDoc = await getDoc(userDocRef);
-
-					let role = 'student';
-					if (userDoc.exists()) {
-						role = userDoc.data().role || 'student';
-					}
-
-					// Set session cookies BEFORE redirect
-					await fetch('/api/auth/session', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({
-							uid: user.uid,
-							email: user.email,
-							role: role,
-						}),
-						credentials: 'include', // Ensure cookies are sent
-					});
-
-					// Small delay to ensure cookies are set
-					await new Promise(resolve => setTimeout(resolve, 100));
-
-					// Redirect based on role
-					let redirectPath;
-					if (role === 'admin') {
-						redirectPath = '/dashboard/admin';
-					} else if (role === 'teacher') {
-						redirectPath = '/dashboard/teacher';
-					} else if (role === 'student') {
-						redirectPath = '/dashboard/student';
-					} else {
-						redirectPath = '/dashboard';
-					}
-
-					// Warm up the dashboard route for faster navigation
-					router.prefetch(redirectPath);
-
-					// Use window.location for full redirect to ensure cookies are read
-					window.location.href = redirectPath;
-					return; // Exit early, don't set checkingAuth to false
-				} catch (err) {
-					console.error('Error checking auth state:', err);
-					if (mounted) setCheckingAuth(false);
-				}
-			} else if (mounted) {
-				// No user, show login form
-				setCheckingAuth(false);
-			}
-		});
-
-		return () => {
-			mounted = false;
-			unsubscribe();
-		};
-	}, [router]);
+		if (userData) {
+			window.location.href = dashboardPath(userData.role);
+		} else {
+			setCheckingAuth(false);
+		}
+	}, [userData]);
 
 	async function onSubmit(e) {
 		e.preventDefault();
 		setError('');
+
+		if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+			return setError('Please enter a valid email address');
+		}
+		if (!password) return setError('Password is required');
+
 		setLoading(true);
-
-		// Validate email format
-		if (!email || !email.trim()) {
-			setError('Email is required');
-			setLoading(false);
-			return;
-		}
-
-		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-		if (!emailRegex.test(email.trim())) {
-			setError('Please enter a valid email address');
-			setLoading(false);
-			return;
-		}
-
-		if (!password) {
-			setError('Password is required');
-			setLoading(false);
-			return;
-		}
-
 		try {
-			// Step 1: Sign in with Firebase Auth
-			const userCredential = await signInWithEmailAndPassword(auth, email, password);
-			const user = userCredential.user; // This has the uid
-
-			// Step 2: Get user role from Firestore users collection
-			const userDocRef = doc(db, 'user', user.uid);
-			const userDoc = await getDoc(userDocRef);
-
-			let role;
-			if (userDoc.exists()) {
-				// User profile exists in Firestore
-				role = userDoc.data().role;
-			} else {
-				// First time login - check if it's admin (from admin.json)
-				// For now, we'll create a default user profile
-				// TODO: Handle admin login separately or create admin user in Firestore
-				role = 'student'; // Default fallback
-			}
-
-			// Step 3: Set session cookies (for server-side role checks)
-			await fetch('/api/auth/session', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					uid: user.uid,
-					email: user.email,
-					role: role,
-				}),
-				credentials: 'include', // Ensure cookies are sent
-			});
-
-			// Small delay to ensure cookies are set before redirect
-			await new Promise(resolve => setTimeout(resolve, 100));
-
-			// Step 4: Redirect based on role
-			let redirectPath;
-			if (role === 'admin') {
-				redirectPath = '/dashboard/admin';
-			} else if (role === 'teacher') {
-				redirectPath = '/dashboard/teacher';
-			} else if (role === 'student') {
-				redirectPath = '/dashboard/student';
-			} else {
-				redirectPath = '/dashboard';
-			}
-
-			// Use window.location.href for a full page navigation to ensure cookies are read
-			window.location.href = redirectPath;
+			const { user } = await api.post('/api/auth/login', { email, password });
+			window.location.href = dashboardPath(user.role);
 		} catch (err) {
-			// Firebase Auth errors
-			if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-				setError('Invalid email or password');
-			} else if (err.code === 'auth/invalid-email') {
-				setError('Invalid email format');
-			} else {
-				setError(err.message || 'Login failed');
-			}
+			setError(err.message || 'Invalid email or password');
 		} finally {
 			setLoading(false);
 		}
