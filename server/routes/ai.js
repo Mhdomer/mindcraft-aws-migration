@@ -61,14 +61,30 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/ai/recommendations — generate learning recommendations for a student
+// POST /api/ai/recommendations — personalized learning recommendations for the dashboard
 router.post('/recommendations', requireAuth, async (req, res) => {
   try {
-    const { studentId, progressData } = req.body;
-    const prompt = `Based on this student's learning progress data, generate 3 personalized study recommendations:\n\n${JSON.stringify(progressData)}\n\nReturn as JSON array with fields: title, description, priority (high/medium/low)`;
-    const response = await callGemini(prompt);
-    res.json({ recommendations: response });
+    const { language = 'en', performanceData = {} } = req.body;
+    const prompt = `You are an educational AI for secondary school database systems courses (age 16-17).
+
+Analyze this student's progress and generate 3-5 personalized recommendations in ${language === 'bm' ? 'Bahasa Malaysia' : 'English'}.
+
+Performance:
+- Enrolled courses: ${performanceData.enrolledCourses?.length || 0}
+- Completed lessons: ${performanceData.completedLessons?.length || 0}
+- Overall progress: ${JSON.stringify(performanceData.overallProgress || {})}
+- Weak areas: ${JSON.stringify(performanceData.weakAreas || [])}
+- Strong areas: ${JSON.stringify(performanceData.strongAreas || [])}
+
+Return ONLY a valid JSON array, no extra text:
+[{ "type": "continue_lesson|review_weak_area|practice_assessment|explore_courses", "priority": "high|medium|low", "title": "...", "description": "...", "action": { "type": "navigate", "path": "/courses", "label": "..." }, "reason": "..." }]`;
+
+    const raw = await callGemini(prompt);
+    const match = raw.match(/\[[\s\S]*\]/);
+    const recommendations = match ? JSON.parse(match[0]).slice(0, 5) : [];
+    res.json({ recommendations });
   } catch (err) {
+    console.error('Recommendations error:', err);
     res.status(500).json({ error: 'Failed to generate recommendations' });
   }
 });

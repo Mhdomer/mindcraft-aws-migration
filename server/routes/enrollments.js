@@ -48,6 +48,21 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/enrollments/teacher — all enrollments across current teacher's courses
+router.get('/teacher', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    const teacherCourses = await Course.find({ createdBy: req.user.id }).select('_id');
+    const courseIds = teacherCourses.map(c => c._id);
+    const enrollments = await Enrollment.find({ courseId: { $in: courseIds } });
+    res.json({ enrollments, totalStudents: enrollments.length });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch teacher enrollments' });
+  }
+});
+
 // PATCH /api/enrollments/:id/progress — update lesson/module completion
 router.patch('/:id/progress', requireAuth, async (req, res) => {
   try {

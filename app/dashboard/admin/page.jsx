@@ -1,53 +1,38 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { api } from '@/lib/api';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { UserPlus, BookOpen, BarChart3, ArrowRight, Users, FileText, Sparkles, ShieldCheck, Gamepad2, Settings } from 'lucide-react';
-import { Metric, Title, Flex, Text } from '@tremor/react';
-import { db } from '@/firebase'; // Ensure db is imported
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { Metric, Flex, Text } from '@tremor/react';
 
 export default function AdminDashboard() {
 	const { language } = useLanguage();
-	const [stats, setStats] = useState({
-		users: 0,
-		courses: 0,
-		activeSessions: 0 // Placeholder or real implementation
-	});
+	const [stats, setStats] = useState({ users: 0, courses: 0, activeSessions: '-' });
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
 		async function fetchStats() {
 			try {
-				// Fetch Users Count
-				const usersSnap = await getDocs(collection(db, 'users'));
-				const usersCount = usersSnap.size;
-
-				// Fetch Courses Count
-				const coursesSnap = await getDocs(collection(db, 'course'));
-				const coursesCount = coursesSnap.size;
-
-				setStats({
-					users: usersCount,
-					courses: coursesCount,
-					activeSessions: '-' // Placeholder
-				});
+				const [{ users }, { courses }] = await Promise.all([
+					api.get('/api/users'),
+					api.get('/api/courses'),
+				]);
+				setStats({ users: users.length, courses: courses.length, activeSessions: '-' });
 			} catch (error) {
-				console.error("Error fetching admin stats:", error);
+				console.error('Error fetching admin stats:', error);
 			} finally {
 				setLoading(false);
 			}
 		}
-
 		fetchStats();
 	}, []);
 
 	return (
 		<div className="-m-6 md:-m-8 lg:-m-10 min-h-full relative overflow-hidden">
-			{/* Premium Background Design */}
 			<div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-gray-50/30 to-white z-0 pointer-events-none"></div>
 			<div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
 			<div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-indigo-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
@@ -123,7 +108,7 @@ export default function AdminDashboard() {
 						<div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-500/20 transition-all duration-500"></div>
 						<CardHeader className="pb-3 z-10 relative">
 							<Flex justifyContent="start" className="gap-3">
-								<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-300">
+								<div className="p-2.5 bg-white rounded-xl shadow-sm ring-1 ring-gray-100">
 									<FileText className="h-5 w-5 text-orange-500" />
 								</div>
 								<CardTitle className="text-md font-medium text-muted-foreground uppercase tracking-wide text-xs">
@@ -140,7 +125,7 @@ export default function AdminDashboard() {
 					</Card>
 				</div>
 
-				{/* Action Cards */}
+				{/* Quick Actions */}
 				<div>
 					<div className="flex items-center gap-2 mb-6">
 						<div className="h-6 w-1 bg-primary rounded-full"></div>
@@ -211,11 +196,9 @@ export default function AdminDashboard() {
 								</CardContent>
 							</Card>
 						</Link>
-
 					</div>
 				</div>
 			</div>
 		</div>
 	);
 }
-

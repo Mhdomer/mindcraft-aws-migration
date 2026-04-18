@@ -1,19 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db, auth } from '@/firebase';
+import { api } from '@/lib/api';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { BookOpen, FileQuestion, TrendingUp, Brain, ArrowRight, FileText, ClipboardCheck, Gamepad2, ChevronDown, ChevronUp, Lightbulb, AlertCircle, CheckCircle, Sparkles } from 'lucide-react';
 import { Metric, Flex, Text, ProgressBar } from '@tremor/react';
 
 export default function StudentDashboard() {
-    const { user, userData } = useAuth();
+    const { userData } = useAuth();
     const { language } = useLanguage();
 
     const [loading, setLoading] = useState(true);
@@ -27,134 +26,59 @@ export default function StudentDashboard() {
     const [expandedRecIndex, setExpandedRecIndex] = useState(null);
 
     useEffect(() => {
-        if (user) {
-            setUserName(user.displayName || userData?.name || '');
-            loadDashboardData(user.uid);
-        } else if (!user && !userData) {
-            // If we know auth check is done (loading is false in context, but here loading is local dashboard loading)
-            // effectively if no user, we stop loading dashboard
-            if (userData === null) setLoading(false);
+        if (userData) {
+            setUserName(userData.name || '');
+            loadDashboardData();
+        } else if (userData === null) {
+            setLoading(false);
         }
-    }, [user, userData]);
+    }, [userData]);
 
-    async function loadDashboardData(userId) {
+    async function loadDashboardData() {
         setLoading(true);
         try {
-            // 1. Fetch Enrollments
-            const enrollmentsQuery = query(
-                collection(db, 'progress'),
-                where('studentId', '==', userId)
-            );
-            const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
-            const enrollments = enrollmentsSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-            }));
-
-            const enrolledCourseIds = enrollments.map(e => e.courseId).filter(Boolean);
-            setEnrolledCourses(enrolledCourseIds.length);
-
-            if (enrolledCourseIds.length === 0) {
-                setLoading(false);
-                return;
-            }
-
-            // 2. Parallel Fetching for dependent data
-            // Fetch first 3 courses for recent courses display
-            const fetchCoursesPromise = (async () => {
-                const recentIds = enrolledCourseIds.slice(0, 3);
-                if (recentIds.length === 0) return [];
-                const coursePromises = recentIds.map(id => getDoc(doc(db, 'course', id)));
-                const courseDocs = await Promise.all(coursePromises);
-                return courseDocs.map(d => d.exists() ? { id: d.id, ...d.data() } : null).filter(Boolean);
-            })();
-
-            // Fetch tasks (Assessments & Assignments) using 'in' query optimization
-            // Chunking into groups of 10 to satisfy Firestore 'in' query limit
-            const chunks = [];
-            const chunkSize = 10;
-            for (let i = 0; i < enrolledCourseIds.length; i += chunkSize) {
-                chunks.push(enrolledCourseIds.slice(i, i + chunkSize));
-            }
-
-            const fetchAssessmentsPromise = (async () => {
-                const results = [];
-                for (const chunk of chunks) {
-                    const q = query(
-                        collection(db, 'assessment'),
-                        where('courseId', 'in', chunk),
-                        where('published', '==', true)
-                    );
-                    const snap = await getDocs(q);
-                    results.push(...snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                }
-                return results;
-            })();
-
-            const fetchAssignmentsPromise = (async () => {
-                const results = [];
-                for (const chunk of chunks) {
-                    const q = query(
-                        collection(db, 'assignment'),
-                        where('courseId', 'in', chunk),
-                        where('published', '==', true)
-                    );
-                    const snap = await getDocs(q);
-                    results.push(...snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                }
-                return results;
-            })();
-
-            const fetchSubmissionsPromise = getDocs(query(collection(db, 'submission'), where('studentId', '==', userId)));
-
-            // Wait for all parallel requests to complete
-            const [recentCoursesData, allAssessments, allAssignments, submissionsSnapshot] = await Promise.all([
-                fetchCoursesPromise,
-                fetchAssessmentsPromise,
-                fetchAssignmentsPromise,
-                fetchSubmissionsPromise
+            const [{ enrollments }, { assessments }, { assignments }, { submissions }] = await Promise.all([
+                api.get('/api/enrollments/student'),
+                api.get('/api/assessments'),
+                api.get('/api/assignments'),
+                api.get('/api/submissions'),
             ]);
 
-            setRecentCourses(recentCoursesData);
+            const enrolledCourseIds = new Set(
+                enrollments.map(e => (e.courseId?._id || e.courseId)?.toString()).filter(Boolean)
+            );
+            setEnrolledCourses(enrolledCourseIds.size);
 
-            const submissions = submissionsSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-            }));
+            const recentCoursesList = enrollments
+                .slice(0, 3)
+                .map(e => ({ id: e.courseId?._id, title: e.courseId?.title }))
+                .filter(c => c.id && c.title);
+            setRecentCourses(recentCoursesList);
 
-            // Count pending tasks (assessments/assignments not yet submitted)
+            const avgProgress = enrollments.length > 0
+                ? Math.round(enrollments.reduce((sum, e) => sum + (e.progress?.overallProgress || 0), 0) / enrollments.length)
+                : 0;
+            setOverallProgress(Math.min(avgProgress, 100));
+
             const submittedAssessmentIds = new Set(
-                submissions.filter(s => s.assessmentId).map(s => s.assessmentId)
+                submissions.filter(s => s.assessmentId).map(s => s.assessmentId?.toString())
             );
             const submittedAssignmentIds = new Set(
-                submissions.filter(s => s.assignmentId).map(s => s.assignmentId)
+                submissions.filter(s => s.assignmentId).map(s => s.assignmentId?.toString())
             );
 
-            const pendingAssessments = allAssessments.filter(a => !submittedAssessmentIds.has(a.id));
-            const pendingAssignments = allAssignments.filter(a => !submittedAssignmentIds.has(a.id));
-            setPendingTasks(pendingAssessments.length + pendingAssignments.length);
+            const pendingAssessments = assessments.filter(a =>
+                enrolledCourseIds.has(a.courseId?.toString()) &&
+                !submittedAssessmentIds.has(a._id?.toString())
+            );
+            const pendingAssignments = assignments.filter(a =>
+                enrolledCourseIds.has(a.courseId?.toString()) &&
+                !submittedAssignmentIds.has(a._id?.toString())
+            );
 
-            // Set recent assessments (pending ones, limit to 3)
+            setPendingTasks(pendingAssessments.length + pendingAssignments.length);
             setRecentAssessments(pendingAssessments.slice(0, 3));
 
-            // Calculate overall progress from all enrollments
-            // We now use the pre-calculated stats in the enrollment object which updates when lessons are completed
-            let totalProgressSum = 0;
-            let activeEnrollmentsCount = 0;
-
-            enrollments.forEach(enrollment => {
-                if (enrollment.progress && typeof enrollment.progress.overallProgress === 'number') {
-                    totalProgressSum += enrollment.progress.overallProgress;
-                    activeEnrollmentsCount++;
-                }
-            });
-
-            // If we have enrollments but no progress data yet, fallback to 0 or assessments logic if preferred
-            // But for now let's rely on the enrollment progress which we started updating
-            const avgProgress = activeEnrollmentsCount > 0 ? Math.round(totalProgressSum / activeEnrollmentsCount) : 0;
-            setOverallProgress(Math.min(avgProgress, 100)); // Ensure it never exceeds 100%
-
-            // Load recommendations preview
             loadRecommendationsPreview();
         } catch (err) {
             console.error('Error loading dashboard data:', err);
@@ -164,36 +88,16 @@ export default function StudentDashboard() {
     }
 
     async function loadRecommendationsPreview() {
-        if (!user?.uid) return;
-
         try {
-            // Fetch recommendations client-side to avoid server permission issues
-            const response = await fetch('/api/ai/recommendations', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ language: 'en' }),
-                credentials: 'include', // Include cookies for authentication
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setRecommendations((data.recommendations || []).slice(0, 3)); // Show only first 3
-            } else {
-                // If API fails, just show empty state - don't crash
-                setRecommendations([]);
-            }
-        } catch (err) {
-            console.error('Error loading recommendations:', err);
-            // Silently fail - recommendations are optional
+            const data = await api.post('/api/ai/recommendations', { language });
+            setRecommendations((data.recommendations || []).slice(0, 3));
+        } catch {
             setRecommendations([]);
         }
     }
 
     return (
         <div className="-m-6 md:-m-8 lg:-m-10 min-h-full relative overflow-hidden">
-            {/* Premium Background Design */}
             <div className="absolute inset-0 bg-gradient-to-br from-sky-50 via-indigo-50/30 to-white z-0 pointer-events-none"></div>
             <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
             <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
@@ -298,7 +202,7 @@ export default function StudentDashboard() {
                     </Link>
                 </div>
 
-                {/* Action Cards */}
+                {/* Quick Access */}
                 <div>
                     <div className="flex items-center gap-2 mb-6">
                         <div className="h-6 w-1 bg-primary rounded-full"></div>
@@ -396,7 +300,7 @@ export default function StudentDashboard() {
                 </div>
 
                 <div className="grid gap-8 lg:grid-cols-2">
-                    {/* Recent Assessments Section */}
+                    {/* Pending Assessments */}
                     <div>
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-2">
@@ -417,7 +321,7 @@ export default function StudentDashboard() {
                         {recentAssessments.length > 0 ? (
                             <div className="space-y-4">
                                 {recentAssessments.map((assessment) => (
-                                    <div key={assessment.id} className="group flex items-center gap-4 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all border border-gray-100/50">
+                                    <div key={assessment._id} className="group flex items-center gap-4 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all border border-gray-100/50">
                                         <div className="flex-shrink-0 p-3 bg-orange-50 rounded-lg group-hover:bg-orange-100 transition-colors">
                                             <FileQuestion className="h-6 w-6 text-orange-600" />
                                         </div>
@@ -425,7 +329,7 @@ export default function StudentDashboard() {
                                             <h4 className="font-semibold text-neutralDark truncate">{assessment.title}</h4>
                                             <p className="text-sm text-muted-foreground capitalize">{assessment.type || (language === 'bm' ? 'Penilaian' : 'Assessment')}</p>
                                         </div>
-                                        <Link href={`/assessments/${assessment.id}/take`}>
+                                        <Link href={`/assessments/${assessment._id}/take`}>
                                             <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-4 shadow-sm hover:shadow">
                                                 {language === 'bm' ? 'Mula' : 'Start'}
                                             </Button>
@@ -448,7 +352,6 @@ export default function StudentDashboard() {
                         )}
                     </div>
 
-                    {/* Recent Courses/Recommendation Split */}
                     <div className="space-y-8">
                         {/* Recent Courses */}
                         {recentCourses.length > 0 && (
@@ -466,7 +369,6 @@ export default function StudentDashboard() {
                                         </Button>
                                     </Link>
                                 </div>
-
                                 <div className="space-y-3">
                                     {recentCourses.map((course) => (
                                         <Link key={course.id} href={`/courses/${course.id}`} className="block">
@@ -485,7 +387,7 @@ export default function StudentDashboard() {
                             </div>
                         )}
 
-                        {/* AI Recommendations */}
+                        {/* AI Insights */}
                         <div>
                             <div className="flex items-center justify-between mb-6">
                                 <div className="flex items-center gap-2">
@@ -514,36 +416,27 @@ export default function StudentDashboard() {
                                                 default: return <Lightbulb className="h-5 w-5 text-purple-500" />;
                                             }
                                         };
-
                                         return (
                                             <div
                                                 key={index}
-                                                className={`
-													bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer
-													${isExpanded ? 'ring-2 ring-purple-100' : ''}
-												`}
+                                                className={`bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer ${isExpanded ? 'ring-2 ring-purple-100' : ''}`}
                                                 onClick={() => setExpandedRecIndex(isExpanded ? null : index)}
                                             >
                                                 <div className="p-4 flex items-start gap-4">
-                                                    <div className="flex-shrink-0 mt-0.5">
-                                                        {getPriorityIcon(rec.priority)}
-                                                    </div>
+                                                    <div className="flex-shrink-0 mt-0.5">{getPriorityIcon(rec.priority)}</div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center justify-between">
                                                             <h3 className="text-sm font-semibold text-neutralDark">{rec.title}</h3>
                                                             {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
                                                         </div>
-                                                        {(isExpanded) && (
+                                                        {isExpanded && (
                                                             <div className="mt-3 text-sm text-muted-foreground border-t border-gray-50 pt-3 animate-fadeIn">
                                                                 <p className="mb-3">{rec.description}</p>
                                                                 {rec.action?.path && (
                                                                     <Button
                                                                         size="sm"
                                                                         className="w-full bg-purple-50 hover:bg-purple-100 text-purple-700 border-none"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            window.location.href = rec.action.path;
-                                                                        }}
+                                                                        onClick={(e) => { e.stopPropagation(); window.location.href = rec.action.path; }}
                                                                     >
                                                                         {rec.action.label || (language === 'bm' ? 'Lihat' : 'View')} <ArrowRight className="h-3 w-3 ml-2" />
                                                                     </Button>

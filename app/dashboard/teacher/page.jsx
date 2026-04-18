@@ -1,165 +1,62 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { FileText, BookOpen, ClipboardCheck, Brain, ArrowRight, Sparkles, Plus, GraduationCap, Gamepad2 } from 'lucide-react';
 import { Metric, Flex, Text } from '@tremor/react';
+import { api } from '@/lib/api';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useState, useEffect } from 'react';
 
 export default function TeacherDashboard() {
-	const { user, userData } = useAuth();
+	const { userData } = useAuth();
 	const { language } = useLanguage();
 	const [userName, setUserName] = useState('');
 	const [loading, setLoading] = useState(true);
-	const [stats, setStats] = useState({
-		courses: 0,
-		students: 0,
-		pendingGrades: 0
-	});
+	const [stats, setStats] = useState({ courses: 0, students: 0, pendingGrades: 0 });
 	const [recentActivity, setRecentActivity] = useState([]);
-	const { auth, db } = require('@/firebase');
-	const { collection, query, where, getDocs, orderBy, limit, getDoc, doc } = require('firebase/firestore');
 
 	useEffect(() => {
-		if (user) {
-			setUserName(user.displayName || userData?.name || '');
-			fetchDashboardData(user.uid);
+		if (userData) {
+			setUserName(userData.name || '');
+			fetchDashboardData();
 		}
-	}, [user, userData]);
+	}, [userData]);
 
-	async function fetchDashboardData(userId) {
+	async function fetchDashboardData() {
 		setLoading(true);
 		try {
-			// 1. Fetch Teacher's Courses (robust strategy)
-			const coursesQueryById = query(collection(db, 'course'), where('createdBy', '==', userId));
-
-			// Fallback/Legacy support: Query by author name matches too
-			// This handles cases where data was manually seeded or auth uids changed
-			const userNameAttempt = user.displayName || userData?.name;
-			let coursesQueryByName = null;
-			if (userNameAttempt) {
-				coursesQueryByName = query(collection(db, 'course'), where('authorName', '==', userNameAttempt));
-			}
-
-			const [snapId, snapName] = await Promise.all([
-				getDocs(coursesQueryById),
-				coursesQueryByName ? getDocs(coursesQueryByName) : Promise.resolve({ docs: [] })
+			const [{ courses }, { enrollments }, { submissions }] = await Promise.all([
+				api.get('/api/courses'),
+				api.get('/api/enrollments/teacher'),
+				api.get('/api/submissions'),
 			]);
 
-			// Merge and Deduplicate
-			const courseMap = new Map();
-			snapId.docs.forEach(doc => courseMap.set(doc.id, { id: doc.id, ...doc.data() }));
-			snapName.docs.forEach(doc => courseMap.set(doc.id, { id: doc.id, ...doc.data() }));
+			const pendingGrades = submissions.filter(s => s.grade == null && s.score == null);
 
-			const courses = Array.from(courseMap.values());
-			const courseIds = courses.map(c => c.id);
-
-			let totalStudents = 0;
-			let pendingGradesCount = 0;
-			let activities = [];
-
-			if (courseIds.length > 0) {
-				// 2. Fetch Enrollments (Total Students)
-				// Note: Firestore 'in' limit is 10. For scalability, we might need a different approach, but effective for typical dashboard.
-				const chunks = [];
-				for (let i = 0; i < courseIds.length; i += 10) {
-					chunks.push(courseIds.slice(i, i + 10));
-				}
-
-				for (const chunk of chunks) {
-					const enrollmentsQuery = query(collection(db, 'progress'), where('courseId', 'in', chunk));
-					const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
-					totalStudents += enrollmentsSnapshot.size;
-
-					// Add new enrollments to activity
-					enrollmentsSnapshot.docs.forEach(doc => {
-						const data = doc.data();
-						activities.push({
-							type: 'enrollment',
-							date: data.enrolledAt?.toDate ? data.enrolledAt.toDate() : new Date(data.enrolledAt || Date.now()),
-							courseId: data.courseId,
-							studentId: data.studentId,
-							id: doc.id
-						});
-					});
-				}
-
-				// 3. Fetch Pending Grades (Simulated availability - deeper query needed for exactness)
-				// We need to find assessments/assignments for these courses, then submissions.
-				// This acts as a 'best effort' count for now.
-				for (const chunk of chunks) {
-					// Get Assignments/Assessments for these courses
-					const assignmentsQuery = query(collection(db, 'assignment'), where('courseId', 'in', chunk));
-					const assessmentsQuery = query(collection(db, 'assessment'), where('courseId', 'in', chunk));
-
-					const [assignmentsSnap, assessmentsSnap] = await Promise.all([
-						getDocs(assignmentsQuery),
-						getDocs(assessmentsQuery)
-					]);
-
-					const itemIds = [
-						...assignmentsSnap.docs.map(d => d.id),
-						...assessmentsSnap.docs.map(d => d.id)
-					];
-
-					// Only query submissions if we have items
-					if (itemIds.length > 0) {
-						// Submissions might be too many to query 'in' easily if items are many.
-						// Strategy: Query submissions where grade == null? (Requires composite index probably)
-						// Or just fetch all submissions for these items.
-						// Optimization: Just count a subset or last 30 days.
-						// MVP: Just show 0 or simple logic.
-						// Let's try fetching submissions for the first 10 items to show *some* number.
-						const itemChunks = [];
-						for (let i = 0; i < itemIds.length; i += 10) {
-							itemChunks.push(itemIds.slice(i, i + 10));
-						}
-
-						// Limit to checking first 20 items to avoid quota kill
-						for (const iChunk of itemChunks.slice(0, 2)) {
-							// This is imperfect because we cant easily query "assignmentId IN [...] AND score == null" without index
-							// So we fetch all for these assignments and filter in code
-							// Check assignments collection? No, submissions are in 'submission' collection.
-							// Actually, submissions usually have assignmentId OR assessmentId
-
-							// Try query by assignmentId
-							const subQ1 = query(collection(db, 'submission'), where('assignmentId', 'in', iChunk));
-							const subSnap1 = await getDocs(subQ1);
-							subSnap1.docs.forEach(d => {
-								const data = d.data();
-								if (data.grade === undefined && data.score === undefined) {
-									pendingGradesCount++;
-									activities.push({
-										type: 'submission',
-										date: data.submittedAt?.toDate ? data.submittedAt.toDate() : new Date(),
-										title: language === 'bm' ? 'Tugasan Baharu' : 'New Submission',
-										id: d.id
-									});
-								}
-							});
-
-							// Try query by assessmentId is tricky if we mixed them. 
-							// We'll separate the itemIds by type if we want to be precise, but for now this catches assignments.
-						}
-					}
-				}
-			}
-
-			// Sort and slice activities
-			activities.sort((a, b) => b.date - a.date);
-			setRecentActivity(activities.slice(0, 5));
+			const activities = [
+				...enrollments.slice(0, 5).map(e => ({
+					type: 'enrollment',
+					date: new Date(e.enrolledAt || e.createdAt || Date.now()),
+					id: e._id,
+				})),
+				...pendingGrades.slice(0, 5).map(s => ({
+					type: 'submission',
+					date: new Date(s.submittedAt || s.createdAt || Date.now()),
+					id: s._id,
+				})),
+			].sort((a, b) => b.date - a.date).slice(0, 5);
 
 			setStats({
 				courses: courses.length,
-				students: totalStudents,
-				pendingGrades: pendingGradesCount
+				students: enrollments.length,
+				pendingGrades: pendingGrades.length,
 			});
-
+			setRecentActivity(activities);
 		} catch (error) {
-			console.error("Error fetching dashboard data:", error);
+			console.error('Error fetching dashboard data:', error);
 		} finally {
 			setLoading(false);
 		}
@@ -167,7 +64,6 @@ export default function TeacherDashboard() {
 
 	return (
 		<div className="-m-6 md:-m-8 lg:-m-10 min-h-full relative overflow-hidden">
-			{/* Premium Background Design */}
 			<div className="absolute inset-0 bg-gradient-to-br from-sky-50 via-indigo-50/30 to-white z-0 pointer-events-none"></div>
 			<div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
 			<div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
@@ -362,7 +258,7 @@ export default function TeacherDashboard() {
 					</div>
 				</div>
 
-				{/* Recent Activity Section */}
+				{/* Recent Activity */}
 				<div>
 					<div className="flex items-center gap-2 mb-6">
 						<div className="h-6 w-1 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
@@ -382,8 +278,7 @@ export default function TeacherDashboard() {
 							<div className="divide-y divide-gray-100">
 								{recentActivity.map((activity, index) => (
 									<div key={index} className="p-4 flex items-center gap-4 hover:bg-neutral-50 transition-colors">
-										<div className={`p-2 rounded-lg ${activity.type === 'enrollment' ? 'bg-sky-100 text-sky-600' : 'bg-orange-100 text-orange-600'
-											}`}>
+										<div className={`p-2 rounded-lg ${activity.type === 'enrollment' ? 'bg-sky-100 text-sky-600' : 'bg-orange-100 text-orange-600'}`}>
 											{activity.type === 'enrollment' ? (
 												<GraduationCap className="h-5 w-5" />
 											) : (
@@ -436,4 +331,3 @@ export default function TeacherDashboard() {
 		</div>
 	);
 }
-
