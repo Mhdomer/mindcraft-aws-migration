@@ -2,10 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/firebase';
-import { auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BookOpen, PlayCircle, CheckCircle2, Lock, ChevronRight, User, Clock } from 'lucide-react';
@@ -15,235 +13,102 @@ export default function CourseDetailPage() {
 	const params = useParams();
 	const router = useRouter();
 	const courseId = params.id;
+	const { userData } = useAuth();
 
 	const [course, setCourse] = useState(null);
 	const [modules, setModules] = useState([]);
-	const [lessons, setLessons] = useState({}); // moduleId -> lessons[]
+	const [lessons, setLessons] = useState({});
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
-	const [userId, setUserId] = useState(null);
-	const [role, setRole] = useState(null);
 	const [isEnrolled, setIsEnrolled] = useState(false);
-	const [enrollmentLoading, setEnrollmentLoading] = useState(true);
+	const [enrollmentId, setEnrollmentId] = useState(null);
 	const [completedLessons, setCompletedLessons] = useState(new Set());
 	const [overallProgress, setOverallProgress] = useState(0);
+	const [enrollLoading, setEnrollLoading] = useState(false);
+
+	const role = userData?.role;
+	const userId = userData?._id;
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				setUserId(user.uid);
-				// Get user role
-				const userDoc = await getDoc(doc(db, 'user', user.uid));
-				if (userDoc.exists()) {
-					const userRole = userDoc.data().role;
-					setRole(userRole);
-					if (userRole === 'student' && courseId) {
-						// Check enrollment directly from Firestore (more reliable than API)
-						try {
-							const enrollmentId = `${user.uid}_${courseId}`;
-							const enrollmentRef = doc(db, 'enrollment', enrollmentId);
-							const enrollmentDoc = await getDoc(enrollmentRef);
-							const enrolled = enrollmentDoc.exists();
-							setIsEnrolled(enrolled);
+		if (!courseId) return;
+		loadCourse();
+	}, [courseId, userData]);
 
-							if (enrolled) {
-								const data = enrollmentDoc.data();
-								setCompletedLessons(new Set(data.progress?.completedLessons || []));
-								setOverallProgress(data.progress?.overallProgress || 0);
-							}
-
-							console.log('Enrollment check:', { enrollmentId, enrolled, courseId, userId: user.uid });
-						} catch (err) {
-							console.error('Error checking enrollment:', err);
-							setIsEnrolled(false);
-						}
-					} else if (userRole === 'teacher' || userRole === 'admin') {
-						// Teachers and admins have access to all courses
-						setIsEnrolled(true);
-					} else {
-						setIsEnrolled(false);
-					}
-				} else {
-					setIsEnrolled(false);
-				}
-			} else {
-				setUserId(null);
-				setRole(null);
-				setIsEnrolled(false);
-			}
-			setEnrollmentLoading(false);
-		});
-
-		return () => unsubscribe();
-	}, [courseId]);
-
-	useEffect(() => {
-		async function loadCourse() {
-			try {
-				// Load course
-				const courseDoc = await getDoc(doc(db, 'course', courseId));
-				if (!courseDoc.exists()) {
-					setError('Course not found');
-					setLoading(false);
-					return;
-				}
-
-				const courseData = { id: courseDoc.id, ...courseDoc.data() };
-				setCourse(courseData);
-
-				// Load modules if they exist - fetch directly from Firestore (client-side with auth)
-				if (courseData.modules && courseData.modules.length > 0) {
-					try {
-						// Fetch modules directly from Firestore
-						const { getDoc } = await import('firebase/firestore');
-						const loadedModules = [];
-
-						for (const moduleId of courseData.modules) {
-							try {
-								const moduleDoc = await getDoc(doc(db, 'module', moduleId));
-								if (moduleDoc.exists()) {
-									loadedModules.push({
-										id: moduleDoc.id,
-										...moduleDoc.data(),
-									});
-								}
-							} catch (moduleErr) {
-								console.error(`Error loading module ${moduleId}:`, moduleErr);
-							}
-						}
-
-						// Sort by order
-						loadedModules.sort((a, b) => (a.order || 0) - (b.order || 0));
-						setModules(loadedModules);
-
-						// Load lessons for each module
-						const lessonsMap = {};
-						for (const module of loadedModules) {
-							if (module.lessons && module.lessons.length > 0) {
-								try {
-									const { collection, query, where, getDocs, orderBy } = await import('firebase/firestore');
-									const lessonsQuery = query(
-										collection(db, 'lesson'),
-										where('moduleId', '==', module.id),
-										orderBy('order', 'asc')
-									);
-									const lessonsSnapshot = await getDocs(lessonsQuery);
-									const loadedLessons = lessonsSnapshot.docs.map(doc => ({
-										id: doc.id,
-										...doc.data(),
-									}));
-									lessonsMap[module.id] = loadedLessons;
-								} catch (lessonErr) {
-									console.error(`Error loading lessons for module ${module.id}:`, lessonErr);
-									// Fallback: try to load from module.lessons array
-									if (module.lessons && module.lessons.length > 0) {
-										const { getDoc } = await import('firebase/firestore');
-										const fallbackLessons = [];
-										for (const lessonId of module.lessons) {
-											try {
-												const lessonDoc = await getDoc(doc(db, 'lesson', lessonId));
-												if (lessonDoc.exists()) {
-													fallbackLessons.push({
-														id: lessonDoc.id,
-														...lessonDoc.data(),
-													});
-												}
-											} catch (err) {
-												console.error(`Error loading lesson ${lessonId}:`, err);
-											}
-										}
-										fallbackLessons.sort((a, b) => (a.order || 0) - (b.order || 0));
-										lessonsMap[module.id] = fallbackLessons;
-									}
-								}
-							}
-						}
-						setLessons(lessonsMap);
-					} catch (err) {
-						console.error('Error loading modules:', err);
-						// Set empty modules array so it shows the empty state
-						setModules([]);
-					}
-				}
-			} catch (err) {
-				console.error('Error loading course:', err);
-				setError('Failed to load course');
-			} finally {
-				setLoading(false);
-			}
-		}
-
-		if (courseId) {
-			loadCourse();
-		}
-	}, [courseId]);
-
-	async function handleEnroll() {
-		if (!userId) {
-			router.push('/login');
-			return;
-		}
-
+	async function loadCourse() {
 		setLoading(true);
 		setError('');
 		try {
-			// Use client-side Firestore to create enrollment (has auth context)
-			const { doc, getDoc, setDoc, serverTimestamp } = await import('firebase/firestore');
+			const [{ course: courseData }, { modules: moduleList }] = await Promise.all([
+				api.get(`/api/courses/${courseId}`),
+				api.get(`/api/modules?courseId=${courseId}`),
+			]);
+			setCourse(courseData);
 
-			// Check if already enrolled
-			const enrollmentId = `${userId}_${courseId}`;
-			const enrollmentRef = doc(db, 'enrollment', enrollmentId);
-			const enrollmentDoc = await getDoc(enrollmentRef);
+			// Load lessons for each module in parallel
+			const lessonFetches = moduleList.map(m =>
+				api.get(`/api/lessons?moduleId=${m._id}`)
+					.then(({ lessons: ls }) => ({ moduleId: m._id, lessons: ls }))
+					.catch(() => ({ moduleId: m._id, lessons: [] }))
+			);
+			const lessonResults = await Promise.all(lessonFetches);
+			const lessonMap = {};
+			lessonResults.forEach(({ moduleId, lessons: ls }) => { lessonMap[moduleId] = ls; });
 
-			if (enrollmentDoc.exists()) {
-				setError('You are already enrolled in this course');
+			setModules(moduleList);
+			setLessons(lessonMap);
+
+			// Check enrollment for students
+			if (role === 'student') {
+				try {
+					const { enrolled, enrollment } = await api.get(`/api/enrollments?courseId=${courseId}`);
+					setIsEnrolled(enrolled);
+					if (enrolled && enrollment) {
+						setEnrollmentId(enrollment._id);
+						setCompletedLessons(new Set(enrollment.progress?.completedLessons?.map(String) || []));
+						setOverallProgress(enrollment.progress?.overallProgress || 0);
+					}
+				} catch {
+					setIsEnrolled(false);
+				}
+			} else if (role === 'teacher' || role === 'admin') {
 				setIsEnrolled(true);
-				setLoading(false);
-				return;
 			}
-
-			// Verify course is published
-			if (course.status !== 'published') {
-				setError('Cannot enroll in unpublished course');
-				setLoading(false);
-				return;
-			}
-
-			// Create enrollment (client-side has auth context)
-			await setDoc(enrollmentRef, {
-				studentId: userId,
-				courseId: courseId,
-				enrolledAt: serverTimestamp(),
-				progress: {
-					completedModules: [],
-					completedLessons: [],
-					overallProgress: 0,
-				},
-			});
-
-			setIsEnrolled(true);
-
-			// Load current progress
-			if (enrollmentDoc.exists()) {
-				const data = enrollmentDoc.data();
-				setCompletedLessons(new Set(data.progress?.completedLessons || []));
-				setOverallProgress(data.progress?.overallProgress || 0);
-			}
-
-			// State is already updated, no need to reload
 		} catch (err) {
-			console.error('Enrollment error:', err);
-			setError(err.message || 'Failed to enroll. Please try again.');
+			setError(err.message || 'Failed to load course');
 		} finally {
 			setLoading(false);
 		}
 	}
 
-	if (loading || enrollmentLoading) {
+	async function handleEnroll() {
+		if (!userId) { router.push('/login'); return; }
+		setEnrollLoading(true);
+		setError('');
+		try {
+			await api.post('/api/enrollments', { courseId });
+			setIsEnrolled(true);
+		} catch (err) {
+			setError(err.message || 'Failed to enroll. Please try again.');
+		} finally {
+			setEnrollLoading(false);
+		}
+	}
+
+	if (loading) {
 		return (
 			<div className="flex items-center justify-center min-h-[400px]">
 				<p className="text-body text-muted-foreground">Loading course...</p>
 			</div>
+		);
+	}
+
+	if (error && !course) {
+		return (
+			<Card className="border-error bg-error/5">
+				<CardContent className="pt-6">
+					<p className="text-body text-error">{error}</p>
+				</CardContent>
+			</Card>
 		);
 	}
 
@@ -278,20 +143,20 @@ export default function CourseDetailPage() {
 								<User className="h-4 w-4" />
 								<span>By: {course.authorName || 'Unknown'}</span>
 							</div>
-							{course.modules && (
+							{modules.length > 0 && (
 								<div className="flex items-center gap-2">
 									<BookOpen className="h-4 w-4" />
-									<span>{course.modules.length} {course.modules.length === 1 ? 'Module' : 'Modules'}</span>
+									<span>{modules.length} {modules.length === 1 ? 'Module' : 'Modules'}</span>
 								</div>
 							)}
 						</div>
 					</div>
 					{canEnroll && (
-						<Button onClick={handleEnroll} size="lg" disabled={loading}>
-							{loading ? 'Enrolling...' : 'Enroll in Course'}
+						<Button onClick={handleEnroll} size="lg" disabled={enrollLoading}>
+							{enrollLoading ? 'Enrolling...' : 'Enroll in Course'}
 						</Button>
 					)}
-					{isEnrolled && (
+					{isEnrolled && isStudent && (
 						<div className="flex flex-col items-end gap-2">
 							<span className="px-4 py-2 rounded-lg bg-success/10 text-success text-caption font-medium flex items-center gap-2">
 								<CheckCircle2 className="h-4 w-4" />
@@ -300,10 +165,7 @@ export default function CourseDetailPage() {
 							<div className="w-48 text-right">
 								<div className="text-xs text-muted-foreground mb-1">Course Progress: {overallProgress}%</div>
 								<div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-									<div
-										className="h-full bg-success transition-all duration-500"
-										style={{ width: `${overallProgress}%` }}
-									/>
+									<div className="h-full bg-success transition-all duration-500" style={{ width: `${overallProgress}%` }} />
 								</div>
 							</div>
 						</div>
@@ -316,16 +178,16 @@ export default function CourseDetailPage() {
 				)}
 			</div>
 
-			{/* Modules & Lessons Structure */}
+			{/* Modules & Lessons */}
 			{modules.length > 0 ? (
 				<div className="space-y-6">
 					<h2 className="text-h2 text-neutralDark">Course Content</h2>
 					{modules.map((module, moduleIndex) => {
-						const moduleLessons = lessons[module.id] || [];
+						const moduleLessons = lessons[module._id] || [];
 						const isModuleLocked = isStudent && !isEnrolled && moduleIndex > 0;
 
 						return (
-							<Card key={module.id} className={isModuleLocked ? 'opacity-60' : ''}>
+							<Card key={module._id} className={isModuleLocked ? 'opacity-60' : ''}>
 								<CardHeader>
 									<div className="flex items-center justify-between">
 										<div className="flex items-center gap-3">
@@ -340,19 +202,15 @@ export default function CourseDetailPage() {
 												<div className="flex items-center gap-3">
 													<CardTitle className="text-h3">{module.title}</CardTitle>
 													{moduleLessons.length > 0 && (
-														moduleLessons.every(l => completedLessons.has(l.id)) ? (
+														moduleLessons.every(l => completedLessons.has(String(l._id))) ? (
 															<span className="px-2 py-0.5 rounded-full bg-success/10 text-success text-xs font-medium flex items-center gap-1">
-																<CheckCircle2 className="h-3 w-3" />
-																Completed
+																<CheckCircle2 className="h-3 w-3" /> Completed
 															</span>
-														) : (
-															isEnrolled && (
-																<span className="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium flex items-center gap-1">
-																	<Clock className="h-3 w-3" />
-																	Incomplete
-																</span>
-															)
-														)
+														) : isEnrolled ? (
+															<span className="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium flex items-center gap-1">
+																<Clock className="h-3 w-3" /> Incomplete
+															</span>
+														) : null
 													)}
 												</div>
 												{moduleLessons.length > 0 && (
@@ -369,28 +227,28 @@ export default function CourseDetailPage() {
 										<div className="space-y-2">
 											{moduleLessons.map((lesson, lessonIndex) => {
 												const isLessonLocked = isModuleLocked || (isStudent && !isEnrolled);
+												const lessonId = lesson._id;
 
 												return (
 													<Link
-														key={lesson.id}
-														href={isLessonLocked ? '#' : `/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`}
-														className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${isLessonLocked
-															? 'border-border bg-neutralLight cursor-not-allowed opacity-60'
-															: 'border-border hover:border-primary hover:bg-primary/5 cursor-pointer'
-															}`}
+														key={lessonId}
+														href={isLessonLocked ? '#' : `/courses/${courseId}/modules/${module._id}/lessons/${lessonId}`}
+														className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${
+															isLessonLocked
+																? 'border-border bg-neutralLight cursor-not-allowed opacity-60'
+																: 'border-border hover:border-primary hover:bg-primary/5 cursor-pointer'
+														}`}
 													>
 														{isLessonLocked ? (
 															<Lock className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+														) : isEnrolled && completedLessons.has(String(lessonId)) ? (
+															<div className="flex items-center justify-center w-6 h-6 rounded-full bg-success/10 text-success flex-shrink-0">
+																<CheckCircle2 className="h-4 w-4" />
+															</div>
 														) : (
-															isEnrolled && completedLessons.has(lesson.id) ? (
-																<div className="flex items-center justify-center w-6 h-6 rounded-full bg-success/10 text-success flex-shrink-0">
-																	<CheckCircle2 className="h-4 w-4" />
-																</div>
-															) : (
-																<div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-caption font-medium flex-shrink-0">
-																	{lessonIndex + 1}
-																</div>
-															)
+															<div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-caption font-medium flex-shrink-0">
+																{lessonIndex + 1}
+															</div>
 														)}
 														<div className="flex-1 min-w-0">
 															<h4 className="text-body font-medium text-neutralDark">{lesson.title}</h4>
@@ -400,9 +258,7 @@ export default function CourseDetailPage() {
 																</p>
 															)}
 														</div>
-														{!isLessonLocked && (
-															<ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-														)}
+														{!isLessonLocked && <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />}
 													</Link>
 												);
 											})}
@@ -425,7 +281,7 @@ export default function CourseDetailPage() {
 							<p className="text-body text-muted-foreground mb-4">
 								This course doesn't have any modules or lessons yet.
 							</p>
-							{(role === 'teacher' || role === 'admin') && course.createdBy === userId && (
+							{(role === 'teacher' || role === 'admin') && (
 								<Link href={`/dashboard/courses/${courseId}/edit`}>
 									<Button>Add Modules & Lessons</Button>
 								</Link>
@@ -437,4 +293,3 @@ export default function CourseDetailPage() {
 		</div>
 	);
 }
-

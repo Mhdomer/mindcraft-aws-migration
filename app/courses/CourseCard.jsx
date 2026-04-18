@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '@/firebase';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BookOpen, User, CheckCircle2 } from 'lucide-react';
@@ -16,22 +15,18 @@ export default function CourseCard({ course, currentUserId, currentRole }) {
 	const [checkingEnrollment, setCheckingEnrollment] = useState(true);
 	const router = useRouter();
 
-	const canEdit = currentRole === 'admin' || (currentRole === 'teacher' && course.createdBy === currentUserId);
+	const courseId = course.id || course._id;
+	const canEdit = currentRole === 'admin' || (currentRole === 'teacher' && (course.createdBy === currentUserId || course.createdBy?._id === currentUserId));
 	const isPublished = course.status === 'published';
 	const isStudent = currentRole === 'student';
 
-	// Check enrollment status for students
 	useEffect(() => {
 		async function checkEnrollment() {
 			if (isStudent && currentUserId && isPublished) {
 				try {
-					// Check enrollment directly from Firestore (client-side)
-					const { getDoc } = await import('firebase/firestore');
-					const enrollmentRef = doc(db, 'enrollment', `${currentUserId}_${course.id}`);
-					const enrollmentDoc = await getDoc(enrollmentRef);
-					setIsEnrolled(enrollmentDoc.exists());
-				} catch (err) {
-					console.error('Error checking enrollment:', err);
+					const { enrolled } = await api.get(`/api/enrollments?courseId=${courseId}`);
+					setIsEnrolled(enrolled);
+				} catch {
 					setIsEnrolled(false);
 				} finally {
 					setCheckingEnrollment(false);
@@ -41,57 +36,20 @@ export default function CourseCard({ course, currentUserId, currentRole }) {
 			}
 		}
 		checkEnrollment();
-	}, [isStudent, currentUserId, course.id, isPublished]);
+	}, [isStudent, currentUserId, courseId, isPublished]);
 
 	async function handleEnroll() {
 		if (!currentUserId) {
 			setError('Please sign in to enroll');
 			return;
 		}
-
 		setLoading(true);
 		setError('');
 		try {
-			// Use client-side Firestore to create enrollment (has auth context)
-			const { doc, getDoc, setDoc, serverTimestamp } = await import('firebase/firestore');
-			const { db } = await import('@/firebase');
-			
-			// Check if already enrolled
-			const enrollmentId = `${currentUserId}_${course.id}`;
-			const enrollmentRef = doc(db, 'enrollment', enrollmentId);
-			const enrollmentDoc = await getDoc(enrollmentRef);
-			
-			if (enrollmentDoc.exists()) {
-				setError('You are already enrolled in this course');
-				setIsEnrolled(true);
-				setLoading(false);
-				return;
-			}
-
-			// Verify course is published
-			if (course.status !== 'published') {
-				setError('Cannot enroll in unpublished course');
-				setLoading(false);
-				return;
-			}
-
-			// Create enrollment (client-side has auth context)
-			await setDoc(enrollmentRef, {
-				studentId: currentUserId,
-				courseId: course.id,
-				enrolledAt: serverTimestamp(),
-				progress: {
-					completedModules: [],
-					completedLessons: [],
-					overallProgress: 0,
-				},
-			});
-
+			await api.post('/api/enrollments', { courseId });
 			setIsEnrolled(true);
-			// Redirect to course detail page
-			router.push(`/courses/${course.id}`);
+			router.push(`/courses/${courseId}`);
 		} catch (err) {
-			console.error('Enrollment error:', err);
 			setError(err.message || 'Failed to enroll. Please try again.');
 		} finally {
 			setLoading(false);
@@ -99,16 +57,11 @@ export default function CourseCard({ course, currentUserId, currentRole }) {
 	}
 
 	async function handleUnpublish() {
-		if (!confirm(`Unpublish "${course.title}"? It will be moved back to draft and taken off the live server.`)) {
-			return;
-		}
+		if (!confirm(`Unpublish "${course.title}"? It will be moved back to draft.`)) return;
 		setLoading(true);
 		setError('');
 		try {
-			await updateDoc(doc(db, 'course', course.id), {
-				status: 'draft',
-				updatedAt: serverTimestamp(),
-			});
+			await api.put(`/api/courses/${courseId}`, { status: 'draft' });
 			window.location.reload();
 		} catch (err) {
 			setError(err.message || 'Failed to unpublish');
@@ -128,8 +81,8 @@ export default function CourseCard({ course, currentUserId, currentRole }) {
 						</CardDescription>
 					</div>
 					<span className={`px-3 py-1 rounded-full text-caption font-medium whitespace-nowrap ${
-						course.status === 'published' 
-							? 'bg-success/10 text-success' 
+						course.status === 'published'
+							? 'bg-success/10 text-success'
 							: 'bg-warning/10 text-warning'
 					}`}>
 						{course.status === 'published' ? 'Published' : 'Draft'}
@@ -142,54 +95,40 @@ export default function CourseCard({ course, currentUserId, currentRole }) {
 					<span>By: {course.authorName || 'Unknown'}</span>
 				</div>
 
-				{/* Student Actions */}
 				{isStudent && isPublished && !checkingEnrollment && (
 					<div className="flex items-center gap-2 pt-2 border-t border-border">
 						{isEnrolled ? (
 							<>
 								<CheckCircle2 className="h-5 w-5 text-success" />
-								<Link href={`/courses/${course.id}`} className="flex-1">
-									<Button variant="default" className="w-full">
-										Continue Learning
-									</Button>
+								<Link href={`/courses/${courseId}`} className="flex-1">
+									<Button variant="default" className="w-full">Continue Learning</Button>
 								</Link>
 							</>
 						) : (
 							<>
-								<Button
-									onClick={handleEnroll}
-									disabled={loading}
-									className="flex-1"
-								>
+								<Button onClick={handleEnroll} disabled={loading} className="flex-1">
 									{loading ? 'Enrolling...' : 'Enroll'}
 								</Button>
-								<Link href={`/courses/${course.id}`}>
-									<Button variant="outline" className="flex-1">
-										View Details
-									</Button>
+								<Link href={`/courses/${courseId}`}>
+									<Button variant="outline" className="flex-1">View Details</Button>
 								</Link>
 							</>
 						)}
 					</div>
 				)}
 
-				{/* Teacher/Admin Actions */}
 				{course.status === 'draft' && canEdit && (
 					<div className="flex items-center gap-2 pt-2 border-t border-border">
-						<Link href={`/dashboard/courses/${course.id}/edit`} className="flex-1">
-							<Button variant="outline" className="w-full">
-								Edit Course
-							</Button>
+						<Link href={`/dashboard/courses/${courseId}/edit`} className="flex-1">
+							<Button variant="outline" className="w-full">Edit Course</Button>
 						</Link>
 					</div>
 				)}
 
 				{isPublished && canEdit && (
 					<div className="flex items-center gap-2 pt-2 border-t border-border">
-						<Link href={`/dashboard/courses/${course.id}/edit`} className="flex-1">
-							<Button variant="outline" className="w-full">
-								Edit
-							</Button>
+						<Link href={`/dashboard/courses/${courseId}/edit`} className="flex-1">
+							<Button variant="outline" className="w-full">Edit</Button>
 						</Link>
 						<Button
 							onClick={handleUnpublish}
@@ -211,4 +150,3 @@ export default function CourseCard({ course, currentUserId, currentRole }) {
 		</Card>
 	);
 }
-

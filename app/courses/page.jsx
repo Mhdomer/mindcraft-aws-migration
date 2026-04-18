@@ -2,140 +2,60 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { collection, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
-import { db } from '@/firebase';
-import { auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BookOpen, Search, PlayCircle } from 'lucide-react';
 import { ProgressBar } from '@tremor/react';
 
-function getUserRole() {
-	if (typeof document === 'undefined') return null;
-	const cookies = document.cookie.split(';');
-	const roleCookie = cookies.find((c) => c.trim().startsWith('user_role='));
-	return roleCookie ? roleCookie.split('=')[1] : null;
-}
-
 export default function MyCoursesPage() {
-	const [enrolledCourses, setEnrolledCourses] = useState([]);
+	const { userData, loading: authLoading } = useAuth();
+	const [courses, setCourses] = useState([]);
+	const [enrollmentMap, setEnrollmentMap] = useState({});
 	const [loading, setLoading] = useState(true);
-	const [role, setRole] = useState(null);
-	const [userId, setUserId] = useState(null);
-	const [enrollments, setEnrollments] = useState({});
+
+	const role = userData?.role;
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				setUserId(user.uid);
-				// Get user role
-				const userDoc = await getDoc(doc(db, 'user', user.uid));
-				if (userDoc.exists()) {
-					setRole(userDoc.data().role);
-				}
+		if (authLoading) return;
+		if (!userData) { setLoading(false); return; }
+		loadCourses();
+	}, [userData, authLoading]);
+
+	async function loadCourses() {
+		setLoading(true);
+		try {
+			if (role === 'student') {
+				const { enrollments } = await api.get('/api/enrollments/student');
+				const map = {};
+				const courseList = enrollments
+					.map(e => {
+						const c = e.courseId;
+						if (!c) return null;
+						map[c._id] = e.progress;
+						return { ...c, id: c._id };
+					})
+					.filter(Boolean);
+				setEnrollmentMap(map);
+				setCourses(courseList);
 			} else {
-				setRole('guest');
+				const { courses: courseList } = await api.get('/api/courses');
+				setCourses(courseList.map(c => ({ ...c, id: c._id })));
 			}
-		});
-		return () => unsubscribe();
-	}, []);
-
-	useEffect(() => {
-		async function loadEnrolledCourses() {
-			if (!userId && role !== 'admin' && role !== 'teacher') {
-				// Wait for userId to be loaded
-				return;
-			}
-
-			try {
-				const currentRole = role || getUserRole() || 'guest';
-
-				// For students, load only their enrolled courses
-				if (currentRole === 'student' && userId) {
-					// Get all enrollments for this student
-					const enrollmentsQuery = query(
-						collection(db, 'progress'),
-						where('studentId', '==', userId)
-					);
-					const enrollmentsSnap = await getDocs(enrollmentsQuery);
-
-					const enrollmentMap = {};
-					const courseIds = [];
-
-					enrollmentsSnap.docs.forEach(doc => {
-						const data = doc.data();
-						enrollmentMap[data.courseId] = data;
-						courseIds.push(data.courseId);
-					});
-
-					setEnrollments(enrollmentMap);
-
-					// Load course details for enrolled courses
-					if (courseIds.length > 0) {
-						const courses = [];
-						for (const courseId of courseIds) {
-							const courseDoc = await getDoc(doc(db, 'course', courseId));
-							if (courseDoc.exists()) {
-								courses.push({ id: courseDoc.id, ...courseDoc.data() });
-							}
-						}
-						setEnrolledCourses(courses);
-					}
-				} else if (currentRole === 'admin') {
-					// Admins see all courses
-					const coursesQuery = query(collection(db, 'course'), orderBy('createdAt', 'desc'));
-					const snapshot = await getDocs(coursesQuery);
-					const coursesList = snapshot.docs.map(doc => ({
-						id: doc.id,
-						...doc.data()
-					}));
-					setEnrolledCourses(coursesList);
-				} else if (currentRole === 'teacher') {
-					// Teachers see published + their own drafts
-					const publishedQuery = query(
-						collection(db, 'course'),
-						where('status', '==', 'published'),
-						orderBy('createdAt', 'desc')
-					);
-					const myDraftsQuery = query(
-						collection(db, 'course'),
-						where('status', '==', 'draft'),
-						where('createdBy', '==', userId),
-						orderBy('createdAt', 'desc')
-					);
-
-					const [publishedSnap, draftsSnap] = await Promise.all([
-						getDocs(publishedQuery),
-						userId ? getDocs(myDraftsQuery) : Promise.resolve({ docs: [] })
-					]);
-
-					const allCourses = [
-						...publishedSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-						...draftsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-					];
-					setEnrolledCourses(allCourses);
-				}
-			} catch (err) {
-				console.error('Error loading courses:', err);
-			} finally {
-				setLoading(false);
-			}
+		} catch (err) {
+			console.error('Error loading courses:', err);
+		} finally {
+			setLoading(false);
 		}
-
-		if (userId || role) {
-			loadEnrolledCourses();
-		}
-	}, [userId, role]);
+	}
 
 	const canCreate = role === 'admin' || role === 'teacher';
 	const isStudent = role === 'student';
 
-	// Calculate progress for a course
 	function getProgress(courseId) {
-		const enrollment = enrollments[courseId];
-		if (!enrollment || !enrollment.progress) return 0;
-		return enrollment.progress.overallProgress || 0;
+		const progress = enrollmentMap[courseId];
+		return progress?.overallProgress || 0;
 	}
 
 	if (loading) {
@@ -148,11 +68,9 @@ export default function MyCoursesPage() {
 
 	return (
 		<div className="-m-6 md:-m-8 lg:-m-10 min-h-screen relative overflow-hidden p-6 md:p-10">
-			{/* Premium Background Design */}
 			<div className="absolute inset-0 bg-gradient-to-br from-sky-50 via-indigo-50/30 to-white z-0 pointer-events-none"></div>
 			<div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
 			<div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
-			<div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-cyan-100/30 rounded-full blur-[80px] pointer-events-none z-0"></div>
 
 			<div className="space-y-8 relative z-10 animate-fadeIn">
 				<div className="flex items-center justify-between">
@@ -183,37 +101,38 @@ export default function MyCoursesPage() {
 					</div>
 				</div>
 
-				{isStudent && enrolledCourses.length === 0 ? (
+				{courses.length === 0 ? (
 					<Card>
 						<CardContent className="pt-6">
 							<div className="text-center py-12">
 								<BookOpen className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-								<h3 className="text-h3 text-neutralDark mb-2">No enrolled courses yet</h3>
-								<p className="text-body text-muted-foreground mb-6">
-									Start your learning journey by exploring and enrolling in courses
-								</p>
-								<Link href="/courses/explore">
-									<Button size="lg">
-										<Search className="h-5 w-5 mr-2" />
-										Explore Courses
-									</Button>
-								</Link>
+								<h3 className="text-h3 text-neutralDark mb-2">
+									{isStudent ? 'No enrolled courses yet' : 'No courses available'}
+								</h3>
+								{isStudent && (
+									<>
+										<p className="text-body text-muted-foreground mb-6">
+											Start your learning journey by exploring and enrolling in courses
+										</p>
+										<Link href="/courses/explore">
+											<Button size="lg">
+												<Search className="h-5 w-5 mr-2" />
+												Explore Courses
+											</Button>
+										</Link>
+									</>
+								)}
 							</div>
-						</CardContent>
-					</Card>
-				) : enrolledCourses.length === 0 ? (
-					<Card>
-						<CardContent className="pt-6">
-							<p className="text-body text-muted-foreground text-center py-8">No courses available</p>
 						</CardContent>
 					</Card>
 				) : (
 					<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-						{enrolledCourses.map((course) => {
-							const progress = getProgress(course.id);
+						{courses.map((course) => {
+							const progress = getProgress(course.id || course._id);
+							const courseId = course.id || course._id;
 
 							return (
-								<Card key={course.id} className="card-hover">
+								<Card key={courseId} className="card-hover">
 									<CardHeader>
 										<div className="flex items-start justify-between gap-3">
 											<div className="flex-1 min-w-0">
@@ -222,10 +141,11 @@ export default function MyCoursesPage() {
 													{course.description || 'No description provided'}
 												</CardDescription>
 											</div>
-											<span className={`px-3 py-1 rounded-full text-caption font-medium whitespace-nowrap ${course.status === 'published'
-												? 'bg-success/10 text-success'
-												: 'bg-warning/10 text-warning'
-												}`}>
+											<span className={`px-3 py-1 rounded-full text-caption font-medium whitespace-nowrap ${
+												course.status === 'published'
+													? 'bg-success/10 text-success'
+													: 'bg-warning/10 text-warning'
+											}`}>
 												{course.status === 'published' ? 'Published' : 'Draft'}
 											</span>
 										</div>
@@ -247,16 +167,14 @@ export default function MyCoursesPage() {
 										)}
 
 										<div className="flex items-center gap-2 pt-2 border-t border-border">
-											<Link href={`/courses/${course.id}`} className="flex-1">
+											<Link href={`/courses/${courseId}`} className="flex-1">
 												<Button variant="default" className="w-full">
 													{isStudent ? (
 														<>
 															<PlayCircle className="h-5 w-5 mr-2" />
 															Continue Learning
 														</>
-													) : (
-														'View Course'
-													)}
+													) : 'View Course'}
 												</Button>
 											</Link>
 										</div>

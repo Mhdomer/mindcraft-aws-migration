@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { db } from '@/firebase';
-import { auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import CourseCard from '../CourseCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,52 +10,19 @@ import { Search, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ExploreCoursesPage() {
+	const { userData } = useAuth();
 	const [courses, setCourses] = useState([]);
 	const [loading, setLoading] = useState(true);
-	const [userId, setUserId] = useState(null);
 	const [searchTerm, setSearchTerm] = useState('');
-
-	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				setUserId(user.uid);
-			}
-		});
-		return () => unsubscribe();
-	}, []);
 
 	useEffect(() => {
 		async function loadCourses() {
 			try {
-				// Load all courses and filter client-side to avoid index issues
-				// This is more reliable than requiring a composite index
-				const allCoursesQuery = query(collection(db, 'course'));
-				const snapshot = await getDocs(allCoursesQuery);
-				
-				let coursesList = snapshot.docs.map(doc => ({
-					id: doc.id,
-					...doc.data()
-				}));
-				
-				// Filter for published courses only
-				coursesList = coursesList.filter(course => course.status === 'published');
-				
-				// Sort by createdAt (descending - newest first)
-				coursesList.sort((a, b) => {
-					const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 
-					              a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0;
-					const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 
-					              b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0;
-					return bTime - aTime; // Descending
-				});
-				
-				setCourses(coursesList);
+				// Server filters to published only for student role
+				const { courses: list } = await api.get('/api/courses');
+				setCourses(list.map(c => ({ ...c, id: c._id })));
 			} catch (err) {
 				console.error('Error loading courses:', err);
-				console.error('Error details:', {
-					code: err.code,
-					message: err.message
-				});
 			} finally {
 				setLoading(false);
 			}
@@ -65,10 +30,9 @@ export default function ExploreCoursesPage() {
 		loadCourses();
 	}, []);
 
-	// Filter courses by search term
-	const filteredCourses = courses.filter(course => 
-		course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-		(course.description || '').toLowerCase().includes(searchTerm.toLowerCase())
+	const filteredCourses = courses.filter(c =>
+		c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+		(c.description || '').toLowerCase().includes(searchTerm.toLowerCase())
 	);
 
 	if (loading) {
@@ -85,9 +49,9 @@ export default function ExploreCoursesPage() {
 				<div className="flex items-center gap-3 mb-4">
 					<Link href="/courses">
 						<Button variant="ghost" size="sm" className="flex items-center gap-2">
-						<ArrowLeft className="h-5 w-5" />
-						Back to My Courses
-					</Button>
+							<ArrowLeft className="h-5 w-5" />
+							Back to My Courses
+						</Button>
 					</Link>
 				</div>
 				<div className="flex items-center justify-between gap-4">
@@ -100,7 +64,6 @@ export default function ExploreCoursesPage() {
 				</div>
 			</div>
 
-			{/* Search Bar */}
 			<div className="relative">
 				<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
 				<input
@@ -122,14 +85,17 @@ export default function ExploreCoursesPage() {
 				</Card>
 			) : (
 				<>
-					<div className="flex items-center justify-between">
-						<p className="text-body text-muted-foreground">
-							{filteredCourses.length} {filteredCourses.length === 1 ? 'course' : 'courses'} found
-						</p>
-					</div>
+					<p className="text-body text-muted-foreground">
+						{filteredCourses.length} {filteredCourses.length === 1 ? 'course' : 'courses'} found
+					</p>
 					<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 						{filteredCourses.map((c) => (
-							<CourseCard key={c.id} course={c} currentUserId={userId} currentRole="student" />
+							<CourseCard
+								key={c.id}
+								course={c}
+								currentUserId={userData?._id}
+								currentRole={userData?.role || 'student'}
+							/>
 						))}
 					</div>
 				</>
@@ -137,4 +103,3 @@ export default function ExploreCoursesPage() {
 		</div>
 	);
 }
-
