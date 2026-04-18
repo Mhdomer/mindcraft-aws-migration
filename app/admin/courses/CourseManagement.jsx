@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where, writeBatch, limit } from 'firebase/firestore';
-import { db } from '@/firebase';
+import { api } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -12,100 +11,18 @@ export default function CourseManagement({ course, currentUserId, currentRole, o
 	const [error, setError] = useState('');
 	const router = useRouter();
 
-	const canEdit = currentRole === 'admin' || (currentRole === 'teacher' && course.createdBy === currentUserId);
-	// Teachers can delete their own courses (drafts or published), admins can delete any course
-	const canDelete =
-		currentRole === 'admin' || (currentRole === 'teacher' && course.createdBy === currentUserId);
-
-	// Ensure a course cannot be published without at least one module and one lesson
-	async function validatePublishableCourse() {
-		const moduleIds = Array.isArray(course.modules) ? course.modules.filter(Boolean) : [];
-		if (moduleIds.length === 0) {
-			return {
-				ok: false,
-				message: 'To publish a course, add at least 1 module and 1 lesson first.',
-			};
-		}
-
-		const hasAnyLesson = (
-			await Promise.all(
-				moduleIds.map(async (moduleId) => {
-					const snap = await getDocs(
-						query(collection(db, 'lesson'), where('moduleId', '==', moduleId), limit(1))
-					);
-					return snap.size > 0;
-				})
-			)
-		).some(Boolean);
-
-		if (!hasAnyLesson) {
-			return {
-				ok: false,
-				message: 'To publish a course, add at least 1 module and 1 lesson first.',
-			};
-		}
-
-		return { ok: true };
-	}
+	const courseId = course._id?.toString() || course.id;
+	const canEdit = currentRole === 'admin' || (currentRole === 'teacher' && course.createdBy?.toString() === currentUserId);
+	const canDelete = currentRole === 'admin' || (currentRole === 'teacher' && course.createdBy?.toString() === currentUserId);
 
 	async function handleDelete() {
-		if (!confirm(`Are you sure you want to delete "${course.title}"?\n\nThis will also delete its modules, lessons, and enrollments. This action cannot be undone.`)) {
-			return;
-		}
+		if (!confirm(`Are you sure you want to delete "${course.title}"?\n\nThis will also delete its modules, lessons, and enrollments. This action cannot be undone.`)) return;
 		setLoading(true);
 		setError('');
 		try {
-			// Extra client-side guard (Firestore rules should still enforce this)
-			if (!canDelete) {
-				throw new Error('Unauthorized: You cannot delete this course');
-			}
-
-			const courseRef = doc(db, 'course', course.id);
-			const moduleIds = Array.isArray(course.modules) ? course.modules : [];
-
-			// Collect related docs
-			const lessonRefs = [];
-			const moduleRefs = [];
-			for (const moduleId of moduleIds) {
-				if (!moduleId) continue;
-				moduleRefs.push(doc(db, 'module', moduleId));
-
-				const lessonsSnap = await getDocs(
-					query(collection(db, 'lesson'), where('moduleId', '==', moduleId))
-				);
-				for (const d of lessonsSnap.docs) {
-					lessonRefs.push(d.ref);
-				}
-			}
-
-			const enrollmentRefs = [];
-			const enrollmentsSnap = await getDocs(
-				query(collection(db, 'progress'), where('courseId', '==', course.id))
-			);
-			for (const d of enrollmentsSnap.docs) {
-				enrollmentRefs.push(d.ref);
-			}
-
-			// Firestore batch limit is 500 operations; chunk deletes safely
-			const refsToDelete = [...lessonRefs, ...moduleRefs, ...enrollmentRefs];
-			const chunkSize = 450;
-			for (let i = 0; i < refsToDelete.length; i += chunkSize) {
-				const batch = writeBatch(db);
-				const chunk = refsToDelete.slice(i, i + chunkSize);
-				for (const ref of chunk) batch.delete(ref);
-				await batch.commit();
-			}
-
-			// Delete the course last
-			{
-				const batch = writeBatch(db);
-				batch.delete(courseRef);
-				await batch.commit();
-			}
-
-			onDeleted?.(course.id);
+			await api.delete(`/api/courses/${courseId}`);
+			onDeleted?.(courseId);
 		} catch (err) {
-			console.error('Delete error:', err);
 			setError(err.message || 'Failed to delete');
 			setLoading(false);
 		}
@@ -115,45 +32,29 @@ export default function CourseManagement({ course, currentUserId, currentRole, o
 		setLoading(true);
 		setError('');
 		try {
-			const validation = await validatePublishableCourse();
-			if (!validation.ok) {
-				setError(validation.message);
-				setLoading(false);
-				return;
-			}
-
-			await updateDoc(doc(db, 'course', course.id), {
-				status: 'published',
-				updatedAt: serverTimestamp(),
-			});
-			// Force page reload to refresh the courses list
+			await api.put(`/api/courses/${courseId}`, { status: 'published' });
 			window.location.reload();
 		} catch (err) {
-			console.error('Publish error:', err);
 			setError(err.message || 'Failed to publish');
 			setLoading(false);
 		}
 	}
 
 	async function handleUnpublish() {
-		if (!confirm(`Unpublish "${course.title}"? It will be moved back to draft and taken off the live server.`)) {
-			return;
-		}
+		if (!confirm(`Unpublish "${course.title}"? It will be moved back to draft.`)) return;
 		setLoading(true);
 		setError('');
 		try {
-			await updateDoc(doc(db, 'course', course.id), {
-				status: 'draft',
-				updatedAt: serverTimestamp(),
-			});
-			// Force page reload to refresh the courses list
+			await api.put(`/api/courses/${courseId}`, { status: 'draft' });
 			window.location.reload();
 		} catch (err) {
-			console.error('Unpublish error:', err);
 			setError(err.message || 'Failed to unpublish');
 			setLoading(false);
 		}
 	}
+
+	const createdAt = course.createdAt ? new Date(course.createdAt).toLocaleDateString() : 'N/A';
+	const updatedAt = course.updatedAt ? new Date(course.updatedAt).toLocaleDateString() : 'N/A';
 
 	return (
 		<Card className="border-none shadow-md hover:shadow-xl transition-all duration-300 bg-white/80 backdrop-blur-md overflow-hidden group">
@@ -183,12 +84,12 @@ export default function CourseManagement({ course, currentUserId, currentRole, o
 					</div>
 					<div className="flex items-center gap-2">
 						<span className="font-semibold text-neutral-700 min-w-[70px]">Created:</span>
-						<span className="text-neutral-600">{course.createdAt?.toDate ? course.createdAt.toDate().toLocaleDateString() : 'N/A'}</span>
+						<span className="text-neutral-600">{createdAt}</span>
 					</div>
 					{course.status === 'published' && course.updatedAt && (
 						<div className="flex items-center gap-2">
 							<span className="font-semibold text-neutral-700 min-w-[70px]">Published:</span>
-							<span className="text-neutral-600">{course.updatedAt?.toDate ? course.updatedAt.toDate().toLocaleDateString() : 'N/A'}</span>
+							<span className="text-neutral-600">{updatedAt}</span>
 						</div>
 					)}
 				</div>
@@ -216,7 +117,7 @@ export default function CourseManagement({ course, currentUserId, currentRole, o
 						</Button>
 					)}
 					{canEdit && (
-						<a href={`/dashboard/courses/${course.id}/edit`} className="flex-1 sm:flex-none">
+						<a href={`/dashboard/courses/${courseId}/edit`} className="flex-1 sm:flex-none">
 							<Button
 								variant="secondary"
 								size="sm"
@@ -247,4 +148,3 @@ export default function CourseManagement({ course, currentUserId, currentRole, o
 		</Card>
 	);
 }
-

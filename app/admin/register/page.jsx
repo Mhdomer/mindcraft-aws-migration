@@ -1,10 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/firebase';
+import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,71 +22,24 @@ export default function AdminRegisterPage() {
 		setError('');
 		setLoading(true);
 
-		// Validate required fields
-		if (!name || !name.trim()) {
-			setError('Full name is required');
-			setLoading(false);
-			return;
-		}
+		if (!name || !name.trim()) { setError('Full name is required'); setLoading(false); return; }
+		if (name.trim().length < 2) { setError('Full name must be at least 2 characters'); setLoading(false); return; }
 
-		if (name.trim().length < 2) {
-			setError('Full name must be at least 2 characters');
-			setLoading(false);
-			return;
-		}
-
-		if (!email || !email.trim()) {
-			setError('Email is required');
-			setLoading(false);
-			return;
-		}
-
-		// Validate email format
 		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-		if (!emailRegex.test(email.trim())) {
-			setError('Please enter a valid email address');
-			setLoading(false);
-			return;
-		}
+		if (!email || !emailRegex.test(email.trim())) { setError('Please enter a valid email address'); setLoading(false); return; }
 
-		if (!password) {
-			setError('Password is required');
-			setLoading(false);
-			return;
-		}
-
-		if (password.length < 6) {
-			setError('Password must be at least 6 characters');
-			setLoading(false);
-			return;
-		}
+		if (!password || password.length < 8) { setError('Password must be at least 8 characters'); setLoading(false); return; }
 
 		try {
-			// Step 1: Create user in Firebase Auth (this handles password)
-			const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-			const user = userCredential.user; // This gives us the uid
-
-			// Step 2: Create user profile in Firestore
-			await setDoc(doc(db, 'user', user.uid), {
-				name: name.trim(),
-				email: email.trim(),
-				role: role,
-				status: 'active',
-				createdAt: serverTimestamp(),
-			});
-
+			await api.post('/api/auth/register', { name: name.trim(), email: email.trim(), password, role });
 			setOk(`User "${name}" registered successfully! They can now sign in with email: ${email}`);
 			setName('');
 			setEmail('');
 			setPassword('');
 			setRole('teacher');
 		} catch (err) {
-			if (err.code === 'auth/email-already-in-use') {
+			if (err.message?.includes('already registered') || err.message?.includes('409')) {
 				setError('This email is already registered');
-			} else if (err.code === 'auth/invalid-email') {
-				setError('Invalid email format');
-			} else if (err.code === 'auth/weak-password') {
-				setError('Password should be at least 6 characters');
 			} else {
 				setError(err.message || 'Failed to register user');
 			}
@@ -100,11 +50,9 @@ export default function AdminRegisterPage() {
 
 	return (
 		<div className="-m-6 md:-m-8 lg:-m-10 min-h-screen relative overflow-hidden flex items-center justify-center p-6">
-			{/* Premium Background Design */}
 			<div className="absolute inset-0 bg-gradient-to-br from-sky-50 via-indigo-50/30 to-white z-0 pointer-events-none"></div>
 			<div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
 			<div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-100/40 rounded-full blur-[100px] pointer-events-none z-0"></div>
-			<div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-cyan-100/30 rounded-full blur-[80px] pointer-events-none z-0"></div>
 
 			<div className="w-full max-w-lg relative z-10 animate-fadeIn">
 				<div className="text-center mb-8">
@@ -172,16 +120,16 @@ export default function AdminRegisterPage() {
 									<Input
 										required
 										type="password"
-										placeholder="Enter password (min 6 characters)"
+										placeholder="Enter password (min 8 characters)"
 										value={password}
 										onChange={(e) => setPassword(e.target.value)}
-										minLength={6}
+										minLength={8}
 										autoComplete="new-password"
 										className="pl-10 border-neutral-200 focus-visible:ring-emerald-500 transition-all hover:border-emerald-200"
 									/>
 								</div>
-								{password && password.length < 6 && (
-									<p className="text-xs text-error flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Password must be at least 6 characters</p>
+								{password && password.length < 8 && (
+									<p className="text-xs text-error flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Password must be at least 8 characters</p>
 								)}
 							</div>
 
@@ -194,7 +142,7 @@ export default function AdminRegisterPage() {
 										<Shield className="h-4 w-4" />
 									</div>
 									<select
-										className="flex h-10 w-full rounded-md border border-neutral-200 bg-background px-3 py-2 pl-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all hover:border-emerald-200"
+										className="flex h-10 w-full rounded-md border border-neutral-200 bg-background px-3 py-2 pl-10 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 transition-all hover:border-emerald-200"
 										value={role}
 										onChange={(e) => setRole(e.target.value)}
 									>
@@ -231,11 +179,9 @@ export default function AdminRegisterPage() {
 				</Card>
 
 				<p className="text-xs text-center text-muted-foreground mt-6 max-w-xs mx-auto">
-					Admin privileges required. New users will be added to Firebase Auth & Firestore.
+					Admin privileges required. New users will be added to MongoDB.
 				</p>
 			</div>
 		</div>
 	);
 }
-
-

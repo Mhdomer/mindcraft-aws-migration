@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import Course from '../models/Course.js';
+import Module from '../models/Module.js';
+import Lesson from '../models/Lesson.js';
+import Enrollment from '../models/Enrollment.js';
 import User from '../models/User.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
@@ -76,6 +79,12 @@ router.delete('/:id', requireAuth, async (req, res) => {
     const isOwner = course.createdBy.toString() === req.user.id;
     if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
 
+    const moduleIds = Array.isArray(course.modules) ? course.modules : [];
+    if (moduleIds.length > 0) {
+      await Lesson.deleteMany({ moduleId: { $in: moduleIds } });
+      await Module.deleteMany({ _id: { $in: moduleIds } });
+    }
+    await Enrollment.deleteMany({ courseId: course._id });
     await course.deleteOne();
     res.json({ message: 'Course deleted successfully' });
   } catch (err) {
