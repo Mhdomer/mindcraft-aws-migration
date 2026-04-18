@@ -20,7 +20,7 @@ router.post('/register', async (req, res) => {
     const user = await User.create({ email, passwordHash, name, role });
 
     const token = signToken({ id: user._id, email: user.email, role: user.role, name: user.name });
-    setAuthCookie(res, token);
+    setAuthCookie(res, token, user.role);
 
     res.status(201).json({ user: { id: user._id, email: user.email, name: user.name, role: user.role } });
   } catch (err) {
@@ -46,7 +46,7 @@ router.post('/login', async (req, res) => {
     await User.findByIdAndUpdate(user._id, { isOnline: true, lastSeen: new Date() });
 
     const token = signToken({ id: user._id, email: user.email, role: user.role, name: user.name });
-    setAuthCookie(res, token);
+    setAuthCookie(res, token, user.role);
 
     res.json({ user: { id: user._id, email: user.email, name: user.name, role: user.role } });
   } catch (err) {

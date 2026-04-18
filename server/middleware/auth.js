@@ -6,20 +6,27 @@ export function signToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
 }
 
-export function setAuthCookie(res, token) {
+export function setAuthCookie(res, token, role) {
+  const maxAge = 24 * 60 * 60 * 1000;
+  // httpOnly JWT — not readable by JS, protects against XSS token theft
   res.cookie('auth_token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    maxAge,
+  });
+  // Non-sensitive role cookie — read by Next.js server components for nav rendering only.
+  // Authorization is always enforced by verifying the signed JWT, never this cookie.
+  res.cookie('user_role', role, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge,
   });
 }
 
 export function clearAuthCookie(res) {
   res.clearCookie('auth_token');
-  // Clear legacy Firebase session cookies
-  res.clearCookie('user_id');
-  res.clearCookie('user_email');
   res.clearCookie('user_role');
 }
 
