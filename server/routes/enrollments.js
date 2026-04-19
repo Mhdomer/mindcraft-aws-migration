@@ -66,13 +66,18 @@ router.get('/teacher', requireAuth, async (req, res) => {
 // PATCH /api/enrollments/:id/progress — update lesson/module completion
 router.patch('/:id/progress', requireAuth, async (req, res) => {
   try {
-    const { completedLesson, completedModule, overallProgress } = req.body;
+    const { completedLesson, removeLesson, completedModule, overallProgress } = req.body;
     const enrollment = await Enrollment.findById(req.params.id);
     if (!enrollment) return res.status(404).json({ error: 'Enrollment not found' });
     if (enrollment.studentId.toString() !== req.user.id) return res.status(403).json({ error: 'Insufficient permissions' });
 
     if (completedLesson && !enrollment.progress.completedLessons.includes(completedLesson)) {
       enrollment.progress.completedLessons.push(completedLesson);
+    }
+    if (removeLesson) {
+      enrollment.progress.completedLessons = enrollment.progress.completedLessons.filter(
+        l => l.toString() !== removeLesson.toString()
+      );
     }
     if (completedModule && !enrollment.progress.completedModules.includes(completedModule)) {
       enrollment.progress.completedModules.push(completedModule);
