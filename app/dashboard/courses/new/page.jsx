@@ -1,46 +1,33 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { db } from '@/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import CourseModuleManager from '@/app/components/CourseModuleManager';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 
 export default function NewCoursePage() {
 	const { language } = useLanguage();
+	const { userData } = useAuth();
+	const router = useRouter();
 	const [title, setTitle] = useState('');
 	const [description, setDescription] = useState('');
-	const [publish, setPublish] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState('');
-	const [success, setSuccess] = useState('');
-	const [userRole, setUserRole] = useState(null);
-	const [modules, setModules] = useState([]);
-	const router = useRouter();
 
-	// Translations
-	const translations = {
+	const t = {
 		en: {
 			pageTitle: 'Create Course',
 			titleLabel: 'Title',
 			titlePlaceholder: 'Enter course title',
 			descriptionLabel: 'Description',
 			descriptionPlaceholder: 'Enter course description',
-			publishImmediately: 'Publish immediately',
-			saveCourse: 'Save Course',
-			saving: 'Saving…',
-			signInError: 'You must be signed in to create a course',
-			roleError: 'Only teachers and admins can create courses',
-			saveFailed: 'Failed to save course',
-			publishNeedsContent: 'To publish a course, add at least 1 module and 1 lesson first.',
-			publishedSuccess: (title) => `Course "${title}" published successfully!`,
-			draftSuccess: (title) => `Course "${title}" saved as draft. You can continue editing and publish when ready.`,
+			saveCourse: 'Create Course',
+			saving: 'Creating…',
+			hint: 'After creating the course, you can add modules and lessons from the edit page.',
 		},
 		bm: {
 			pageTitle: 'Cipta Kursus',
@@ -48,230 +35,33 @@ export default function NewCoursePage() {
 			titlePlaceholder: 'Masukkan tajuk kursus',
 			descriptionLabel: 'Penerangan',
 			descriptionPlaceholder: 'Masukkan penerangan kursus',
-			publishImmediately: 'Terbitkan serta-merta',
-			saveCourse: 'Simpan Kursus',
-			saving: 'Menyimpan…',
-			signInError: 'Anda mesti log masuk untuk mencipta kursus',
-			roleError: 'Hanya guru dan admin boleh mencipta kursus',
-			saveFailed: 'Gagal menyimpan kursus',
-			publishNeedsContent: 'Untuk menerbitkan kursus, tambah sekurang-kurangnya 1 modul dan 1 pelajaran dahulu.',
-			publishedSuccess: (title) => `Kursus "${title}" diterbitkan dengan jayanya!`,
-			draftSuccess: (title) => `Kursus "${title}" disimpan sebagai draf. Anda boleh terus mengedit dan menerbitkan apabila sedia.`,
+			saveCourse: 'Cipta Kursus',
+			saving: 'Mencipta…',
+			hint: 'Selepas mencipta kursus, anda boleh menambah modul dan pelajaran dari halaman edit.',
 		},
+	}[language] || {
+		pageTitle: 'Create Course', titleLabel: 'Title', titlePlaceholder: 'Enter course title',
+		descriptionLabel: 'Description', descriptionPlaceholder: 'Enter course description',
+		saveCourse: 'Create Course', saving: 'Creating…',
+		hint: 'After creating the course, you can add modules and lessons from the edit page.',
 	};
-
-	const t = translations[language] || translations.en;
-
-	useEffect(() => {
-		// Get user role on mount
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				const userDoc = await getDoc(doc(db, 'user', user.uid));
-				if (userDoc.exists()) {
-					setUserRole(userDoc.data().role);
-				}
-			}
-		});
-		return () => unsubscribe();
-	}, []);
 
 	async function onSubmit(e) {
 		e.preventDefault();
-		setSubmitting(true);
 		setError('');
-		setSuccess('');
+		if (!title.trim()) { setError('Course title is required'); return; }
+		if (title.trim().length < 3) { setError('Course title must be at least 3 characters'); return; }
 
-		// Validate required fields
-		if (!title || !title.trim()) {
-			setError('Course title is required');
-			setSubmitting(false);
-			return;
-		}
-
-		if (title.trim().length < 3) {
-			setError('Course title must be at least 3 characters');
-			setSubmitting(false);
-			return;
-		}
-
-		if (title.trim().length > 200) {
-			setError('Course title must be less than 200 characters');
-			setSubmitting(false);
-			return;
-		}
-
-		// If user wants to publish immediately, enforce at least 1 module + 1 lesson (from builder state)
-		if (publish) {
-			const hasModule = Array.isArray(modules) && modules.length > 0;
-			const hasLesson =
-				Array.isArray(modules) &&
-				modules.some((m) => Array.isArray(m?.lessons) && m.lessons.length > 0);
-
-			if (!hasModule || !hasLesson) {
-				setError(t.publishNeedsContent);
-				setSubmitting(false);
-				return;
-			}
-		}
-
-		// Check if user is authenticated
-		const user = auth.currentUser;
-		if (!user) {
-			setError(t.signInError);
-			setSubmitting(false);
-			return;
-		}
-
+		setSubmitting(true);
 		try {
-			// If user wants to publish immediately, enforce at least 1 module + 1 lesson (from builder state)
-			if (publish) {
-				const hasModule = Array.isArray(modules) && modules.length > 0;
-				const hasLesson =
-					Array.isArray(modules) &&
-					modules.some((m) => Array.isArray(m?.lessons) && m.lessons.length > 0);
-
-				if (!hasModule || !hasLesson) {
-					setError(t.publishNeedsContent);
-					setSubmitting(false);
-					return;
-				}
-			}
-
-			// Get user profile to get name and role
-			const userDoc = await getDoc(doc(db, 'user', user.uid));
-			const userData = userDoc.exists() ? userDoc.data() : null;
-			
-			if (!userData || (userData.role !== 'admin' && userData.role !== 'teacher')) {
-				setError(t.roleError);
-				setSubmitting(false);
-				return;
-			}
-
-			// Create course in Firestore
-			// If publishing immediately, create as draft first, then publish after modules/lessons are created successfully.
-			const courseData = {
+			const data = await api.post('/api/courses', {
 				title: title.trim(),
-				description: description?.trim() || '',
-				// Always create as draft first; we'll publish after modules/lessons are created
-				status: 'draft',
-				modules: [],
-				createdBy: user.uid,
-				authorName: userData.name || 'Unknown',
-				authorEmail: user.email || '',
-				createdAt: serverTimestamp(),
-				updatedAt: serverTimestamp(),
-			};
-
-			const docRef = await addDoc(collection(db, 'course'), courseData);
-			const newCourseId = docRef.id;
-			
-			// Save modules if any were created
-			if (modules && modules.length > 0) {
-				for (const module of modules) {
-					if (module.temp) {
-						// Create module directly in Firestore (client-side with Firebase Auth)
-						const moduleData = {
-							title: module.title,
-							order: module.order || 0,
-							lessons: [],
-							createdAt: serverTimestamp(),
-							updatedAt: serverTimestamp(),
-						};
-
-						const moduleRef = await addDoc(collection(db, 'module'), moduleData);
-
-						// Link module to course
-						const courseRef = doc(db, 'course', newCourseId);
-						const courseDoc = await getDoc(courseRef);
-						if (courseDoc.exists()) {
-							const courseModules = courseDoc.data().modules || [];
-							if (!courseModules.includes(moduleRef.id)) {
-								await updateDoc(courseRef, {
-									modules: [...courseModules, moduleRef.id],
-									updatedAt: serverTimestamp(),
-								});
-							}
-						}
-
-						// Create lessons for this module if any
-						if (module.lessons && module.lessons.length > 0) {
-							for (const lesson of module.lessons) {
-								if (lesson.temp) {
-									const lessonData = {
-										moduleId: moduleRef.id,
-										title: lesson.title,
-										contentHtml: lesson.contentHtml || '',
-										materials: [],
-										order: lesson.order || 0,
-										aiGenerated: false,
-										createdAt: serverTimestamp(),
-										updatedAt: serverTimestamp(),
-									};
-
-									const lessonRef = await addDoc(collection(db, 'lesson'), lessonData);
-
-									// Update module to include this lesson
-									const moduleLessons = [];
-									if (moduleRef.id) {
-										const moduleDoc = await getDoc(doc(db, 'module', moduleRef.id));
-										if (moduleDoc.exists()) {
-											const existingLessons = moduleDoc.data().lessons || [];
-											if (!existingLessons.includes(lessonRef.id)) {
-												await updateDoc(doc(db, 'module', moduleRef.id), {
-													lessons: [...existingLessons, lessonRef.id],
-													updatedAt: serverTimestamp(),
-												});
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-
-			// Publish only after content is created
-			if (publish) {
-				await updateDoc(doc(db, 'course', newCourseId), {
-					status: 'published',
-					updatedAt: serverTimestamp(),
-				});
-			}
-			
-			// If user chose publish, update status to published only after content is created
-			if (publish) {
-				await updateDoc(doc(db, 'course', newCourseId), {
-					status: 'published',
-					updatedAt: serverTimestamp(),
-				});
-			}
-
-			const isPublished = publish;
-			setSuccess(
-				isPublished
-					? t.publishedSuccess(title)
-					: t.draftSuccess(title)
-			);
-
-			// Clear form fields
-			setTitle('');
-			setDescription('');
-			setPublish(false);
-			setModules([]);
-
-			// Redirect based on role - use window.location to force full page reload
-			setTimeout(() => {
-				if (userRole === 'admin' || userRole === 'teacher') {
-					window.location.href = '/admin/courses';
-				} else {
-					window.location.href = '/courses';
-				}
-			}, 2000);
+				description: description.trim(),
+			});
+			const courseId = data.course._id?.toString() || data.course.id;
+			router.push(`/dashboard/courses/${courseId}/edit`);
 		} catch (err) {
-			console.error('Course creation error:', err);
-			setError(err.message || t.saveFailed);
-		} finally {
+			setError(err.message || 'Failed to create course');
 			setSubmitting(false);
 		}
 	}
@@ -295,20 +85,13 @@ export default function NewCoursePage() {
 								minLength={3}
 								maxLength={200}
 							/>
-							{title && title.trim().length > 0 && title.trim().length < 3 && (
-								<p className="text-xs text-error mt-1">Title must be at least 3 characters</p>
-							)}
-							{title && title.trim().length > 200 && (
-								<p className="text-xs text-error mt-1">Title must be less than 200 characters</p>
-							)}
 						</label>
 
 						<label className="block">
 							<span className="block text-body font-medium text-neutralDark mb-2">
-								{t.descriptionLabel} <span className="text-error">*</span>
+								{t.descriptionLabel}
 							</span>
 							<textarea
-								required
 								value={description}
 								onChange={(e) => setDescription(e.target.value)}
 								rows={4}
@@ -317,35 +100,11 @@ export default function NewCoursePage() {
 							/>
 						</label>
 
-						<label className="flex items-center gap-3 cursor-pointer">
-							<input
-								type="checkbox"
-								checked={publish}
-								onChange={(e) => setPublish(e.target.checked)}
-								className="w-5 h-5 rounded border-input text-primary focus:ring-2 focus:ring-ring cursor-pointer"
-							/>
-							<span className="text-body text-neutralDark">{t.publishImmediately}</span>
-						</label>
+						<p className="text-sm text-muted-foreground">{t.hint}</p>
 
-						{/* Modules & Lessons Manager (Optional) */}
-						<div className="pt-6 border-t border-border">
-							<CourseModuleManager
-								courseId={null}
-								initialModules={modules}
-								onModulesChange={setModules}
-							/>
-						</div>
-
-						<div className="pt-4">
-							<Button
-								type="submit"
-								disabled={submitting}
-								className="w-full"
-								size="lg"
-							>
-								{submitting ? t.saving : t.saveCourse}
-							</Button>
-						</div>
+						<Button type="submit" disabled={submitting} className="w-full" size="lg">
+							{submitting ? t.saving : t.saveCourse}
+						</Button>
 					</form>
 				</CardContent>
 			</Card>
@@ -357,15 +116,6 @@ export default function NewCoursePage() {
 					</CardContent>
 				</Card>
 			)}
-			{success && (
-				<Card className="mt-6 border-success bg-success/5">
-					<CardContent className="pt-6">
-						<p className="text-body text-success">{success}</p>
-					</CardContent>
-				</Card>
-			)}
 		</div>
 	);
 }
-
-

@@ -27,8 +27,13 @@ router.post('/', requireAuth, async (req, res) => {
     const module = await Module.findById(moduleId);
     if (!module) return res.status(404).json({ error: 'Module not found' });
 
-    const course = await Course.findById(module.courseId);
-    const isOwner = course?.createdBy.toString() === req.user.id;
+    let isOwner = false;
+    if (module.courseId) {
+      const course = await Course.findById(module.courseId);
+      isOwner = course?.createdBy?.toString() === req.user.id;
+    } else {
+      isOwner = req.user.role === 'teacher' || req.user.role === 'admin';
+    }
     if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
 
     const lesson = await Lesson.create({
@@ -62,8 +67,13 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
 
     const module = await Module.findById(lesson.moduleId);
-    const course = await Course.findById(module?.courseId);
-    const isOwner = course?.createdBy.toString() === req.user.id;
+    let isOwner = false;
+    if (module?.courseId) {
+      const course = await Course.findById(module.courseId);
+      isOwner = course?.createdBy?.toString() === req.user.id;
+    } else {
+      isOwner = req.user.role === 'teacher' || req.user.role === 'admin';
+    }
     if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
 
     const { title, contentHtml, materials, order } = req.body;
@@ -87,8 +97,13 @@ router.delete('/:id', requireAuth, async (req, res) => {
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
 
     const module = await Module.findById(lesson.moduleId);
-    const course = await Course.findById(module?.courseId);
-    const isOwner = course?.createdBy.toString() === req.user.id;
+    let isOwner = false;
+    if (module?.courseId) {
+      const course = await Course.findById(module.courseId);
+      isOwner = course?.createdBy?.toString() === req.user.id;
+    } else {
+      isOwner = req.user.role === 'teacher' || req.user.role === 'admin';
+    }
     if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
 
     await Module.findByIdAndUpdate(lesson.moduleId, { $pull: { lessons: lesson._id } });

@@ -70,6 +70,48 @@ router.put('/:id', requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/courses/:id/modules  — link an existing standalone module to a course
+router.post('/:id/modules', requireAuth, async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.id);
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+
+    const isOwner = course.createdBy.toString() === req.user.id;
+    if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
+
+    const { moduleId } = req.body;
+    if (!moduleId) return res.status(400).json({ error: 'moduleId is required' });
+
+    const module = await Module.findById(moduleId);
+    if (!module) return res.status(404).json({ error: 'Module not found' });
+
+    await Module.findByIdAndUpdate(moduleId, { courseId: course._id });
+    await Course.findByIdAndUpdate(req.params.id, { $addToSet: { modules: module._id } });
+
+    res.json({ message: 'Module linked to course' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to link module' });
+  }
+});
+
+// DELETE /api/courses/:id/modules/:moduleId  — unlink a module (does not delete it)
+router.delete('/:id/modules/:moduleId', requireAuth, async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.id);
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+
+    const isOwner = course.createdBy.toString() === req.user.id;
+    if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
+
+    await Module.findByIdAndUpdate(req.params.moduleId, { $unset: { courseId: '' } });
+    await Course.findByIdAndUpdate(req.params.id, { $pull: { modules: req.params.moduleId } });
+
+    res.json({ message: 'Module unlinked from course' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to unlink module' });
+  }
+});
+
 // DELETE /api/courses/:id
 router.delete('/:id', requireAuth, async (req, res) => {
   try {

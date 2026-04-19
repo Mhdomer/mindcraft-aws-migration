@@ -6,15 +6,26 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
-// GET /api/modules?courseId=
+// GET /api/modules?courseId=   (courseId optional — omit for standalone library)
 router.get('/', requireAuth, async (req, res) => {
   try {
     const { courseId } = req.query;
-    if (!courseId) return res.status(400).json({ error: 'courseId is required' });
-    const modules = await Module.find({ courseId }).sort({ order: 1 });
+    const filter = courseId ? { courseId } : { courseId: { $exists: false } };
+    const modules = await Module.find(filter).sort({ order: 1 });
     res.json({ modules });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch modules' });
+  }
+});
+
+// GET /api/modules/:id
+router.get('/:id', requireAuth, async (req, res) => {
+  try {
+    const module = await Module.findById(req.params.id).populate('lessons');
+    if (!module) return res.status(404).json({ error: 'Module not found' });
+    res.json({ module });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch module' });
   }
 });
 
@@ -22,17 +33,29 @@ router.get('/', requireAuth, async (req, res) => {
 router.post('/', requireAuth, async (req, res) => {
   try {
     const { courseId, title, order } = req.body;
-    if (!courseId || !title) return res.status(400).json({ error: 'courseId and title are required' });
+    if (!title) return res.status(400).json({ error: 'title is required' });
 
-    const course = await Course.findById(courseId);
-    if (!course) return res.status(404).json({ error: 'Course not found' });
+    let orderVal = order;
 
-    const isOwner = course.createdBy.toString() === req.user.id;
-    if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
+    if (courseId) {
+      const course = await Course.findById(courseId);
+      if (!course) return res.status(404).json({ error: 'Course not found' });
 
-    const module = await Module.create({ courseId, title, order: order ?? course.modules.length });
-    await Course.findByIdAndUpdate(courseId, { $push: { modules: module._id } });
+      const isOwner = course.createdBy.toString() === req.user.id;
+      if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
 
+      if (orderVal === undefined) orderVal = course.modules.length;
+      const module = await Module.create({ courseId, title, order: orderVal });
+      await Course.findByIdAndUpdate(courseId, { $push: { modules: module._id } });
+      return res.status(201).json({ module });
+    }
+
+    // Standalone module (no courseId)
+    if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    const count = await Module.countDocuments({ courseId: { $exists: false } });
+    const module = await Module.create({ title, order: orderVal ?? count });
     res.status(201).json({ module });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create module' });
@@ -45,9 +68,15 @@ router.put('/:id', requireAuth, async (req, res) => {
     const module = await Module.findById(req.params.id);
     if (!module) return res.status(404).json({ error: 'Module not found' });
 
-    const course = await Course.findById(module.courseId);
-    const isOwner = course?.createdBy.toString() === req.user.id;
-    if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
+    if (module.courseId) {
+      const course = await Course.findById(module.courseId);
+      const isOwner = course?.createdBy.toString() === req.user.id;
+      if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
+    } else {
+      if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+    }
 
     const { title, order } = req.body;
     const update = {};
@@ -67,14 +96,18 @@ router.delete('/:id', requireAuth, async (req, res) => {
     const module = await Module.findById(req.params.id);
     if (!module) return res.status(404).json({ error: 'Module not found' });
 
-    const course = await Course.findById(module.courseId);
-    const isOwner = course?.createdBy.toString() === req.user.id;
-    if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
+    if (module.courseId) {
+      const course = await Course.findById(module.courseId);
+      const isOwner = course?.createdBy.toString() === req.user.id;
+      if (!isOwner && req.user.role !== 'admin') return res.status(403).json({ error: 'Insufficient permissions' });
+      await Course.findByIdAndUpdate(module.courseId, { $pull: { modules: module._id } });
+    } else {
+      if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+    }
 
-    // Delete all lessons in this module
     await Lesson.deleteMany({ moduleId: module._id });
-    // Remove module from course
-    await Course.findByIdAndUpdate(module.courseId, { $pull: { modules: module._id } });
     await module.deleteOne();
 
     res.json({ message: 'Module and its lessons deleted successfully' });
