@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -14,17 +13,13 @@ import { cn } from '@/lib/utils';
 export default function SettingsPage() {
 	const router = useRouter();
 	const { language, setLanguage } = useLanguage();
+	const { userData, loading: authLoading } = useAuth();
 	const [theme, setTheme] = useState('light');
 
-	// Basic auth guard: redirect guests to login
+	// Auth guard
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, (user) => {
-			if (!user) {
-				router.push('/login');
-			}
-		});
-		return () => unsubscribe();
-	}, [router]);
+		if (!authLoading && !userData) router.push('/login');
+	}, [authLoading, userData, router]);
 
 	// Load theme preference from localStorage
 	useEffect(() => {

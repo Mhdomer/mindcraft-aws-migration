@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BookOpen, CheckCircle2, CheckCircle, Clock, Award, FileText, ClipboardCheck, TrendingUp, TrendingDown, Calendar, AlertTriangle, Target, Lightbulb, Info, Activity, Printer, Download, LayoutDashboard, ArrowLeft, ArrowRight, Filter, Users, Play, FlaskConical, MessagesSquare, PlayCircle, Zap, Map, Search, Timer, Crown, GraduationCap, Mail, ExternalLink, File, Send, Sparkles } from 'lucide-react';
@@ -344,25 +343,10 @@ export default function ProgressPage() {
 
 		setIsSendingMessage(true);
 		try {
-			await addDoc(collection(db, 'messages'), {
-				fromUserId: currentUserId,
-				fromName: studentName,
-				toInstructor: selectedContactCourse.instructor || 'Instructor',
-				// In a real app, you'd want the instructor's User ID. 
-				// Since we don't have it easily mapped here, we'll store the name and course for the admin/teacher dashboard to filter.
-				courseId: selectedContactCourse.courseId,
-				courseTitle: selectedContactCourse.courseTitle,
-				subject: contactSubject,
-				message: contactMessage,
-				read: false,
-				createdAt: serverTimestamp(),
-				type: 'student_inquiry'
-			});
-
+			// In-app messaging to instructors is not yet implemented in the API
+			showToast(language === 'bm' ? 'Ciri ini akan datang dalam versi akan datang.' : 'This feature is coming in a future update.', 'info');
 			setContactDialogOpen(false);
-			showToast(language === 'bm' ? 'Mesej berjaya dihantar!' : 'Message sent successfully!', 'success');
 		} catch (error) {
-			console.error("Error sending message:", error);
 			showToast(language === 'bm' ? 'Gagal menghantar mesej.' : 'Failed to send message.', 'error');
 		} finally {
 			setIsSendingMessage(false);
@@ -418,30 +402,16 @@ export default function ProgressPage() {
 		}, 100);
 	};
 
+	const { userData: authUser, loading: authLoading } = useAuth();
+
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				setCurrentUserId(user.uid);
-				// Fetch user profile to get real name for certificate
-				try {
-					const userDoc = await getDoc(doc(db, 'user', user.uid));
-					if (userDoc.exists()) {
-						const userData = userDoc.data();
-						setUserRole(userData.role);
-						setStudentName(userData.name || userData.fullName || 'Student');
-					}
-				} catch (error) {
-					console.error("Error fetching user profile:", error);
-					setStudentName('Student');
-				}
-				loadProgress(user.uid);
-			} else {
-				setCurrentUserId(null);
-				setLoading(false);
-			}
-		});
-		return () => unsubscribe();
-	}, [selectedPerformanceCourseId]);
+		if (authLoading) return;
+		if (!authUser) { setLoading(false); return; }
+		setCurrentUserId(authUser._id?.toString());
+		setStudentName(authUser.name || 'Student');
+		setUserRole(authUser.role);
+		loadProgress();
+	}, [authLoading, authUser, selectedPerformanceCourseId]);
 
 	// Scroll to top when view changes
 	useEffect(() => {
@@ -477,21 +447,17 @@ export default function ProgressPage() {
 		}
 	};
 
-	async function loadProgress(userId) {
+	async function loadProgress() {
 		setLoading(true);
 		try {
-			if (!userId) return;
+			// Fetch enrollments (courseId populated) and student submissions in parallel
+			const [enrollData, subData] = await Promise.all([
+				api.get('/api/enrollments/student'),
+				api.get('/api/submissions'),
+			]);
 
-			// Get all enrollments for this student
-			const enrollmentsQuery = query(
-				collection(db, 'progress'),
-				where('studentId', '==', userId)
-			);
-			const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
-			const enrollments = enrollmentsSnapshot.docs.map(doc => ({
-				id: doc.id,
-				...doc.data(),
-			}));
+			const enrollments = enrollData.enrollments || [];
+			const submissions = subData.submissions || [];
 
 			if (enrollments.length === 0) {
 				setCourseProgress([]);
@@ -499,175 +465,97 @@ export default function ProgressPage() {
 				return;
 			}
 
-			// Get all submissions for this student
-			const submissionsQuery = query(
-				collection(db, 'submission'),
-				where('studentId', '==', userId)
-			);
-			const submissionsSnapshot = await getDocs(submissionsQuery);
-			const submissions = submissionsSnapshot.docs.map(doc => ({
-				id: doc.id,
-				...doc.data(),
-			}));
-
-			// Group submissions by course
+			// Fetch assessments for each enrolled course to map submissions to courses
 			const submissionsByCourse = {};
-			const assessmentIds = new Set();
-			const assignmentIds = new Set();
+			const assessmentsByCourseMap = {}; // assessmentId → { courseId, title, type }
 
+			await Promise.all(
+				enrollments.map(async (enrollment) => {
+					const courseId = enrollment.courseId?._id?.toString() || enrollment.courseId?.toString();
+					if (!courseId) return;
+					try {
+						const data = await api.get(`/api/assessments?courseId=${courseId}`);
+						(data.assessments || []).forEach(a => {
+							assessmentsByCourseMap[a._id?.toString() || a.id] = {
+								courseId,
+								title: a.title,
+								type: a.type,
+							};
+						});
+					} catch (_) {}
+				})
+			);
+
+			// Group submissions by course using assessment map
 			submissions.forEach(sub => {
-				if (sub.assessmentId) {
-					assessmentIds.add(sub.assessmentId);
+				const assessmentId = sub.assessmentId?.toString();
+				if (assessmentId && assessmentsByCourseMap[assessmentId]) {
+					const { courseId, title, type } = assessmentsByCourseMap[assessmentId];
+					if (!submissionsByCourse[courseId]) submissionsByCourse[courseId] = { assessments: [], assignments: [] };
+					submissionsByCourse[courseId].assessments.push({
+						...sub,
+						assessmentTitle: title,
+						assessmentType: type,
+					});
 				}
-				if (sub.assignmentId) {
-					assignmentIds.add(sub.assignmentId);
-				}
+				// Assignments: no separate endpoint yet, skip for now
 			});
 
-			// Load assessments and assignments to get course IDs
-			const assessments = {};
-			const assignments = {};
-
-			for (const assessmentId of assessmentIds) {
-				try {
-					const assessmentDoc = await getDoc(doc(db, 'assessment', assessmentId));
-					if (assessmentDoc.exists()) {
-						const data = assessmentDoc.data();
-						assessments[assessmentId] = data;
-						if (data.courseId) {
-							if (!submissionsByCourse[data.courseId]) {
-								submissionsByCourse[data.courseId] = { assessments: [], assignments: [] };
-							}
-							const sub = submissions.find(s => s.assessmentId === assessmentId);
-							if (sub) {
-								submissionsByCourse[data.courseId].assessments.push({
-									...sub,
-									assessmentTitle: data.title,
-									assessmentType: data.type,
-								});
-							}
-						}
-					}
-				} catch (err) {
-					console.error(`Error loading assessment ${assessmentId}:`, err);
-				}
-			}
-
-			for (const assignmentId of assignmentIds) {
-				try {
-					const assignmentDoc = await getDoc(doc(db, 'assignment', assignmentId));
-					if (assignmentDoc.exists()) {
-						const data = assignmentDoc.data();
-						assignments[assignmentId] = data;
-						if (data.courseId) {
-							if (!submissionsByCourse[data.courseId]) {
-								submissionsByCourse[data.courseId] = { assessments: [], assignments: [] };
-							}
-							const sub = submissions.find(s => s.assignmentId === assignmentId);
-							if (sub) {
-								submissionsByCourse[data.courseId].assignments.push({
-									...sub,
-									assignmentTitle: data.title,
-								});
-							}
-						}
-					}
-				} catch (err) {
-					console.error(`Error loading assignment ${assignmentId}:`, err);
-				}
-			}
-
-			// Load course details and calculate progress
+			// Build progressData from enrollments
 			const progressData = [];
 			for (const enrollment of enrollments) {
-				try {
-					if (!enrollment.courseId) {
-						console.warn('Enrollment missing courseId:', enrollment.id);
-						continue;
-					}
-					const courseDoc = await getDoc(doc(db, 'course', enrollment.courseId));
-					if (!courseDoc.exists()) {
-						console.warn('Course not found for enrollment:', enrollment.courseId);
-						continue;
-					}
+				const courseObj = enrollment.courseId;
+				if (!courseObj || typeof courseObj !== 'object') continue;
 
-					const courseData = courseDoc.data();
-					const enrollmentProgress = enrollment.progress || {
-						completedModules: [],
-						completedLessons: [],
-						overallProgress: 0,
-					};
+				const courseId = courseObj._id?.toString() || courseObj.id;
+				const enrollmentProgress = enrollment.progress || { completedModules: [], completedLessons: [], overallProgress: 0 };
 
-					// Count total lessons and modules
-					let totalLessons = 0;
-					let totalModules = 0;
-
-					if (courseData.modules && Array.isArray(courseData.modules)) {
-						totalModules = courseData.modules.length;
-						for (const moduleId of courseData.modules) {
-							try {
-								const moduleDoc = await getDoc(doc(db, 'module', moduleId));
-								if (moduleDoc.exists()) {
-									const moduleData = moduleDoc.data();
-									if (moduleData.lessons && Array.isArray(moduleData.lessons)) {
-										totalLessons += moduleData.lessons.length;
-									}
-								}
-							} catch (err) {
-								console.error(`Error loading module ${moduleId}:`, err);
-							}
-						}
-					}
-
-					const completedLessons = enrollmentProgress.completedLessons?.length || 0;
-					const completedModules = enrollmentProgress.completedModules?.length || 0;
-					const overallProgress = enrollmentProgress.overallProgress || 0;
-
-					// Get submissions for this course
-					const courseSubmissions = submissionsByCourse[enrollment.courseId] || {
-						assessments: [],
-						assignments: [],
-					};
-
-					// Calculate average assessment score
-					let totalAssessmentScore = 0;
-					let totalAssessmentPoints = 0;
-					courseSubmissions.assessments.forEach(sub => {
-						if (sub.score !== undefined && sub.totalPoints) {
-							totalAssessmentScore += sub.score;
-							totalAssessmentPoints += sub.totalPoints;
-						}
+				const totalModules = Array.isArray(courseObj.modules) ? courseObj.modules.length : 0;
+				// totalLessons: sum of lesson arrays in populated modules (if available), else 0
+				let totalLessons = 0;
+				if (Array.isArray(courseObj.modules)) {
+					courseObj.modules.forEach(m => {
+						if (typeof m === 'object' && Array.isArray(m.lessons)) totalLessons += m.lessons.length;
 					});
-					const avgAssessmentScore = totalAssessmentPoints > 0
-						? Math.round((totalAssessmentScore / totalAssessmentPoints) * 100)
-						: null;
-
-					progressData.push({
-						courseId: enrollment.courseId,
-						courseTitle: courseData.title,
-						courseDescription: courseData.description,
-						instructor: courseData.authorName, // Map authorName to instructor
-						enrolledAt: enrollment.enrolledAt,
-						overallProgress,
-						completedLessons,
-						totalLessons,
-						completedModules,
-						totalModules,
-						assessments: courseSubmissions.assessments,
-						assignments: courseSubmissions.assignments,
-						avgAssessmentScore,
-					});
-				} catch (err) {
-					console.error(`Error loading course ${enrollment.courseId}:`, err);
 				}
+
+				const completedLessons = enrollmentProgress.completedLessons?.length || 0;
+				const completedModules = enrollmentProgress.completedModules?.length || 0;
+				const overallProgress = enrollmentProgress.overallProgress || 0;
+
+				const courseSubmissions = submissionsByCourse[courseId] || { assessments: [], assignments: [] };
+
+				let totalAssessmentScore = 0;
+				let totalAssessmentPoints = 0;
+				courseSubmissions.assessments.forEach(sub => {
+					if (sub.score !== undefined && sub.totalPoints) {
+						totalAssessmentScore += sub.score;
+						totalAssessmentPoints += sub.totalPoints;
+					}
+				});
+				const avgAssessmentScore = totalAssessmentPoints > 0
+					? Math.round((totalAssessmentScore / totalAssessmentPoints) * 100)
+					: null;
+
+				progressData.push({
+					courseId,
+					courseTitle: courseObj.title,
+					courseDescription: courseObj.description,
+					instructor: courseObj.authorName,
+					enrolledAt: enrollment.enrolledAt,
+					overallProgress,
+					completedLessons,
+					totalLessons,
+					completedModules,
+					totalModules,
+					assessments: courseSubmissions.assessments,
+					assignments: courseSubmissions.assignments,
+					avgAssessmentScore,
+				});
 			}
 
 			// Sort by enrollment date (most recent first)
-			progressData.sort((a, b) => {
-				const aTime = a.enrolledAt?.toDate ? a.enrolledAt.toDate().getTime() : 0;
-				const bTime = b.enrolledAt?.toDate ? b.enrolledAt.toDate().getTime() : 0;
-				return bTime - aTime;
-			});
+			progressData.sort((a, b) => new Date(b.enrolledAt || 0) - new Date(a.enrolledAt || 0));
 
 			setCourseProgress(progressData);
 
@@ -718,7 +606,7 @@ export default function ProgressPage() {
 					if (assessment.score !== undefined && assessment.totalPoints > 0) {
 						const percentage = (assessment.score / assessment.totalPoints) * 100;
 						const title = assessment.assessmentTitle.toLowerCase();
-						const date = assessment.submittedAt ? assessment.submittedAt.toDate() : new Date();
+						const date = assessment.submittedAt ? new Date(assessment.submittedAt) : new Date();
 
 						let matched = false;
 
@@ -744,7 +632,7 @@ export default function ProgressPage() {
 					if (assignment.grade !== undefined) {
 						const percentage = assignment.grade;
 						const title = assignment.assignmentTitle.toLowerCase();
-						const date = assignment.submittedAt ? assignment.submittedAt.toDate() : new Date();
+						const date = assignment.submittedAt ? new Date(assignment.submittedAt) : new Date();
 
 						Object.values(SKILL_TAXONOMY).forEach(category => {
 							Object.entries(category.skills).forEach(([skillId, skillDef]) => {
