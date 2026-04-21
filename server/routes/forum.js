@@ -274,4 +274,48 @@ router.patch('/lock', requireAuth, requireRole('teacher', 'admin'), async (req, 
   }
 });
 
+// PATCH /api/forum/status — update resolution status
+router.patch('/status', requireAuth, async (req, res) => {
+  try {
+    const { postId, resolutionStatus } = req.body;
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    const isOwner = post.authorId.toString() === req.user.id;
+    if (!isOwner && !['teacher', 'admin'].includes(req.user.role)) return res.status(403).json({ error: 'Insufficient permissions' });
+    post.resolutionStatus = resolutionStatus;
+    await post.save();
+    res.json({ resolutionStatus: post.resolutionStatus });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+// PATCH /api/forum/exam — toggle exam relevance flag
+router.patch('/exam', requireAuth, requireRole('teacher', 'admin'), async (req, res) => {
+  try {
+    const { postId, isExamRelevant } = req.body;
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    post.isExamRelevant = isExamRelevant;
+    await post.save();
+    res.json({ isExamRelevant: post.isExamRelevant });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update exam flag' });
+  }
+});
+
+// PATCH /api/forum/promote — promote to knowledge base
+router.patch('/promote', requireAuth, requireRole('teacher', 'admin'), async (req, res) => {
+  try {
+    const { postId } = req.body;
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    post.isInKnowledgeBase = true;
+    await post.save();
+    res.json({ isInKnowledgeBase: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to promote post' });
+  }
+});
+
 export default router;

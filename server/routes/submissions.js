@@ -89,17 +89,15 @@ router.put('/:id/grade', requireAuth, requireRole('teacher', 'admin'), async (re
 // POST /api/submissions/:id/release — teacher releases feedback to student
 router.post('/:id/release', requireAuth, requireRole('teacher', 'admin'), async (req, res) => {
   try {
-    const submission = await Submission.findByIdAndUpdate(
-      req.params.id,
-      {
-        grade: undefined, // will be set below
-        feedback: undefined,
-        feedbackReleased: true,
-        gradedAt: new Date(),
-        gradedBy: req.user.id,
-      },
-      { new: true }
-    );
+    const { allowRegrading } = req.body;
+    const update = {
+      feedbackReleased: true,
+      gradedAt: new Date(),
+      gradedBy: req.user.id,
+    };
+    if (allowRegrading !== undefined) update.allowRegrading = allowRegrading;
+
+    const submission = await Submission.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!submission) return res.status(404).json({ error: 'Submission not found' });
 
     // Promote draft to official

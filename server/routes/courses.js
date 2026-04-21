@@ -4,17 +4,23 @@ import Module from '../models/Module.js';
 import Lesson from '../models/Lesson.js';
 import Enrollment from '../models/Enrollment.js';
 import User from '../models/User.js';
-import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireAuth, requireRole, optionalAuth } from '../middleware/auth.js';
 
 const router = Router();
 
-// GET /api/courses
-router.get('/', requireAuth, async (req, res) => {
+// GET /api/courses — public for published courses, role-filtered for authenticated users
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const filter = {};
-    if (req.user.role === 'student') filter.status = 'published';
-    if (req.user.role === 'teacher') filter.createdBy = req.user.id;
-    const courses = await Course.find(filter).populate('modules', 'title order').sort({ createdAt: -1 });
+    if (!req.user) {
+      // Unauthenticated: only published courses
+      filter.status = 'published';
+    } else if (req.user.role === 'student') {
+      filter.status = 'published';
+    } else if (req.user.role === 'teacher') {
+      filter.createdBy = req.user.id;
+    }
+    const courses = await Course.find(filter).populate('modules', 'title order lessons').sort({ createdAt: -1 });
     res.json({ courses });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch courses' });

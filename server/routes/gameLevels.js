@@ -44,4 +44,18 @@ router.put('/:id', requireAuth, requireRole('teacher', 'admin'), async (req, res
   }
 });
 
+router.delete('/:id', requireAuth, requireRole('teacher', 'admin'), async (req, res) => {
+  try {
+    const level = await GameLevel.findById(req.params.id);
+    if (!level) return res.status(404).json({ error: 'Game level not found' });
+    if (req.user.role === 'teacher' && level.createdBy?.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'You can only delete game levels you created' });
+    }
+    await GameLevel.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Game level deleted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete game level' });
+  }
+});
+
 export default router;

@@ -54,9 +54,21 @@ router.get('/teacher', requireAuth, async (req, res) => {
     if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
-    const teacherCourses = await Course.find({ createdBy: req.user.id }).select('_id');
-    const courseIds = teacherCourses.map(c => c._id);
-    const enrollments = await Enrollment.find({ courseId: { $in: courseIds } });
+    const { courseId } = req.query;
+    let courseIds;
+    if (courseId) {
+      // Verify the teacher owns this course
+      const course = await Course.findOne({ _id: courseId, createdBy: req.user.id }).select('_id');
+      if (!course && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+      courseIds = [courseId];
+    } else {
+      const teacherCourses = await Course.find({ createdBy: req.user.id }).select('_id');
+      courseIds = teacherCourses.map(c => c._id);
+    }
+    const enrollments = await Enrollment.find({ courseId: { $in: courseIds } })
+      .populate('studentId', 'name email role');
     res.json({ enrollments, totalStudents: enrollments.length });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch teacher enrollments' });
