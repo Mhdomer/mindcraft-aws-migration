@@ -1,44 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/firebase';
+import { useAuth } from '@/app/contexts/AuthContext';
 import FloatingAIAssistant from './FloatingAIAssistant';
 
 export default function FloatingAIAssistantWrapper() {
-	const [userRole, setUserRole] = useState(null);
-	const [userId, setUserId] = useState(null);
+	const { userData } = useAuth();
 
-	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				setUserId(user.uid);
-				try {
-					const userDoc = await getDoc(doc(db, 'user', user.uid));
-					if (userDoc.exists()) {
-						const role = userDoc.data().role;
-						setUserRole(role);
-					} else {
-						setUserRole(null);
-					}
-				} catch (err) {
-					console.error('Error fetching user role:', err);
-					setUserRole(null);
-				}
-			} else {
-				setUserId(null);
-				setUserRole(null);
-			}
-		});
+	if (!userData) return null;
 
-		return () => unsubscribe();
-	}, []);
-
-	if (!userId || !userRole) {
-		return null; // Don't show for guests
-	}
-
-	return <FloatingAIAssistant userRole={userRole} userId={userId} />;
+	return <FloatingAIAssistant userRole={userData.role} userId={userData._id?.toString()} />;
 }

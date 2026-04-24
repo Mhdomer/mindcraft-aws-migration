@@ -9,9 +9,6 @@ import { Button } from './ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useAuth } from '@/app/contexts/AuthContext';
 import NotificationBell from './NotificationBell';
-import { auth, db } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 
 import { User, Menu } from 'lucide-react';
 

@@ -17,8 +17,6 @@ import {
 	GripVertical
 } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
 
 export default function LessonExercise({ lessonId, userRole, userId }) {
 	const { language } = useLanguage();
