@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth, db } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { collection, getDocs, query, where, doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -112,8 +111,7 @@ const getDifficultyColor = (difficulty) => {
 export default function GameLevelsPage() {
 	const router = useRouter();
 	const { language } = useLanguage();
-	const [user, setUser] = useState(null);
-	const [userRole, setUserRole] = useState(null);
+	const { userData, loading: authLoading } = useAuth();
 	const [loading, setLoading] = useState(true);
 	const [gameLevels, setGameLevels] = useState(sampleGameLevels);
 	const [deletingId, setDeletingId] = useState(null);
@@ -129,57 +127,20 @@ export default function GameLevelsPage() {
 	const t = tooltips[language] || tooltips.en;
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-			if (!currentUser) {
-				router.push('/login');
-				return;
-			}
-			setUser(currentUser);
+		if (authLoading) return;
+		if (!userData) { router.push('/login'); return; }
 
-			// Get user role
-			try {
-				const userDoc = await getDoc(doc(db, 'user', currentUser.uid));
-				if (userDoc.exists()) {
-					setUserRole(userDoc.data().role);
-				}
-			} catch (error) {
-				console.error('Error fetching user role:', error);
-			}
-
-			// Fetch game levels from Firestore
-			try {
-				// Fetch all levels from Firestore (both published and unpublished)
-				const levelsSnapshot = await getDocs(collection(db, 'gameLevel'));
-				const firestoreLevels = levelsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-				// Combine Firestore levels with sample data
-				// Use a Map to avoid duplicates based on ID
-				const levelsMap = new Map();
-				
-				// Add sample levels first
-				sampleGameLevels.forEach((level) => {
-					levelsMap.set(level.id, level);
-				});
-				
-				// Add/override with Firestore levels
-				firestoreLevels.forEach((level) => {
-					levelsMap.set(level.id, level);
-				});
-
-				// Convert map to array
-				const allLevels = Array.from(levelsMap.values());
-				setGameLevels(allLevels);
-			} catch (error) {
-				console.error('Error fetching game levels:', error);
-				// Fallback to sample data on error
-				setGameLevels(sampleGameLevels);
-			}
-
-			setLoading(false);
-		});
-
-		return () => unsubscribe();
-	}, [router]);
+		api.get('/api/game-levels').then(data => {
+			const apiLevels = (data.levels || []).map(l => ({ ...l, id: l._id?.toString() || l.id }));
+			// Merge: API levels take precedence over sample data
+			const levelsMap = new Map();
+			sampleGameLevels.forEach(l => levelsMap.set(l.id, l));
+			apiLevels.forEach(l => levelsMap.set(l.id, l));
+			setGameLevels(Array.from(levelsMap.values()));
+		}).catch(() => {
+			setGameLevels(sampleGameLevels);
+		}).finally(() => setLoading(false));
+	}, [authLoading, userData, router]);
 
 	const handlePlayGame = (level) => {
 		router.push(`/game-levels/${level.id}`);
@@ -192,21 +153,10 @@ export default function GameLevelsPage() {
 
 	const handleDelete = async (e, level) => {
 		e.stopPropagation();
-		
-		// Only allow deletion of Firestore levels (not sample levels)
+
+		// Only allow deletion of DB levels (not sample levels)
 		if (!level.createdBy) {
 			alert('Cannot delete sample game levels. Only levels created by teachers can be deleted.');
-			return;
-		}
-
-		// Check permissions
-		if (userRole !== 'admin' && userRole !== 'teacher') {
-			alert('You do not have permission to delete game levels.');
-			return;
-		}
-
-		if (userRole === 'teacher' && level.createdBy !== user.uid) {
-			alert('You can only delete game levels that you created.');
 			return;
 		}
 
@@ -216,31 +166,27 @@ export default function GameLevelsPage() {
 
 		setDeletingId(level.id);
 		try {
-			await deleteDoc(doc(db, 'gameLevel', level.id));
-			// Remove from local state
+			await api.delete(`/api/game-levels/${level.id}`);
 			setGameLevels(gameLevels.filter((l) => l.id !== level.id));
 		} catch (error) {
 			console.error('Error deleting game level:', error);
-			alert('Failed to delete game level: ' + error.message);
+			alert('Failed to delete game level: ' + (error.message || 'Unknown error'));
 		} finally {
 			setDeletingId(null);
 		}
 	};
 
 	const canEdit = (level) => {
-		if (userRole !== 'admin' && userRole !== 'teacher') return false;
-		if (userRole === 'admin') return true;
-		// Teachers can only edit their own levels
-		return level.createdBy === user?.uid;
+		if (userData?.role !== 'admin' && userData?.role !== 'teacher') return false;
+		if (userData?.role === 'admin') return true;
+		return level.createdBy === userData?._id?.toString();
 	};
 
 	const canDelete = (level) => {
-		if (userRole !== 'admin' && userRole !== 'teacher') return false;
-		// Cannot delete sample levels
+		if (userData?.role !== 'admin' && userData?.role !== 'teacher') return false;
 		if (!level.createdBy) return false;
-		if (userRole === 'admin') return true;
-		// Teachers can only delete their own levels
-		return level.createdBy === user?.uid;
+		if (userData?.role === 'admin') return true;
+		return level.createdBy === userData?._id?.toString();
 	};
 
 	if (loading) {
@@ -266,7 +212,7 @@ export default function GameLevelsPage() {
 						</p>
 					</div>
 				</div>
-				{(userRole === 'teacher' || userRole === 'admin') && (
+				{(userData?.role === 'teacher' || userData?.role === 'admin') && (
 					<Button onClick={() => router.push('/game-levels/new')} className="flex items-center gap-2">
 						<Plus className="h-5 w-5" />
 						Create New

@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { auth, db } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +18,6 @@ import {
 	Plus,
 	X,
 	AlertCircle,
-	Sparkles,
 	Trash2,
 } from 'lucide-react';
 
@@ -33,8 +31,7 @@ export default function EditGameLevelPage() {
 	const params = useParams();
 	const router = useRouter();
 	const gameId = params.id;
-	const [user, setUser] = useState(null);
-	const [userRole, setUserRole] = useState(null);
+	const { userData, loading: authLoading } = useAuth();
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
 	const [deleting, setDeleting] = useState(false);
@@ -49,7 +46,6 @@ export default function EditGameLevelPage() {
 	const [points, setPoints] = useState(50);
 	const [estimatedTime, setEstimatedTime] = useState('3 min');
 
-	// Validation errors
 	const [errors, setErrors] = useState({});
 
 	// Puzzle-specific state
@@ -68,89 +64,52 @@ export default function EditGameLevelPage() {
 	const [hint, setHint] = useState('');
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-			if (!currentUser) {
-				router.push('/login');
-				return;
-			}
+		if (authLoading) return;
+		if (!userData) { router.push('/login'); return; }
+		if (userData.role !== 'teacher' && userData.role !== 'admin') {
+			router.push('/game-levels');
+			return;
+		}
 
-			// Check if user is teacher or admin
-			const userDoc = await getDoc(doc(db, 'user', currentUser.uid));
-			const userData = userDoc.exists() ? userDoc.data() : null;
+		api.get(`/api/game-levels/${gameId}`)
+			.then(data => {
+				const level = data.level;
 
-			if (!userData || (userData.role !== 'teacher' && userData.role !== 'admin')) {
-				router.push('/game-levels');
-				return;
-			}
+				// Permission check for teachers
+				if (userData.role === 'teacher' && level.createdBy !== userData._id?.toString()) {
+					setError('You do not have permission to edit this game level');
+					setLoading(false);
+					return;
+				}
 
-			setUser(currentUser);
-			setUserRole(userData.role);
-			
-			// Load game data after user is set
-			if (currentUser) {
-				loadGameData(currentUser, userData.role);
-			}
-		});
+				setGameType(level.type || GAME_TYPES.PUZZLE);
+				setTitle(level.title || '');
+				setTopic(level.topic || '');
+				setInstructions(level.instructions || '');
+				setDifficulty(level.difficulty || 'Easy');
+				setPoints(level.points || 50);
+				setEstimatedTime(level.estimatedTime || '3 min');
 
-		return () => unsubscribe();
-	}, [router, gameId]);
-
-	const loadGameData = async (currentUser, role) => {
-		try {
-			const gameDoc = await getDoc(doc(db, 'gameLevel', gameId));
-			if (!gameDoc.exists()) {
-				setError('Game level not found');
-				setLoading(false);
-				return;
-			}
-
-			const data = gameDoc.data();
-
-			// Check permissions
-			if (role !== 'admin' && data.createdBy !== currentUser?.uid) {
-				setError('You do not have permission to edit this game level');
-				setLoading(false);
-				return;
-			}
-
-			// Load common fields
-			setGameType(data.type || GAME_TYPES.PUZZLE);
-			setTitle(data.title || '');
-			setTopic(data.topic || '');
-			setInstructions(data.instructions || '');
-			setDifficulty(data.difficulty || 'Easy');
-			setPoints(data.points || 50);
-			setEstimatedTime(data.estimatedTime || '3 min');
-
-			// Load type-specific data
-			if (data.type === GAME_TYPES.PUZZLE && data.puzzle) {
-				setPuzzleParts(data.puzzle.parts || []);
-			} else if (data.type === GAME_TYPES.DRAG_DROP && data.dragDrop) {
-				setPaletteItems(data.dragDrop.palette || []);
-				setSolution(data.dragDrop.solution ? data.dragDrop.solution.join(', ') : '');
-			} else if (data.type === GAME_TYPES.CODE_PREVIEW && data.codePreview) {
-				setTableName(data.codePreview.table || '');
-				setExpectedQuery(data.codePreview.expectedQuery || '');
-				setHint(data.codePreview.hint || '');
-				// Convert sample data to rows format
-				if (data.codePreview.sampleData && Array.isArray(data.codePreview.sampleData)) {
-					const rows = data.codePreview.sampleData.map((row) => ({
+				if (level.type === GAME_TYPES.PUZZLE && level.puzzle) {
+					setPuzzleParts(level.puzzle.parts || []);
+				} else if (level.type === GAME_TYPES.DRAG_DROP && level.dragDrop) {
+					setPaletteItems(level.dragDrop.palette || []);
+					setSolution(level.dragDrop.solution ? level.dragDrop.solution.join(', ') : '');
+				} else if (level.type === GAME_TYPES.CODE_PREVIEW && level.codePreview) {
+					setTableName(level.codePreview.table || '');
+					setExpectedQuery(level.codePreview.expectedQuery || '');
+					setHint(level.codePreview.hint || '');
+					const rows = (level.codePreview.sampleData || []).map(row => ({
 						id: row.id || '',
 						name: row.name || '',
 						age: row.age || '',
 					}));
 					setSampleDataRows(rows.length > 0 ? rows : [{ id: 1, name: '', age: '' }]);
-				} else {
-					setSampleDataRows([{ id: 1, name: '', age: '' }]);
 				}
-			}
-		} catch (error) {
-			console.error('Error loading game level:', error);
-			setError('Failed to load game level');
-		} finally {
-			setLoading(false);
-		}
-	};
+			})
+			.catch(() => setError('Failed to load game level'))
+			.finally(() => setLoading(false));
+	}, [authLoading, userData, gameId, router]);
 
 	const validateField = (fieldName, value) => {
 		const newErrors = { ...errors };
@@ -164,37 +123,22 @@ export default function EditGameLevelPage() {
 
 	const validateForm = () => {
 		const newErrors = {};
-
-		// Common fields
 		if (!title.trim()) newErrors.title = 'Please input title';
 		if (!topic.trim()) newErrors.topic = 'Please input topic';
 		if (!instructions.trim()) newErrors.instructions = 'Please input instructions';
 
-		// Type-specific validation
 		if (gameType === GAME_TYPES.PUZZLE) {
-			if (puzzleParts.length < 2) {
-				newErrors.puzzleParts = 'Please add at least 2 puzzle parts';
-			}
+			if (puzzleParts.length < 2) newErrors.puzzleParts = 'Please add at least 2 puzzle parts';
 		} else if (gameType === GAME_TYPES.DRAG_DROP) {
-			if (paletteItems.length === 0) {
-				newErrors.paletteItems = 'Please add at least one palette item';
-			}
-			if (!solution.trim()) {
-				newErrors.solution = 'Please input solution';
-			}
+			if (paletteItems.length === 0) newErrors.paletteItems = 'Please add at least one palette item';
+			if (!solution.trim()) newErrors.solution = 'Please input solution';
 		} else if (gameType === GAME_TYPES.CODE_PREVIEW) {
-			if (!tableName.trim()) {
-				newErrors.tableName = 'Please input table name';
-			}
-			if (sampleDataRows.length === 0 || sampleDataRows.some((row) => !row.name || !row.id)) {
+			if (!tableName.trim()) newErrors.tableName = 'Please input table name';
+			if (sampleDataRows.length === 0 || sampleDataRows.some(row => !row.name || !row.id)) {
 				newErrors.sampleData = 'Please add at least one sample data row with id and name';
 			}
-			if (!expectedQuery.trim()) {
-				newErrors.expectedQuery = 'Please input expected query';
-			}
-			if (!hint.trim()) {
-				newErrors.hint = 'Please input hint';
-			}
+			if (!expectedQuery.trim()) newErrors.expectedQuery = 'Please input expected query';
+			if (!hint.trim()) newErrors.hint = 'Please input hint';
 		}
 
 		setErrors(newErrors);
@@ -202,42 +146,22 @@ export default function EditGameLevelPage() {
 	};
 
 	const addPuzzlePart = () => {
-		if (newPuzzlePart.trim()) {
-			setPuzzleParts([...puzzleParts, newPuzzlePart.trim()]);
-			setNewPuzzlePart('');
-		}
+		if (newPuzzlePart.trim()) { setPuzzleParts([...puzzleParts, newPuzzlePart.trim()]); setNewPuzzlePart(''); }
 	};
-
-	const removePuzzlePart = (index) => {
-		setPuzzleParts(puzzleParts.filter((_, i) => i !== index));
-	};
+	const removePuzzlePart = (index) => setPuzzleParts(puzzleParts.filter((_, i) => i !== index));
 
 	const addPaletteItem = () => {
 		if (newPaletteItem.label.trim()) {
-			setPaletteItems([
-				...paletteItems,
-				{
-					id: `item-${Date.now()}`,
-					label: newPaletteItem.label.trim(),
-					type: newPaletteItem.type,
-				},
-			]);
+			setPaletteItems([...paletteItems, { id: `item-${Date.now()}`, label: newPaletteItem.label.trim(), type: newPaletteItem.type }]);
 			setNewPaletteItem({ label: '', type: 'keyword' });
 		}
 	};
+	const removePaletteItem = (index) => setPaletteItems(paletteItems.filter((_, i) => i !== index));
 
-	const removePaletteItem = (index) => {
-		setPaletteItems(paletteItems.filter((_, i) => i !== index));
-	};
-
-	const addSampleDataRow = () => {
+	const addSampleDataRow = () =>
 		setSampleDataRows([...sampleDataRows, { id: sampleDataRows.length + 1, name: '', age: '' }]);
-	};
-
-	const removeSampleDataRow = (index) => {
+	const removeSampleDataRow = (index) =>
 		setSampleDataRows(sampleDataRows.filter((_, i) => i !== index));
-	};
-
 	const updateSampleDataRow = (index, field, value) => {
 		const updated = [...sampleDataRows];
 		updated[index] = { ...updated[index], [field]: value };
@@ -246,59 +170,33 @@ export default function EditGameLevelPage() {
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
-
-		if (!validateForm()) {
-			return;
-		}
+		if (!validateForm()) return;
 
 		setSubmitting(true);
-
 		try {
-			// Build game data based on type
-			let gameData = {
+			const gameData = {
 				type: gameType,
 				title: title.trim(),
 				topic: topic.trim(),
 				instructions: instructions.trim(),
-				description: instructions.trim(), // Use instructions as description for listing page
+				description: instructions.trim(),
 				difficulty,
 				points: parseInt(points) || 50,
 				estimatedTime: estimatedTime.trim(),
-				updatedAt: serverTimestamp(),
 			};
 
 			if (gameType === GAME_TYPES.PUZZLE) {
-				// For puzzle, correctOrder is just the indices in order
-				gameData.puzzle = {
-					parts: puzzleParts,
-					correctOrder: puzzleParts.map((_, i) => i),
-				};
+				gameData.puzzle = { parts: puzzleParts, correctOrder: puzzleParts.map((_, i) => i) };
 			} else if (gameType === GAME_TYPES.DRAG_DROP) {
-				// Parse solution string into array
-				const solutionArray = solution
-					.split(',')
-					.map((s) => s.trim())
-					.filter((s) => s);
-				gameData.dragDrop = {
-					goal: instructions,
-					palette: paletteItems,
-					solution: solutionArray,
-				};
+				const solutionArray = solution.split(',').map(s => s.trim()).filter(s => s);
+				gameData.dragDrop = { goal: instructions, palette: paletteItems, solution: solutionArray };
 			} else if (gameType === GAME_TYPES.CODE_PREVIEW) {
-				// Convert sample data rows to proper format
-				const formattedSampleData = sampleDataRows.map((row) => {
+				const formattedSampleData = sampleDataRows.map(row => {
 					const formatted = { id: parseInt(row.id) || row.id };
 					if (row.name) formatted.name = row.name;
 					if (row.age) formatted.age = parseInt(row.age) || row.age;
-					// Add any other fields
-					Object.keys(row).forEach((key) => {
-						if (!['id', 'name', 'age'].includes(key) && row[key]) {
-							formatted[key] = row[key];
-						}
-					});
 					return formatted;
 				});
-
 				gameData.codePreview = {
 					table: tableName.trim(),
 					sampleData: formattedSampleData,
@@ -307,37 +205,30 @@ export default function EditGameLevelPage() {
 				};
 			}
 
-			// Update in Firestore
-			await updateDoc(doc(db, 'gameLevel', gameId), gameData);
-
-			// Redirect to game levels page
+			await api.put(`/api/game-levels/${gameId}`, gameData);
 			router.push('/game-levels');
 		} catch (error) {
 			console.error('Error updating game level:', error);
-			alert('Failed to update game level: ' + error.message);
+			alert('Failed to update game level: ' + (error.message || 'Unknown error'));
 		} finally {
 			setSubmitting(false);
 		}
 	};
 
 	const handleDelete = async () => {
-		if (!confirm(`Are you sure you want to delete "${title}"? This action cannot be undone.`)) {
-			return;
-		}
-
+		if (!confirm(`Are you sure you want to delete "${title}"? This action cannot be undone.`)) return;
 		setDeleting(true);
-
 		try {
-			await deleteDoc(doc(db, 'gameLevel', gameId));
+			await api.delete(`/api/game-levels/${gameId}`);
 			router.push('/game-levels');
 		} catch (error) {
 			console.error('Error deleting game level:', error);
-			alert('Failed to delete game level: ' + error.message);
+			alert('Failed to delete game level: ' + (error.message || 'Unknown error'));
 			setDeleting(false);
 		}
 	};
 
-	if (loading) {
+	if (loading || authLoading) {
 		return (
 			<div className="flex items-center justify-center min-h-screen">
 				<div className="text-muted-foreground">Loading...</div>
@@ -349,8 +240,7 @@ export default function EditGameLevelPage() {
 		return (
 			<div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
 				<Button variant="ghost" onClick={() => router.push('/game-levels')}>
-					<ArrowLeft className="h-4 w-4 mr-2" />
-					Back to Game Levels
+					<ArrowLeft className="h-4 w-4 mr-2" />Back to Game Levels
 				</Button>
 				<Card>
 					<CardContent className="py-12 text-center">
@@ -363,11 +253,9 @@ export default function EditGameLevelPage() {
 
 	return (
 		<div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-			{/* Header */}
 			<div className="flex items-center justify-between">
 				<Button variant="ghost" onClick={() => router.push('/game-levels')}>
-					<ArrowLeft className="h-4 w-4 mr-2" />
-					Back to Game Levels
+					<ArrowLeft className="h-4 w-4 mr-2" />Back to Game Levels
 				</Button>
 				<Button variant="destructive" onClick={handleDelete} disabled={deleting}>
 					<Trash2 className="h-4 w-4 mr-2" />
@@ -385,154 +273,85 @@ export default function EditGameLevelPage() {
 						<div className="space-y-2">
 							<label className="text-body font-medium text-neutralDark">Game Type *</label>
 							<div className="grid grid-cols-3 gap-4">
-								<button
-									type="button"
-									onClick={() => setGameType(GAME_TYPES.PUZZLE)}
-									className={`p-4 border-2 rounded-lg transition-all ${
-										gameType === GAME_TYPES.PUZZLE
-											? 'border-primary bg-primary/10'
-											: 'border-border hover:border-primary/50'
-									}`}
-								>
-									<Puzzle className="h-8 w-8 mx-auto mb-2" />
-									<div className="text-sm font-medium">Puzzle</div>
-								</button>
-								<button
-									type="button"
-									onClick={() => setGameType(GAME_TYPES.DRAG_DROP)}
-									className={`p-4 border-2 rounded-lg transition-all ${
-										gameType === GAME_TYPES.DRAG_DROP
-											? 'border-primary bg-primary/10'
-											: 'border-border hover:border-primary/50'
-									}`}
-								>
-									<MousePointerClick className="h-8 w-8 mx-auto mb-2" />
-									<div className="text-sm font-medium">Drag & Drop</div>
-								</button>
-								<button
-									type="button"
-									onClick={() => setGameType(GAME_TYPES.CODE_PREVIEW)}
-									className={`p-4 border-2 rounded-lg transition-all ${
-										gameType === GAME_TYPES.CODE_PREVIEW
-											? 'border-primary bg-primary/10'
-											: 'border-border hover:border-primary/50'
-									}`}
-								>
-									<Code className="h-8 w-8 mx-auto mb-2" />
-									<div className="text-sm font-medium">Code Preview</div>
-								</button>
+								{[
+									{ type: GAME_TYPES.PUZZLE, label: 'Puzzle', Icon: Puzzle },
+									{ type: GAME_TYPES.DRAG_DROP, label: 'Drag & Drop', Icon: MousePointerClick },
+									{ type: GAME_TYPES.CODE_PREVIEW, label: 'Code Preview', Icon: Code },
+								].map(({ type, label, Icon }) => (
+									<button
+										key={type}
+										type="button"
+										onClick={() => setGameType(type)}
+										className={`p-4 border-2 rounded-lg transition-all ${
+											gameType === type
+												? 'border-primary bg-primary/10'
+												: 'border-border hover:border-primary/50'
+										}`}
+									>
+										<Icon className="h-8 w-8 mx-auto mb-2" />
+										<div className="text-sm font-medium">{label}</div>
+									</button>
+								))}
 							</div>
 						</div>
 
 						{/* Common Fields */}
 						<div className="space-y-2">
-							<label htmlFor="title" className="text-body font-medium text-neutralDark">
-								Title *
-							</label>
+							<label htmlFor="title" className="text-body font-medium text-neutralDark">Title *</label>
 							<Input
 								id="title"
 								value={title}
-								onChange={(e) => {
-									setTitle(e.target.value);
-									validateField('title', e.target.value);
-								}}
+								onChange={(e) => { setTitle(e.target.value); validateField('title', e.target.value); }}
 								onBlur={(e) => validateField('title', e.target.value)}
 								placeholder="e.g., SELECT Query Puzzle"
 								className={errors.title ? 'border-red-500' : ''}
 							/>
-							{errors.title && (
-								<p className="text-sm text-red-500 flex items-center gap-1">
-									<AlertCircle className="h-4 w-4" />
-									{errors.title}
-								</p>
-							)}
+							{errors.title && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-4 w-4" />{errors.title}</p>}
 						</div>
 
 						<div className="space-y-2">
-							<label htmlFor="topic" className="text-body font-medium text-neutralDark">
-								Topic *
-							</label>
+							<label htmlFor="topic" className="text-body font-medium text-neutralDark">Topic *</label>
 							<Input
 								id="topic"
 								value={topic}
-								onChange={(e) => {
-									setTopic(e.target.value);
-									validateField('topic', e.target.value);
-								}}
+								onChange={(e) => { setTopic(e.target.value); validateField('topic', e.target.value); }}
 								onBlur={(e) => validateField('topic', e.target.value)}
 								placeholder="e.g., SQL SELECT & WHERE"
 								className={errors.topic ? 'border-red-500' : ''}
 							/>
-							{errors.topic && (
-								<p className="text-sm text-red-500 flex items-center gap-1">
-									<AlertCircle className="h-4 w-4" />
-									{errors.topic}
-								</p>
-							)}
+							{errors.topic && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-4 w-4" />{errors.topic}</p>}
 						</div>
 
 						<div className="space-y-2">
-							<label htmlFor="instructions" className="text-body font-medium text-neutralDark">
-								Instructions *
-							</label>
+							<label htmlFor="instructions" className="text-body font-medium text-neutralDark">Instructions *</label>
 							<Textarea
 								id="instructions"
 								value={instructions}
-								onChange={(e) => {
-									setInstructions(e.target.value);
-									validateField('instructions', e.target.value);
-								}}
+								onChange={(e) => { setInstructions(e.target.value); validateField('instructions', e.target.value); }}
 								onBlur={(e) => validateField('instructions', e.target.value)}
 								placeholder="Describe what students need to do..."
 								className={errors.instructions ? 'border-red-500' : ''}
 								rows={3}
 							/>
-							{errors.instructions && (
-								<p className="text-sm text-red-500 flex items-center gap-1">
-									<AlertCircle className="h-4 w-4" />
-									{errors.instructions}
-								</p>
-							)}
+							{errors.instructions && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-4 w-4" />{errors.instructions}</p>}
 						</div>
 
 						<div className="grid grid-cols-3 gap-4">
 							<div className="space-y-2">
-								<label htmlFor="difficulty" className="text-body font-medium text-neutralDark">
-									Difficulty
-								</label>
-								<select
-									id="difficulty"
-									value={difficulty}
-									onChange={(e) => setDifficulty(e.target.value)}
-									className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-body"
-								>
+								<label htmlFor="difficulty" className="text-body font-medium text-neutralDark">Difficulty</label>
+								<select id="difficulty" value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-body">
 									<option value="Easy">Easy</option>
 									<option value="Medium">Medium</option>
 									<option value="Hard">Hard</option>
 								</select>
 							</div>
 							<div className="space-y-2">
-								<label htmlFor="points" className="text-body font-medium text-neutralDark">
-									Points
-								</label>
-								<Input
-									id="points"
-									type="number"
-									value={points}
-									onChange={(e) => setPoints(e.target.value)}
-									min="0"
-								/>
+								<label htmlFor="points" className="text-body font-medium text-neutralDark">Points</label>
+								<Input id="points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} min="0" />
 							</div>
 							<div className="space-y-2">
-								<label htmlFor="estimatedTime" className="text-body font-medium text-neutralDark">
-									Estimated Time
-								</label>
-								<Input
-									id="estimatedTime"
-									value={estimatedTime}
-									onChange={(e) => setEstimatedTime(e.target.value)}
-									placeholder="e.g., 3 min"
-								/>
+								<label htmlFor="estimatedTime" className="text-body font-medium text-neutralDark">Estimated Time</label>
+								<Input id="estimatedTime" value={estimatedTime} onChange={(e) => setEstimatedTime(e.target.value)} placeholder="e.g., 3 min" />
 							</div>
 						</div>
 
@@ -545,38 +364,22 @@ export default function EditGameLevelPage() {
 										<Input
 											value={newPuzzlePart}
 											onChange={(e) => setNewPuzzlePart(e.target.value)}
-											onKeyPress={(e) => {
-												if (e.key === 'Enter') {
-													e.preventDefault();
-													addPuzzlePart();
-												}
-											}}
+											onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPuzzlePart(); } }}
 											placeholder="e.g., SELECT, FROM, WHERE"
 										/>
-										<Button type="button" onClick={addPuzzlePart}>
-											<Plus className="h-4 w-4" />
-										</Button>
+										<Button type="button" onClick={addPuzzlePart}><Plus className="h-4 w-4" /></Button>
 									</div>
 									<div className="flex flex-wrap gap-2">
 										{puzzleParts.map((part, index) => (
 											<Badge key={index} variant="outline" className="flex items-center gap-1">
 												{part}
-												<button
-													type="button"
-													onClick={() => removePuzzlePart(index)}
-													className="ml-1 hover:text-red-500"
-												>
+												<button type="button" onClick={() => removePuzzlePart(index)} className="ml-1 hover:text-red-500">
 													<X className="h-3 w-3" />
 												</button>
 											</Badge>
 										))}
 									</div>
-									{errors.puzzleParts && (
-										<p className="text-sm text-red-500 flex items-center gap-1">
-											<AlertCircle className="h-4 w-4" />
-											{errors.puzzleParts}
-										</p>
-									)}
+									{errors.puzzleParts && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-4 w-4" />{errors.puzzleParts}</p>}
 								</div>
 							</div>
 						)}
@@ -606,54 +409,32 @@ export default function EditGameLevelPage() {
 											<option value="operator">Operator</option>
 											<option value="value">Value</option>
 										</select>
-										<Button type="button" onClick={addPaletteItem}>
-											<Plus className="h-4 w-4" />
-										</Button>
+										<Button type="button" onClick={addPaletteItem}><Plus className="h-4 w-4" /></Button>
 									</div>
 									<div className="flex flex-wrap gap-2">
 										{paletteItems.map((item, index) => (
 											<Badge key={index} variant="outline" className="flex items-center gap-1">
 												{item.label} ({item.type})
-												<button
-													type="button"
-													onClick={() => removePaletteItem(index)}
-													className="ml-1 hover:text-red-500"
-												>
+												<button type="button" onClick={() => removePaletteItem(index)} className="ml-1 hover:text-red-500">
 													<X className="h-3 w-3" />
 												</button>
 											</Badge>
 										))}
 									</div>
-									{errors.paletteItems && (
-										<p className="text-sm text-red-500 flex items-center gap-1">
-											<AlertCircle className="h-4 w-4" />
-											{errors.paletteItems}
-										</p>
-									)}
+									{errors.paletteItems && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-4 w-4" />{errors.paletteItems}</p>}
 								</div>
-
 								<div className="space-y-2">
-									<label htmlFor="solution" className="text-body font-medium text-neutralDark">
-										Solution (comma-separated) *
-									</label>
+									<label htmlFor="solution" className="text-body font-medium text-neutralDark">Solution (comma-separated) *</label>
 									<Textarea
 										id="solution"
 										value={solution}
-										onChange={(e) => {
-											setSolution(e.target.value);
-											validateField('solution', e.target.value);
-										}}
+										onChange={(e) => { setSolution(e.target.value); validateField('solution', e.target.value); }}
 										onBlur={(e) => validateField('solution', e.target.value)}
 										placeholder="SELECT, students.name, courses.title, FROM, students, INNER JOIN..."
 										className={errors.solution ? 'border-red-500' : ''}
 										rows={3}
 									/>
-									{errors.solution && (
-										<p className="text-sm text-red-500 flex items-center gap-1">
-											<AlertCircle className="h-4 w-4" />
-											{errors.solution}
-										</p>
-									)}
+									{errors.solution && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-4 w-4" />{errors.solution}</p>}
 								</div>
 							</div>
 						)}
@@ -662,26 +443,16 @@ export default function EditGameLevelPage() {
 						{gameType === GAME_TYPES.CODE_PREVIEW && (
 							<div className="space-y-4 p-4 bg-neutralLight/30 rounded-lg">
 								<div className="space-y-2">
-									<label htmlFor="tableName" className="text-body font-medium text-neutralDark">
-										Table Name *
-									</label>
+									<label htmlFor="tableName" className="text-body font-medium text-neutralDark">Table Name *</label>
 									<Input
 										id="tableName"
 										value={tableName}
-										onChange={(e) => {
-											setTableName(e.target.value);
-											validateField('tableName', e.target.value);
-										}}
+										onChange={(e) => { setTableName(e.target.value); validateField('tableName', e.target.value); }}
 										onBlur={(e) => validateField('tableName', e.target.value)}
 										placeholder="e.g., students"
 										className={errors.tableName ? 'border-red-500' : ''}
 									/>
-									{errors.tableName && (
-										<p className="text-sm text-red-500 flex items-center gap-1">
-											<AlertCircle className="h-4 w-4" />
-											{errors.tableName}
-										</p>
-									)}
+									{errors.tableName && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-4 w-4" />{errors.tableName}</p>}
 								</div>
 
 								<div className="space-y-2">
@@ -689,113 +460,56 @@ export default function EditGameLevelPage() {
 									<div className="space-y-2">
 										{sampleDataRows.map((row, index) => (
 											<div key={index} className="flex gap-2 items-center">
-												<Input
-													type="number"
-													value={row.id}
-													onChange={(e) => updateSampleDataRow(index, 'id', e.target.value)}
-													placeholder="ID"
-													className="w-20"
-												/>
-												<Input
-													value={row.name}
-													onChange={(e) => updateSampleDataRow(index, 'name', e.target.value)}
-													placeholder="Name"
-													className="flex-1"
-												/>
-												<Input
-													type="number"
-													value={row.age}
-													onChange={(e) => updateSampleDataRow(index, 'age', e.target.value)}
-													placeholder="Age"
-													className="w-20"
-												/>
-												<Button
-													type="button"
-													variant="ghost"
-													size="sm"
-													onClick={() => removeSampleDataRow(index)}
-												>
+												<Input type="number" value={row.id} onChange={(e) => updateSampleDataRow(index, 'id', e.target.value)} placeholder="ID" className="w-20" />
+												<Input value={row.name} onChange={(e) => updateSampleDataRow(index, 'name', e.target.value)} placeholder="Name" className="flex-1" />
+												<Input type="number" value={row.age} onChange={(e) => updateSampleDataRow(index, 'age', e.target.value)} placeholder="Age" className="w-20" />
+												<Button type="button" variant="ghost" size="sm" onClick={() => removeSampleDataRow(index)}>
 													<X className="h-4 w-4" />
 												</Button>
 											</div>
 										))}
 										<Button type="button" variant="outline" onClick={addSampleDataRow} className="w-full">
-											<Plus className="h-4 w-4 mr-2" />
-											Add Row
+											<Plus className="h-4 w-4 mr-2" />Add Row
 										</Button>
 									</div>
-									{errors.sampleData && (
-										<p className="text-sm text-red-500 flex items-center gap-1">
-											<AlertCircle className="h-4 w-4" />
-											{errors.sampleData}
-										</p>
-									)}
+									{errors.sampleData && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-4 w-4" />{errors.sampleData}</p>}
 								</div>
 
 								<div className="space-y-2">
-									<label htmlFor="expectedQuery" className="text-body font-medium text-neutralDark">
-										Expected Query *
-									</label>
+									<label htmlFor="expectedQuery" className="text-body font-medium text-neutralDark">Expected Query *</label>
 									<Textarea
 										id="expectedQuery"
 										value={expectedQuery}
-										onChange={(e) => {
-											setExpectedQuery(e.target.value);
-											validateField('expectedQuery', e.target.value);
-										}}
+										onChange={(e) => { setExpectedQuery(e.target.value); validateField('expectedQuery', e.target.value); }}
 										onBlur={(e) => validateField('expectedQuery', e.target.value)}
 										placeholder="SELECT * FROM students WHERE age > 18 ORDER BY name ASC"
 										className={errors.expectedQuery ? 'border-red-500' : ''}
 										rows={3}
 									/>
-									{errors.expectedQuery && (
-										<p className="text-sm text-red-500 flex items-center gap-1">
-											<AlertCircle className="h-4 w-4" />
-											{errors.expectedQuery}
-										</p>
-									)}
+									{errors.expectedQuery && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-4 w-4" />{errors.expectedQuery}</p>}
 								</div>
 
 								<div className="space-y-2">
-									<label htmlFor="hint" className="text-body font-medium text-neutralDark">
-										Hint *
-									</label>
+									<label htmlFor="hint" className="text-body font-medium text-neutralDark">Hint *</label>
 									<Input
 										id="hint"
 										value={hint}
-										onChange={(e) => {
-											setHint(e.target.value);
-											validateField('hint', e.target.value);
-										}}
+										onChange={(e) => { setHint(e.target.value); validateField('hint', e.target.value); }}
 										onBlur={(e) => validateField('hint', e.target.value)}
 										placeholder="e.g., Use SELECT, FROM, WHERE, and ORDER BY clauses"
 										className={errors.hint ? 'border-red-500' : ''}
 									/>
-									{errors.hint && (
-										<p className="text-sm text-red-500 flex items-center gap-1">
-											<AlertCircle className="h-4 w-4" />
-											{errors.hint}
-										</p>
-									)}
+									{errors.hint && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-4 w-4" />{errors.hint}</p>}
 								</div>
 							</div>
 						)}
 
-						{/* Submit Button */}
 						<div className="flex gap-4 pt-4">
 							<Button type="submit" disabled={submitting} className="flex-1">
-								{submitting ? (
-									<>Saving...</>
-								) : (
-									<>
-										<Save className="h-4 w-4 mr-2" />
-										Save Changes
-									</>
-								)}
+								<Save className="h-4 w-4 mr-2" />
+								{submitting ? 'Saving...' : 'Save Changes'}
 							</Button>
-							<Button type="button" variant="outline" onClick={() => router.push('/game-levels')}>
-								Cancel
-							</Button>
+							<Button type="button" variant="outline" onClick={() => router.push('/game-levels')}>Cancel</Button>
 						</div>
 					</form>
 				</CardContent>

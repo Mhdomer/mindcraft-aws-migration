@@ -2,12 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { auth, db } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
 	ArrowLeft,
 	CheckCircle,
@@ -21,7 +19,7 @@ import {
 	MousePointerClick,
 } from 'lucide-react';
 
-// Game level data - in production, fetch from Firestore
+// Hardcoded fallback data for sample levels
 const GAME_DATA = {
 	'sql-select-puzzle': {
 		type: 'puzzle',
@@ -138,7 +136,7 @@ export default function GameLevelPage() {
 	const params = useParams();
 	const router = useRouter();
 	const gameId = params.id;
-	const [user, setUser] = useState(null);
+	const { userData, loading: authLoading } = useAuth();
 	const [loading, setLoading] = useState(true);
 	const [gameData, setGameData] = useState(null);
 	const [score, setScore] = useState(0);
@@ -161,71 +159,46 @@ export default function GameLevelPage() {
 	const [queryError, setQueryError] = useState('');
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-			if (!currentUser) {
-				router.push('/login');
-				return;
-			}
-			setUser(currentUser);
-			setLoading(false);
-		});
+		if (authLoading) return;
+		if (!userData) { router.push('/login'); return; }
 
-		return () => unsubscribe();
-	}, [router]);
-
-	useEffect(() => {
 		const loadGameData = async () => {
-			if (!gameId) return;
-
-			// First try to fetch from Firestore
+			// Try API first (for DB-stored levels)
 			try {
-				const gameDoc = await getDoc(doc(db, 'gameLevel', gameId));
-				if (gameDoc.exists()) {
-					const data = gameDoc.data();
-					setGameData(data);
-
-					// Initialize game state based on type
-					if (data.type === 'puzzle' && data.puzzle) {
-						const shuffled = [...data.puzzle.parts].sort(() => Math.random() - 0.5);
-						setPuzzleParts(shuffled);
-						setPuzzleOrder(shuffled.map((_, i) => i));
-					} else if (data.type === 'drag-drop' && data.dragDrop) {
-						setDroppedItems([]);
-					} else if (data.type === 'code-preview' && data.codePreview) {
-						setCode('');
-						setQueryResults([]);
-						setQueryError('');
-					}
-					setLoading(false);
-					return;
-				}
-			} catch (error) {
-				console.error('Error fetching game from Firestore:', error);
+				const data = await api.get(`/api/game-levels/${gameId}`);
+				const level = data.level;
+				initGame(level);
+				setGameData(level);
+				setLoading(false);
+				return;
+			} catch {
+				// Fall through to hardcoded data
 			}
 
-			// Fallback to hardcoded data
+			// Fallback to hardcoded sample data
 			if (GAME_DATA[gameId]) {
-				const data = GAME_DATA[gameId];
-				setGameData(data);
-
-				// Initialize game state based on type
-				if (data.type === 'puzzle') {
-					const shuffled = [...data.puzzle.parts].sort(() => Math.random() - 0.5);
-					setPuzzleParts(shuffled);
-					setPuzzleOrder(shuffled.map((_, i) => i));
-				} else if (data.type === 'drag-drop') {
-					setDroppedItems([]);
-				} else if (data.type === 'code-preview') {
-					setCode('');
-					setQueryResults([]);
-					setQueryError('');
-				}
+				initGame(GAME_DATA[gameId]);
+				setGameData(GAME_DATA[gameId]);
 			}
 			setLoading(false);
 		};
 
 		loadGameData();
-	}, [gameId]);
+	}, [authLoading, userData, gameId, router]);
+
+	const initGame = (data) => {
+		if (data.type === 'puzzle' && data.puzzle) {
+			const shuffled = [...data.puzzle.parts].sort(() => Math.random() - 0.5);
+			setPuzzleParts(shuffled);
+			setPuzzleOrder(shuffled.map((_, i) => i));
+		} else if (data.type === 'drag-drop') {
+			setDroppedItems([]);
+		} else if (data.type === 'code-preview') {
+			setCode('');
+			setQueryResults([]);
+			setQueryError('');
+		}
+	};
 
 	const handlePuzzleReorder = (fromIndex, toIndex) => {
 		const newOrder = [...puzzleOrder];
@@ -237,9 +210,7 @@ export default function GameLevelPage() {
 	const checkPuzzleSolution = () => {
 		if (!gameData) return;
 		const correctOrder = gameData.puzzle.correctOrder;
-		const currentOrder = puzzleOrder;
-		const isCorrect = JSON.stringify(currentOrder) === JSON.stringify(correctOrder);
-
+		const isCorrect = JSON.stringify(puzzleOrder) === JSON.stringify(correctOrder);
 		if (isCorrect) {
 			setCompleted(true);
 			setScore(100);
@@ -249,14 +220,8 @@ export default function GameLevelPage() {
 		}
 	};
 
-	const handleDragStart = (item) => {
-		setDraggedItem(item);
-	};
-
-	const handleDragOver = (e) => {
-		e.preventDefault();
-	};
-
+	const handleDragStart = (item) => setDraggedItem(item);
+	const handleDragOver = (e) => e.preventDefault();
 	const handleDrop = (e) => {
 		e.preventDefault();
 		if (draggedItem) {
@@ -264,17 +229,13 @@ export default function GameLevelPage() {
 			setDraggedItem(null);
 		}
 	};
-
-	const handleRemoveDropped = (index) => {
-		setDroppedItems(droppedItems.filter((_, i) => i !== index));
-	};
+	const handleRemoveDropped = (index) => setDroppedItems(droppedItems.filter((_, i) => i !== index));
 
 	const checkDragDropSolution = () => {
 		if (!gameData) return;
 		const solution = gameData.dragDrop.solution;
 		const current = droppedItems.map(item => item.label);
 		const isCorrect = JSON.stringify(current) === JSON.stringify(solution);
-
 		if (isCorrect) {
 			setCompleted(true);
 			setScore(100);
@@ -285,54 +246,41 @@ export default function GameLevelPage() {
 	};
 
 	const executeQuery = () => {
-		if (!gameData || !code.trim()) {
-			setQueryError('Please enter a query.');
-			return;
-		}
+		if (!gameData || !code.trim()) { setQueryError('Please enter a query.'); return; }
 
 		try {
-			// Simple SQL-like parser for demo (in production, use a proper SQL parser or backend)
 			const query = code.trim().toUpperCase();
 			const expected = gameData.codePreview.expectedQuery.toUpperCase().replace(/\s+/g, ' ');
 
-			// Check if query matches expected (simplified check)
 			if (query.includes('SELECT') && query.includes('FROM')) {
-				// Filter sample data based on query logic (simplified)
 				let results = [...gameData.codePreview.sampleData];
 
-				// Parse WHERE clause
 				if (query.includes('WHERE')) {
 					const whereMatch = query.match(/WHERE\s+(\w+)\s*([><=]+)\s*(\d+)/i);
 					if (whereMatch) {
 						const [, column, operator, value] = whereMatch;
 						const numValue = parseInt(value);
 						if (column.toLowerCase() === 'age') {
-							if (operator.includes('>')) {
-								results = results.filter(row => row.age > numValue);
-							} else if (operator.includes('<')) {
-								results = results.filter(row => row.age < numValue);
-							} else if (operator.includes('=')) {
-								results = results.filter(row => row.age === numValue);
-							}
+							if (operator.includes('>')) results = results.filter(row => row.age > numValue);
+							else if (operator.includes('<')) results = results.filter(row => row.age < numValue);
+							else if (operator.includes('=')) results = results.filter(row => row.age === numValue);
 						}
 					}
 				}
 
-				// Parse ORDER BY clause
 				if (query.includes('ORDER BY')) {
 					const orderMatch = query.match(/ORDER BY\s+(\w+)(?:\s+(ASC|DESC))?/i);
 					if (orderMatch) {
 						const [, column, direction] = orderMatch;
 						if (column.toLowerCase() === 'name') {
 							results.sort((a, b) => {
-								const comparison = a.name.localeCompare(b.name);
-								return direction && direction.toUpperCase() === 'DESC' ? -comparison : comparison;
+								const cmp = a.name.localeCompare(b.name);
+								return direction && direction.toUpperCase() === 'DESC' ? -cmp : cmp;
 							});
 						}
 					}
 				}
 
-				// Parse GROUP BY and aggregates
 				if (query.includes('GROUP BY')) {
 					const groupMatch = query.match(/GROUP BY\s+(\w+)/i);
 					if (groupMatch) {
@@ -340,9 +288,7 @@ export default function GameLevelPage() {
 						const grouped = {};
 						results.forEach(row => {
 							const key = row[groupColumn];
-							if (!grouped[key]) {
-								grouped[key] = { ...row, count: 0, sum: 0 };
-							}
+							if (!grouped[key]) grouped[key] = { ...row, count: 0, sum: 0 };
 							grouped[key].count++;
 							if (row.grade !== undefined) {
 								grouped[key].sum += row.grade;
@@ -356,17 +302,13 @@ export default function GameLevelPage() {
 				setQueryResults(results);
 				setQueryError('');
 
-				// Check if solution is correct (normalize whitespace)
 				const normalizedQuery = query.replace(/\s+/g, ' ').trim();
 				if (normalizedQuery === expected.trim()) {
 					setCompleted(true);
 					setScore(100);
-				} else {
-					// Partial credit for getting results even if not exact match
-					if (results.length > 0) {
-						setShowHint(true);
-						setTimeout(() => setShowHint(false), 3000);
-					}
+				} else if (results.length > 0) {
+					setShowHint(true);
+					setTimeout(() => setShowHint(false), 3000);
 				}
 			} else {
 				setQueryError('Invalid query. Must include SELECT and FROM.');
@@ -378,25 +320,13 @@ export default function GameLevelPage() {
 
 	const resetGame = () => {
 		if (!gameData) return;
-
-		if (gameData.type === 'puzzle') {
-			const shuffled = [...gameData.puzzle.parts].sort(() => Math.random() - 0.5);
-			setPuzzleParts(shuffled);
-			setPuzzleOrder(shuffled.map((_, i) => i));
-		} else if (gameData.type === 'drag-drop') {
-			setDroppedItems([]);
-		} else if (gameData.type === 'code-preview') {
-			setCode('');
-			setQueryResults([]);
-			setQueryError('');
-		}
-
+		initGame(gameData);
 		setCompleted(false);
 		setScore(0);
 		setShowHint(false);
 	};
 
-	if (loading) {
+	if (loading || authLoading) {
 		return (
 			<div className="flex items-center justify-center min-h-screen">
 				<div className="text-muted-foreground">Loading game...</div>
@@ -486,9 +416,7 @@ export default function GameLevelPage() {
 											e.currentTarget.classList.add('ring-2', 'ring-primary');
 										}
 									}}
-									onDragLeave={(e) => {
-										e.currentTarget.classList.remove('ring-2', 'ring-primary');
-									}}
+									onDragLeave={(e) => e.currentTarget.classList.remove('ring-2', 'ring-primary')}
 									onDrop={(e) => {
 										e.preventDefault();
 										e.currentTarget.classList.remove('ring-2', 'ring-primary');
@@ -497,12 +425,7 @@ export default function GameLevelPage() {
 											handlePuzzleReorder(fromIndex, index);
 										}
 									}}
-									onClick={() => {
-										// Swap with previous item on click
-										if (index > 0) {
-											handlePuzzleReorder(index, index - 1);
-										}
-									}}
+									onClick={() => { if (index > 0) handlePuzzleReorder(index, index - 1); }}
 									className={`px-4 py-2 bg-white dark:bg-gray-800 hover:bg-primary/10 rounded-lg text-sm font-mono border-2 border-primary/30 cursor-move transition-all transform hover:scale-105 ${
 										draggedPuzzleIndex === index ? 'opacity-50' : ''
 									}`}
@@ -535,9 +458,7 @@ export default function GameLevelPage() {
 			{gameData.type === 'drag-drop' && (
 				<div className="grid md:grid-cols-2 gap-6">
 					<Card>
-						<CardHeader>
-							<CardTitle>Palette</CardTitle>
-						</CardHeader>
+						<CardHeader><CardTitle>Palette</CardTitle></CardHeader>
 						<CardContent>
 							<div className="flex flex-wrap gap-2">
 								{gameData.dragDrop.palette
@@ -585,10 +506,7 @@ export default function GameLevelPage() {
 												className="flex items-center gap-1 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border-2 border-primary/50"
 											>
 												<span className="text-sm font-mono">{item.label}</span>
-												<button
-													onClick={() => handleRemoveDropped(index)}
-													className="text-red-500 hover:text-red-700"
-												>
+												<button onClick={() => handleRemoveDropped(index)} className="text-red-500 hover:text-red-700">
 													<XCircle className="h-4 w-4" />
 												</button>
 											</div>
@@ -644,9 +562,7 @@ export default function GameLevelPage() {
 						</CardContent>
 					</Card>
 					<Card>
-						<CardHeader>
-							<CardTitle>Query Results</CardTitle>
-						</CardHeader>
+						<CardHeader><CardTitle>Query Results</CardTitle></CardHeader>
 						<CardContent>
 							{queryResults.length > 0 ? (
 								<div className="overflow-x-auto">
@@ -654,9 +570,7 @@ export default function GameLevelPage() {
 										<thead>
 											<tr className="bg-primary/10">
 												{Object.keys(queryResults[0]).map((key) => (
-													<th key={key} className="border border-border p-2 text-left text-sm font-semibold">
-														{key}
-													</th>
+													<th key={key} className="border border-border p-2 text-left text-sm font-semibold">{key}</th>
 												))}
 											</tr>
 										</thead>
@@ -664,9 +578,7 @@ export default function GameLevelPage() {
 											{queryResults.map((row, index) => (
 												<tr key={index} className="border-b border-border">
 													{Object.values(row).map((value, cellIndex) => (
-														<td key={cellIndex} className="border border-border p-2 text-sm">
-															{value}
-														</td>
+														<td key={cellIndex} className="border border-border p-2 text-sm">{value}</td>
 													))}
 												</tr>
 											))}
@@ -691,4 +603,3 @@ export default function GameLevelPage() {
 		</div>
 	);
 }
-
