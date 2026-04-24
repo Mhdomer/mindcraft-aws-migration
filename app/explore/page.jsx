@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { db } from '@/firebase';
+import { api } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -12,42 +11,13 @@ export default function ExplorePage() {
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		async function loadCourses() {
-			try {
-				// Load all courses and filter client-side to avoid index issues
-				// This is more reliable than requiring a composite index
-				const allCoursesQuery = query(collection(db, 'course'));
-				const snapshot = await getDocs(allCoursesQuery);
-				
-				let coursesList = snapshot.docs.map(doc => ({
-					id: doc.id,
-					...doc.data()
-				}));
-				
-				// Filter for published courses only
-				coursesList = coursesList.filter(course => course.status === 'published');
-				
-				// Sort by createdAt (descending - newest first)
-				coursesList.sort((a, b) => {
-					const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 
-					              a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0;
-					const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 
-					              b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0;
-					return bTime - aTime; // Descending
-				});
-				
-				setCourses(coursesList);
-			} catch (err) {
-				console.error('Error loading courses:', err);
-				console.error('Error details:', {
-					code: err.code,
-					message: err.message
-				});
-			} finally {
-				setLoading(false);
-			}
-		}
-		loadCourses();
+		api.get('/api/courses')
+			.then(data => {
+				const list = (data.courses || []).map(c => ({ ...c, id: c._id?.toString() || c.id }));
+				setCourses(list);
+			})
+			.catch(err => console.error('Error loading courses:', err))
+			.finally(() => setLoading(false));
 	}, []);
 
 	if (loading) {

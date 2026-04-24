@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Send, Loader2, Code, MessageSquare, Database } from 'lucide-react';
@@ -107,12 +106,11 @@ function markdownToHtml(text) {
 export default function CodingHelpPage() {
 	const router = useRouter();
 	const { language } = useLanguage();
+	const { userData, loading: authLoading } = useAuth();
 	const [messages, setMessages] = useState([]);
 	const [input, setInput] = useState('');
 	const [loading, setLoading] = useState(false);
 	const [loadingState, setLoadingState] = useState('');
-	const [userId, setUserId] = useState(null);
-	const [userRole, setUserRole] = useState(null);
 	const messagesEndRef = useRef(null);
 	const inputRef = useRef(null);
 
@@ -124,26 +122,9 @@ export default function CodingHelpPage() {
 	];
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				setUserId(user.uid);
-				const { doc, getDoc } = await import('firebase/firestore');
-				const { db } = await import('@/firebase');
-				const userDoc = await getDoc(doc(db, 'user', user.uid));
-				if (userDoc.exists()) {
-					const role = userDoc.data().role;
-					setUserRole(role);
-					if (role !== 'student' && role !== 'teacher' && role !== 'admin') {
-						router.push('/dashboard/student');
-					}
-				}
-			} else {
-				router.push('/login');
-			}
-		});
-
-		return () => unsubscribe();
-	}, [router]);
+		if (authLoading) return;
+		if (!userData) router.push('/login');
+	}, [authLoading, userData, router]);
 
 	// Auto-scroll to bottom when messages change
 	useEffect(() => {

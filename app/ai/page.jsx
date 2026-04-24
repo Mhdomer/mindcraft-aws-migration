@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Brain, Code, Lightbulb, Send, Loader2, Cpu, FileCode, Zap, Database, BookOpen, TrendingUp, Target, ChevronDown, ChevronUp } from 'lucide-react';
@@ -510,31 +509,13 @@ function MiniExplainConcept({ language }) {
 export default function AIDashboardPage() {
 	const router = useRouter();
 	const { language } = useLanguage();
-	const [userId, setUserId] = useState(null);
-	const [userRole, setUserRole] = useState(null);
+	const { userData, loading: authLoading } = useAuth();
 	const [expandedRecommendationId, setExpandedRecommendationId] = useState(null);
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				setUserId(user.uid);
-				const { doc, getDoc } = await import('firebase/firestore');
-				const { db } = await import('@/firebase');
-				const userDoc = await getDoc(doc(db, 'user', user.uid));
-				if (userDoc.exists()) {
-					const role = userDoc.data().role;
-					setUserRole(role);
-					if (role !== 'student' && role !== 'teacher' && role !== 'admin') {
-						router.push('/dashboard/student');
-					}
-				}
-			} else {
-				router.push('/login');
-			}
-		});
-
-		return () => unsubscribe();
-	}, [router]);
+		if (authLoading) return;
+		if (!userData) router.push('/login');
+	}, [authLoading, userData, router]);
 
 	return (
 		<div className="-m-6 md:-m-8 lg:-m-10 min-h-screen relative overflow-hidden p-6 md:p-10">

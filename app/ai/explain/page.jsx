@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Sparkles, RefreshCw, Lightbulb, BookOpen, Loader2 } from 'lucide-react';
@@ -108,34 +107,16 @@ export default function ExplainConceptPage() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const { language } = useLanguage();
+	const { userData, loading: authLoading } = useAuth();
 	const [concept, setConcept] = useState('');
 	const [explanation, setExplanation] = useState(null);
 	const [loading, setLoading] = useState(false);
-	const [userId, setUserId] = useState(null);
-	const [userRole, setUserRole] = useState(null);
 	const [regenerateCount, setRegenerateCount] = useState(0);
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				setUserId(user.uid);
-				const { doc, getDoc } = await import('firebase/firestore');
-				const { db } = await import('@/firebase');
-				const userDoc = await getDoc(doc(db, 'user', user.uid));
-				if (userDoc.exists()) {
-					const role = userDoc.data().role;
-					setUserRole(role);
-					if (role !== 'student' && role !== 'teacher' && role !== 'admin') {
-						router.push('/dashboard/student');
-					}
-				}
-			} else {
-				router.push('/login');
-			}
-		});
-
-		return () => unsubscribe();
-	}, [router]);
+		if (authLoading) return;
+		if (!userData) router.push('/login');
+	}, [authLoading, userData, router]);
 
 	async function runExplain(conceptText, options = { regenerate: false }) {
 		const trimmed = conceptText.trim();
