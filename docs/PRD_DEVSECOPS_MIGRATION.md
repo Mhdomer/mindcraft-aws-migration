@@ -109,7 +109,7 @@ Internet
 
 ### Phase 1 — Backend Migration (Express + MongoDB + JWT)
 **Goal:** Replace Firebase with a self-managed MERN backend.
-**Status:** In Progress 🔄 — Backend complete, frontend migration ~40% done
+**Status:** Complete ✅ — All Firebase removed from frontend and backend. App runs fully on Express + MongoDB + JWT.
 
 #### 1.1 — Express API Service ✅
 - Standalone `server/` app on port 3001
@@ -164,7 +164,7 @@ Replace all direct Firebase/Firestore calls in Next.js pages with `api.get/post/
 - `app/admin/settings/page.jsx` — theme/language only (logo upload removed, no server endpoint)
 - `app/admin/users/page.jsx` — list, edit name, delete users
 
-**Remaining ❌ (39 files still import Firebase)**
+**Remaining ❌**
 - `app/dashboard/courses/new/page.jsx`
 - `app/dashboard/courses/[id]/edit/page.jsx`
 - `app/dashboard/modules/page.jsx`
@@ -175,17 +175,24 @@ Replace all direct Firebase/Firestore calls in Next.js pages with `api.get/post/
 - `app/profile/page.jsx`
 - `app/settings/page.jsx`
 - `app/progress/page.jsx`
+
+**Completed in Phase 1 (week of 2026-04-21) ✅**
 - `app/game-levels/page.jsx` + `new` + `[id]/edit` + `[id]/page.jsx`
 - `app/ai/page.jsx` + `coding-help` + `explain`
 - `app/submissions/[id]/grade/page.jsx`
-- `app/analytics/page.jsx`
+- `app/analytics/page.jsx` — major rewrite, ~700 lines of Firestore debug logging removed
 - `app/recommendations/page.jsx`
 - `app/weak-areas/page.jsx`
-- `app/explore/page.jsx`
+- `app/explore/page.jsx` — switched to optionalAuth for public course browse
 - `app/debug-data/page.jsx`
-- All `app/api/` Next.js route handlers (12 files — dead code, to be deleted)
+- `components/Header.jsx` — dead Firebase imports removed
+- `components/NotificationBell.jsx` — Firestore onSnapshot → 30s polling via api.get
+- `components/FloatingAIAssistantWrapper.jsx` — full rewrite with useAuth()
+- `components/LessonExercise.jsx` — Firebase auth imports removed
+- `lib/api.js` — centralized fetch wrapper with credentials:include
+- All `app/api/` Next.js route handlers — 16 files deleted (superseded by Express)
 
-#### 1.7 — Next.js Frontend Dockerfile [ ]
+#### 1.7 — Next.js Frontend Dockerfile [ ] ← NEXT UP
 - Multi-stage build: `node:20-alpine` builder → slim runner
 - `.next/standalone` output only — no dev dependencies in image
 - Non-root user
