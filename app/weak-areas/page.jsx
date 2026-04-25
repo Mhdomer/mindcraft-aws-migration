@@ -23,90 +23,86 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { AlertCircle, TrendingDown, ArrowRight, Brain, Lightbulb, History, BookOpen, Target, ArrowLeft, Printer } from 'lucide-react';
 import Link from 'next/link';
-import { auth, db } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { AreaChart } from '@tremor/react';
 
 export default function WeakAreasPage() {
+	const { userData, loading: authLoading } = useAuth();
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
 	const [weakAreas, setWeakAreas] = useState([]);
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (!user) {
-				setError('You must be signed in to view weak learning areas.');
-				setLoading(false);
-				return;
-			}
+		if (authLoading) return;
+		if (!userData) {
+			setError('You must be signed in to view weak learning areas.');
+			setLoading(false);
+			return;
+		}
+		loadWeakAreas();
+	}, [authLoading, userData]);
 
-			await loadWeakAreasForStudent(user.uid);
-		});
-
-		return () => unsubscribe();
-	}, []);
-
-	async function loadWeakAreasForStudent(studentId) {
+	async function loadWeakAreas() {
 		setLoading(true);
 		setError('');
 
 		try {
-			// 1. Fetch all submissions for this student
-			const submissionsQuery = query(
-				collection(db, 'submission'),
-				where('studentId', '==', studentId)
-			);
-			const submissionsSnapshot = await getDocs(submissionsQuery);
-			const submissions = submissionsSnapshot.docs.map(docSnap => ({
-				id: docSnap.id,
-				...docSnap.data(),
-			}));
+			// 1. Fetch all submissions for this student (server auto-filters by studentId)
+			const submData = await api.get('/api/submissions');
+			const submissions = submData.submissions || [];
 
 			if (submissions.length === 0) {
 				setWeakAreas([]);
 				return;
 			}
 
-			// 2. Group scores by topic (assessment or assignment title)
+			// 2. Group scores by topic — batch-fetch unique assessment/assignment IDs
+			const assessmentIds = [...new Set(submissions.filter(s => s.assessmentId).map(s => s.assessmentId))];
+			const assignmentIds = [...new Set(submissions.filter(s => s.assignmentId).map(s => s.assignmentId))];
+
+			const [assessmentResults, assignmentResults] = await Promise.all([
+				Promise.allSettled(assessmentIds.map(id => api.get(`/api/assessments/${id}`))),
+				Promise.allSettled(assignmentIds.map(id => api.get(`/api/assignments/${id}`))),
+			]);
+
+			const assessmentMap = {};
+			assessmentResults.forEach((r, i) => {
+				if (r.status === 'fulfilled') assessmentMap[assessmentIds[i]] = r.value.assessment;
+			});
+			const assignmentMap = {};
+			assignmentResults.forEach((r, i) => {
+				if (r.status === 'fulfilled') assignmentMap[assignmentIds[i]] = r.value.assignment;
+			});
+
 			const topicScores = new Map();
 
 			for (const submission of submissions) {
 				let title = 'Unknown Topic';
 				let courseId = null;
 				let percentScore = null;
-				let date = submission.submittedAt?.toDate ? submission.submittedAt.toDate() : new Date();
+				let date = new Date(submission.submittedAt || Date.now());
 
 				// Assessments
 				if (submission.assessmentId) {
-					try {
-						const assessmentDoc = await getDoc(doc(db, 'assessment', submission.assessmentId));
-						if (assessmentDoc.exists()) {
-							const data = assessmentDoc.data();
-							title = data.title;
-							courseId = data.courseId;
-							if (typeof submission.score === 'number' && typeof submission.totalPoints === 'number' && submission.totalPoints > 0) {
-								percentScore = (submission.score / submission.totalPoints) * 100;
-							} else if (typeof submission.grade === 'number') {
-								percentScore = submission.grade;
-							}
+					const data = assessmentMap[submission.assessmentId];
+					if (data) {
+						title = data.title;
+						courseId = data.courseId;
+						if (typeof submission.score === 'number' && typeof submission.totalPoints === 'number' && submission.totalPoints > 0) {
+							percentScore = (submission.score / submission.totalPoints) * 100;
+						} else if (typeof submission.grade === 'number') {
+							percentScore = submission.grade;
 						}
-					} catch (err) {
-						console.warn('Error loading assessment:', err);
 					}
 				}
 				// Assignments
 				else if (submission.assignmentId) {
-					try {
-						const assignmentDoc = await getDoc(doc(db, 'assignment', submission.assignmentId));
-						if (assignmentDoc.exists()) {
-							const data = assignmentDoc.data();
-							title = data.title;
-							courseId = data.courseId;
-							percentScore = typeof submission.grade === 'number' ? submission.grade : null;
-						}
-					} catch (err) {
-						console.warn('Error loading assignment:', err);
+					const data = assignmentMap[submission.assignmentId];
+					if (data) {
+						title = data.title;
+						courseId = data.courseId;
+						percentScore = typeof submission.grade === 'number' ? submission.grade : null;
 					}
 				}
 

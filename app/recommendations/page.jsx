@@ -5,8 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Brain, ChevronDown, ChevronUp, Database, BookOpen, TrendingUp, Target, Lightbulb } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '@/app/contexts/AuthContext';
 
 // Generic database-related recommendations
 const databaseRecommendations = [
@@ -142,18 +141,13 @@ const databaseRecommendations = [
 
 export default function RecommendationsPage() {
 	const router = useRouter();
+	const { userData, loading: authLoading } = useAuth();
 	const [expandedId, setExpandedId] = useState(null);
-	const [currentUserId, setCurrentUserId] = useState(null);
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, (user) => {
-			if (user) {
-				setCurrentUserId(user.uid);
-			}
-		});
-
-		return () => unsubscribe();
-	}, []);
+		if (authLoading) return;
+		if (!userData) router.push('/login');
+	}, [authLoading, userData, router]);
 
 	function toggleExpand(id) {
 		setExpandedId(expandedId === id ? null : id);

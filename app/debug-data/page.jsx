@@ -1,8 +1,6 @@
-
 'use client';
 import { useEffect, useState } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '@/firebase';
+import { api } from '@/lib/api';
 
 export default function DebugPage() {
     const [courses, setCourses] = useState([]);
@@ -10,11 +8,12 @@ export default function DebugPage() {
 
     useEffect(() => {
         async function fetchData() {
-            const cSnap = await getDocs(collection(db, 'course'));
-            setCourses(cSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-
-            const uSnap = await getDocs(collection(db, 'user'));
-            setUsers(uSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+            const [cData, uData] = await Promise.allSettled([
+                api.get('/api/courses'),
+                api.get('/api/users'),
+            ]);
+            if (cData.status === 'fulfilled') setCourses(cData.value.courses || []);
+            if (uData.status === 'fulfilled') setUsers(uData.value.users || []);
         }
         fetchData();
     }, []);
