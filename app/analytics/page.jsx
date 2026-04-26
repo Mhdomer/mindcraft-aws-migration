@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, getDoc, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,10 +37,9 @@ import autoTable from 'jspdf-autotable';
 
 export default function AnalyticsPage() {
 	const { language } = useLanguage();
+	const { userData, loading: authLoading } = useAuth();
 	const [loading, setLoading] = useState(true);
 	const [analyticsLoading, setAnalyticsLoading] = useState(false);
-	const [currentUserId, setCurrentUserId] = useState(null);
-	const [userRole, setUserRole] = useState(null);
 	const [selectedCourseId, setSelectedCourseId] = useState(null);
 	const [courses, setCourses] = useState([]);
 	const [analyticsData, setAnalyticsData] = useState(null);
@@ -55,85 +53,24 @@ export default function AnalyticsPage() {
 	const [toast, setToast] = useState(null);
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				setCurrentUserId(user.uid);
-				try {
-					const userDoc = await getDoc(doc(db, 'user', user.uid));
-					if (userDoc.exists()) {
-						const role = userDoc.data().role;
-						setUserRole(role);
-						if (role === 'teacher') {
-							await loadTeacherCourses(user.uid);
-						} else {
-							setLoading(false);
-						}
-					} else {
-						setLoading(false);
-					}
-				} catch (err) {
-					console.error('Error loading user data:', err);
-					setLoading(false);
-				}
-			} else {
-				setCurrentUserId(null);
-				setUserRole(null);
-				setLoading(false);
-			}
-		});
-
-		return () => unsubscribe();
-	}, []);
+		if (authLoading) return;
+		if (!userData) { setLoading(false); return; }
+		if (userData.role !== 'teacher' && userData.role !== 'admin') { setLoading(false); return; }
+		loadTeacherCourses();
+	}, [authLoading, userData]);
 
 	useEffect(() => {
-		if (selectedCourseId && currentUserId && userRole === 'teacher') {
+		if (selectedCourseId && userData?.role === 'teacher') {
 			loadAnalytics(selectedCourseId);
 		}
-	}, [selectedCourseId, currentUserId, userRole]);
+	}, [selectedCourseId]);
 
-	async function loadTeacherCourses(teacherId) {
+	async function loadTeacherCourses() {
 		try {
-			// Get all courses created by this teacher
-			// Try with orderBy first, fallback if index doesn't exist
-			let coursesSnapshot;
-			try {
-				const coursesQuery = query(
-					collection(db, 'course'),
-					where('createdBy', '==', teacherId),
-					orderBy('createdAt', 'desc')
-				);
-				coursesSnapshot = await getDocs(coursesQuery);
-			} catch (err) {
-				// If orderBy fails (likely missing index), try without it
-				if (err.code === 'failed-precondition' || err.message?.includes('index')) {
-					console.warn('Firestore index may be missing, using fallback query');
-					const fallbackQuery = query(
-						collection(db, 'course'),
-						where('createdBy', '==', teacherId)
-					);
-					coursesSnapshot = await getDocs(fallbackQuery);
-				} else {
-					throw err;
-				}
-			}
-
-			const coursesList = coursesSnapshot.docs.map(doc => ({
-				id: doc.id,
-				...doc.data(),
-			}));
-
-			// Sort client-side if orderBy wasn't used
-			if (coursesList.length > 0 && coursesList[0].createdAt) {
-				coursesList.sort((a, b) => {
-					const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-					const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-					return bTime - aTime;
-				});
-			}
-
+			const data = await api.get('/api/courses');
+			const coursesList = (data.courses || []).map(c => ({ ...c, id: c._id?.toString() || c.id }));
 			setCourses(coursesList);
 			if (coursesList.length > 0 && !selectedCourseId) {
-				// Prefer SQL Fundamentals if it exists
 				const sqlCourse = coursesList.find(c => c.title === 'SQL Fundamentals' || c.title?.includes('SQL'));
 				setSelectedCourseId(sqlCourse ? sqlCourse.id : coursesList[0].id);
 			}
@@ -145,323 +82,74 @@ export default function AnalyticsPage() {
 	}
 
 	async function loadAnalytics(courseId) {
-		if (!courseId) {
-			setAnalyticsLoading(false);
-			return;
-		}
+		if (!courseId) { setAnalyticsLoading(false); return; }
 		setAnalyticsLoading(true);
 		try {
-			// Get all enrollments for this course
-			// Try querying by courseId field first
-			const enrollmentsQuery = query(
-				collection(db, 'progress'),
-				where('courseId', '==', selectedCourseId)
-			);
-			const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
-			let enrollments = enrollmentsSnapshot.docs.map(doc => ({
-				id: doc.id,
-				...doc.data(),
-			}));
-
-			console.log('Analytics Debug - Course ID:', courseId);
-			console.log('Analytics Debug - Enrollments found (by courseId field):', enrollments.length);
-			console.log('Analytics Debug - Enrollments data:', enrollments);
-
-			// Diagnostic: Find student4@gmail.com and their enrollments
-			try {
-				const allUsersSnapshot = await getDocs(collection(db, 'user'));
-				const student4 = Array.from(allUsersSnapshot.docs)
-					.find(doc => doc.data().email === 'student4@gmail.com');
-				if (student4) {
-					const student4Data = student4.data();
-					console.log('Analytics Debug - Found student4@gmail.com:', {
-						userId: student4.id,
-						email: student4Data.email,
-						name: student4Data.name,
-					});
-
-					// Find all enrollments for this student
-					const student4EnrollmentsQuery = query(
-						collection(db, 'progress'),
-						where('studentId', '==', student4.id)
-					);
-					const student4EnrollmentsSnapshot = await getDocs(student4EnrollmentsQuery);
-					const student4Enrollments = student4EnrollmentsSnapshot.docs.map(doc => ({
-						id: doc.id,
-						...doc.data(),
-					}));
-					console.log('Analytics Debug - student4 enrollments:', student4Enrollments);
-
-					// Check if any enrollment matches SQL Fundamentals
-					const sqlEnrollments = student4Enrollments.filter(e => {
-						if (typeof e.courseId === 'string') {
-							// Get course title to verify
-							return true; // We'll check below
-						}
-						return false;
-					});
-
-					// Get course titles for student4's enrollments
-					for (const enrollment of student4Enrollments) {
-						try {
-							const courseIdToCheck = typeof enrollment.courseId === 'string'
-								? enrollment.courseId
-								: enrollment.courseId?.id || enrollment.courseId?.path?.split('/').pop();
-							if (courseIdToCheck) {
-								const courseDocCheck = await getDoc(doc(db, 'course', courseIdToCheck));
-								if (courseDocCheck.exists()) {
-									const courseTitle = courseDocCheck.data().title;
-									console.log(`Analytics Debug - student4 enrolled in: "${courseTitle}" (ID: ${courseIdToCheck})`);
-									if (courseTitle === 'SQL Fundamentals' || courseTitle?.includes('SQL')) {
-										console.log('Analytics Debug - MATCH! student4 is enrolled in SQL Fundamentals');
-										console.log('Analytics Debug - Enrollment courseId:', courseIdToCheck);
-										console.log('Analytics Debug - Current search courseId:', courseId);
-										if (courseIdToCheck !== courseId) {
-											console.log('Analytics Debug - COURSE ID MISMATCH! Using correct course ID...');
-											// Re-query with correct course ID
-											const correctQuery = query(
-												collection(db, 'progress'),
-												where('courseId', '==', courseIdToCheck)
-											);
-											const correctSnapshot = await getDocs(correctQuery);
-											enrollments = correctSnapshot.docs.map(doc => ({
-												id: doc.id,
-												...doc.data(),
-											}));
-											courseId = courseIdToCheck;
-											console.log('Analytics Debug - Found enrollments with correct course ID:', enrollments.length);
-										}
-									}
-								}
-							}
-						} catch (err) {
-							console.error('Error checking enrollment course:', err);
-						}
-					}
-				} else {
-					console.log('Analytics Debug - student4@gmail.com not found in users');
-					// But we have enrollments, so let's check the enrollment data directly
-					if (enrollments.length > 0) {
-						console.log('Analytics Debug - However, we found enrollments. Checking enrollment data...');
-						for (const enrollment of enrollments) {
-							console.log('Analytics Debug - Enrollment:', {
-								id: enrollment.id,
-								studentId: enrollment.studentId,
-								courseId: enrollment.courseId,
-							});
-							// Try to get student info by studentId
-							try {
-								const studentDoc = await getDoc(doc(db, 'user', enrollment.studentId));
-								if (studentDoc.exists()) {
-									const studentData = studentDoc.data();
-									console.log('Analytics Debug - Found student from enrollment:', {
-										userId: enrollment.studentId,
-										email: studentData.email,
-										name: studentData.name,
-									});
-								}
-							} catch (err) {
-								console.error('Analytics Debug - Error loading student from enrollment:', err);
-							}
-						}
-					}
-				}
-			} catch (err) {
-				console.error('Analytics Debug - Error finding student4:', err);
-			}
-
-			// If no enrollments found, try alternative: get all enrollments and filter by courseId
-			// This handles cases where courseId might be stored differently
-			if (enrollments.length === 0) {
-				console.log('Analytics Debug - No enrollments found with courseId field, trying alternative method...');
-				const allEnrollmentsSnapshot = await getDocs(collection(db, 'progress'));
-				const allEnrollments = allEnrollmentsSnapshot.docs.map(doc => ({
-					id: doc.id,
-					...doc.data(),
-				}));
-
-				console.log('Analytics Debug - ALL enrollments in database:', allEnrollments.length);
-				console.log('Analytics Debug - Sample enrollment:', allEnrollments[0]);
-
-				// Also get all courses to verify course IDs
-				const allCoursesSnapshot = await getDocs(collection(db, 'course'));
-				const allCourses = allCoursesSnapshot.docs.map(doc => ({
-					id: doc.id,
-					title: doc.data().title,
-				}));
-				console.log('Analytics Debug - All courses:', allCourses);
-
-				// Find SQL Fundamentals course
-				const sqlCourse = allCourses.find(c => c.title === 'SQL Fundamentals' || c.title?.includes('SQL'));
-				if (sqlCourse) {
-					console.log('Analytics Debug - SQL Fundamentals course found:', sqlCourse);
-					console.log('Analytics Debug - Expected courseId:', sqlCourse.id);
-					console.log('Analytics Debug - Current courseId being searched:', courseId);
-
-					// Try searching with the found course ID
-					if (sqlCourse.id !== courseId) {
-						console.log('Analytics Debug - Course ID mismatch! Trying with correct course ID...');
-						const correctEnrollmentsQuery = query(
-							collection(db, 'progress'),
-							where('courseId', '==', sqlCourse.id)
-						);
-						const correctEnrollmentsSnapshot = await getDocs(correctEnrollmentsQuery);
-						const correctEnrollments = correctEnrollmentsSnapshot.docs.map(doc => ({
-							id: doc.id,
-							...doc.data(),
-						}));
-						console.log('Analytics Debug - Enrollments with correct course ID:', correctEnrollments.length, correctEnrollments);
-
-						if (correctEnrollments.length > 0) {
-							enrollments = correctEnrollments;
-							// Update courseId to the correct one
-							courseId = sqlCourse.id;
-						}
-					}
-				}
-
-				// Filter by courseId (handles both string and reference types)
-				if (enrollments.length === 0) {
-					enrollments = allEnrollments.filter(enrollment => {
-						const enrollmentCourseId = enrollment.courseId;
-						// Handle both string and Firestore reference types
-						if (typeof enrollmentCourseId === 'string') {
-							return enrollmentCourseId === courseId;
-						} else if (enrollmentCourseId?.id) {
-							return enrollmentCourseId.id === courseId;
-						} else if (enrollmentCourseId?.path) {
-							// Handle document reference path
-							return enrollmentCourseId.path.includes(courseId);
-						}
-						return false;
-					});
-				}
-
-				console.log('Analytics Debug - Enrollments found (alternative method):', enrollments.length);
-				console.log('Analytics Debug - Final enrollments:', enrollments);
-			}
-
-			// Get course details
-			const courseDoc = await getDoc(doc(db, 'course', courseId));
-			if (!courseDoc.exists()) {
-				console.error('Analytics Debug - Course not found:', courseId);
-				setAnalyticsLoading(false);
-				return;
-			}
-			const courseData = courseDoc.data();
-			console.log('Analytics Debug - Course title:', courseData.title);
-			console.log('Analytics Debug - Course ID from doc:', courseId);
-
-			// Risk configuration (per-course thresholds, with sensible defaults)
-			const defaultRiskConfig = {
-				minAvgScore: 60, // minimum acceptable average assessment score (%)
-				maxMissedDeadlines: 2, // how many missed deadlines before flagging
-				maxDaysInactive: 7, // days without activity before engagement is considered low
-			};
-			const riskConfig = {
-				...defaultRiskConfig,
-				...(courseData.riskConfig || {}),
-			};
-
-			// Get all modules and lessons for the course
-			const modules = [];
-			const moduleIds = courseData.modules || [];
-			for (const moduleId of moduleIds) {
-				try {
-					const moduleDoc = await getDoc(doc(db, 'module', moduleId));
-					if (moduleDoc.exists()) {
-						const moduleData = moduleDoc.data();
-						modules.push({
-							id: moduleId,
-							...moduleData,
-						});
-					}
-				} catch (err) {
-					console.error(`Error loading module ${moduleId}:`, err);
-				}
-			}
-
-			// Get all assessments and assignments for this course
-			const assessmentsQuery = query(
-				collection(db, 'assessment'),
-				where('courseId', '==', courseId)
-			);
-			const assignmentsQuery = query(
-				collection(db, 'assignment'),
-				where('courseId', '==', courseId)
-			);
-
-			const [assessmentsSnapshot, assignmentsSnapshot] = await Promise.all([
-				getDocs(assessmentsQuery),
-				getDocs(assignmentsQuery)
+			// Fetch enrollments (with student data populated), course details,
+			// assessments, and assignments in parallel
+			const [enrollData, courseData, assessData, assignData] = await Promise.all([
+				api.get(`/api/enrollments/teacher?courseId=${courseId}`),
+				api.get(`/api/courses/${courseId}`),
+				api.get(`/api/assessments?courseId=${courseId}`),
+				api.get(`/api/assignments?courseId=${courseId}`),
 			]);
 
-			const assessments = assessmentsSnapshot.docs.map(doc => ({
-				id: doc.id,
-				...doc.data(),
-			}));
-			const assignments = assignmentsSnapshot.docs.map(doc => ({
-				id: doc.id,
-				...doc.data(),
-			}));
+			const enrollments = enrollData.enrollments || [];
+			const course = courseData.course;
+			const assessments = (assessData.assessments || []).map(a => ({ ...a, id: a._id?.toString() || a.id }));
+			const assignments = (assignData.assignments || []).map(a => ({ ...a, id: a._id?.toString() || a.id }));
+			const modules = course.modules || [];
 
-			// Get all submissions
-			const assessmentIds = assessments.map(a => a.id);
-			const assignmentIds = assignments.map(a => a.id);
+			// Risk configuration
+			const riskConfig = {
+				minAvgScore: 60,
+				maxMissedDeadlines: 2,
+				maxDaysInactive: 7,
+				...(course.riskConfig || {}),
+			};
+
+			// Calculate total lessons from module data (modules populated with lessons array)
+			let totalLessons = 0;
+			modules.forEach(mod => {
+				if (mod.lessons && Array.isArray(mod.lessons)) totalLessons += mod.lessons.length;
+			});
+
+			// Fetch all submissions for each assessment and assignment
+			const [assessSubmResults, assignSubmResults] = await Promise.all([
+				Promise.allSettled(assessments.map(a => api.get(`/api/submissions?assessmentId=${a.id}`))),
+				Promise.allSettled(assignments.map(a => api.get(`/api/submissions?assignmentId=${a.id}`))),
+			]);
+
 			const allSubmissions = [];
-
-			// Get assessment submissions
-			for (const assessmentId of assessmentIds) {
-				const submissionsQuery = query(
-					collection(db, 'submission'),
-					where('assessmentId', '==', assessmentId)
-				);
-				const submissionsSnapshot = await getDocs(submissionsQuery);
-				submissionsSnapshot.docs.forEach(doc => {
-					allSubmissions.push({
-						id: doc.id,
-						...doc.data(),
-						type: 'assessment',
-					});
-				});
-			}
-
-			// Get assignment submissions
-			for (const assignmentId of assignmentIds) {
-				const submissionsQuery = query(
-					collection(db, 'submission'),
-					where('assignmentId', '==', assignmentId)
-				);
-				const submissionsSnapshot = await getDocs(submissionsQuery);
-				submissionsSnapshot.docs.forEach(doc => {
-					allSubmissions.push({
-						id: doc.id,
-						...doc.data(),
-						type: 'assignment',
-					});
-				});
-			}
-
-			// Process student data
-			const studentData = {};
-			const studentIds = new Set();
-
-			enrollments.forEach(enrollment => {
-				const studentId = enrollment.studentId;
-				if (!studentId) {
-					console.warn('Analytics Debug - Enrollment missing studentId:', enrollment);
-					return;
+			assessSubmResults.forEach((r, i) => {
+				if (r.status === 'fulfilled') {
+					(r.value.submissions || []).forEach(s => allSubmissions.push({ ...s, id: s._id?.toString() || s.id, type: 'assessment' }));
 				}
-				studentIds.add(studentId);
+			});
+			assignSubmResults.forEach((r, i) => {
+				if (r.status === 'fulfilled') {
+					(r.value.submissions || []).forEach(s => allSubmissions.push({ ...s, id: s._id?.toString() || s.id, type: 'assignment' }));
+				}
+			});
+
+			// Build student data map from enrollments
+			// enrollment.studentId is populated: { _id, name, email }
+			const studentData = {};
+			enrollments.forEach(enrollment => {
+				const studentObj = enrollment.studentId;
+				if (!studentObj) return;
+				const studentId = studentObj._id?.toString() || studentObj.id || studentObj;
 				if (!studentData[studentId]) {
 					studentData[studentId] = {
 						studentId,
+						studentName: studentObj.name || 'Unknown',
+						email: studentObj.email || 'N/A',
 						enrollment,
 						submissions: [],
 						completedLessons: enrollment.progress?.completedLessons?.length || 0,
 						completedModules: enrollment.progress?.completedModules?.length || 0,
 						overallProgress: enrollment.progress?.overallProgress || 0,
-						totalLessons: 0,
+						totalLessons,
 						totalModules: modules.length,
 						scores: [],
 						lastActivity: enrollment.enrolledAt,
@@ -469,24 +157,14 @@ export default function AnalyticsPage() {
 				}
 			});
 
-			console.log('Analytics Debug - Student IDs from enrollments:', Array.from(studentIds));
-			console.log('Analytics Debug - Student data object keys:', Object.keys(studentData));
-
-			// Calculate total lessons
-			let totalLessons = 0;
-			for (const module of modules) {
-				if (module.lessons && Array.isArray(module.lessons)) {
-					totalLessons += module.lessons.length;
-				}
-			}
-
-			// Process submissions (ensure students with submissions but no explicit enrollment are included)
+			// Process submissions — attach to students
 			allSubmissions.forEach(submission => {
-				const studentId = submission.studentId;
+				const studentId = submission.studentId?.toString() || submission.studentId;
 				if (!studentData[studentId]) {
-					// Create a minimal placeholder enrollment so the student is still tracked
 					studentData[studentId] = {
 						studentId,
+						studentName: submission.studentName || 'Unknown',
+						email: 'N/A',
 						enrollment: null,
 						submissions: [],
 						completedLessons: 0,
@@ -497,226 +175,112 @@ export default function AnalyticsPage() {
 						scores: [],
 						lastActivity: submission.submittedAt || null,
 					};
-					studentIds.add(studentId);
 				}
-
 				studentData[studentId].submissions.push(submission);
 				if (submission.submittedAt) {
-					const submitDate = submission.submittedAt.toDate
-						? submission.submittedAt.toDate()
-						: new Date(submission.submittedAt);
-					const lastActivity = studentData[studentId].lastActivity?.toDate
-						? studentData[studentId].lastActivity.toDate()
-						: new Date(0);
-					if (submitDate > lastActivity) {
-						studentData[studentId].lastActivity = submission.submittedAt;
-					}
+					const submitDate = new Date(submission.submittedAt);
+					const lastActivity = new Date(studentData[studentId].lastActivity || 0);
+					if (submitDate > lastActivity) studentData[studentId].lastActivity = submission.submittedAt;
 				}
-				if (submission.score !== undefined && submission.totalPoints) {
-					const percentage = (submission.score / submission.totalPoints) * 100;
-					studentData[studentId].scores.push(percentage);
-				} else if (submission.grade !== undefined) {
+				if (typeof submission.score === 'number' && submission.totalPoints) {
+					studentData[studentId].scores.push((submission.score / submission.totalPoints) * 100);
+				} else if (typeof submission.grade === 'number') {
 					studentData[studentId].scores.push(submission.grade);
 				}
 			});
 
-			// Update total lessons for all students
-			Object.values(studentData).forEach(student => {
-				student.totalLessons = totalLessons;
-			});
-
-			// Define now variable for date comparisons (used in deadline calculations)
 			const now = new Date();
 
-			// Calculate missed deadlines per student (assignments + assessments)
+			// Calculate missed deadlines
 			Object.values(studentData).forEach(student => {
 				let missed = 0;
-
-				// Assessments with end dates
 				assessments.forEach(assessment => {
 					const endDate = assessment.config?.endDate;
 					if (!endDate) return;
-					const deadlineDate = endDate.toDate ? endDate.toDate() : new Date(endDate);
-					if (deadlineDate > now) return; // not due yet
-
-					const submission = allSubmissions.find(sub =>
-						sub.studentId === student.studentId && sub.assessmentId === assessment.id
-					);
-
-					if (!submission) {
-						// No submission after deadline
-						missed += 1;
-					} else if (submission.submittedAt) {
-						const submitDate = submission.submittedAt.toDate
-							? submission.submittedAt.toDate()
-							: new Date(submission.submittedAt);
-						if (submitDate > deadlineDate) {
-							missed += 1;
-						}
-					}
+					const deadlineDate = new Date(endDate);
+					if (deadlineDate > now) return;
+					const submission = allSubmissions.find(s => s.studentId?.toString() === student.studentId && s.assessmentId === assessment.id);
+					if (!submission) { missed++; }
+					else if (submission.submittedAt && new Date(submission.submittedAt) > deadlineDate) { missed++; }
 				});
-
-				// Assignments with deadlines
 				assignments.forEach(assignment => {
 					const deadline = assignment.deadline;
 					if (!deadline) return;
-					const deadlineDate = deadline.toDate ? deadline.toDate() : new Date(deadline);
-					if (deadlineDate > now) return; // not due yet
-
-					const submission = allSubmissions.find(sub =>
-						sub.studentId === student.studentId && sub.assignmentId === assignment.id
-					);
-
-					if (!submission) {
-						// No submission after deadline
-						missed += 1;
-					} else if (submission.submittedAt) {
-						const submitDate = submission.submittedAt.toDate
-							? submission.submittedAt.toDate()
-							: new Date(submission.submittedAt);
-						// If work was submitted after deadline and late submissions are not explicitly allowed,
-						// treat as a missed/late deadline for risk purposes.
-						if (submitDate > deadlineDate && !assignment.allowLateSubmissions) {
-							missed += 1;
-						}
-					}
+					const deadlineDate = new Date(deadline);
+					if (deadlineDate > now) return;
+					const submission = allSubmissions.find(s => s.studentId?.toString() === student.studentId && s.assignmentId === assignment.id);
+					if (!submission) { missed++; }
+					else if (submission.submittedAt && new Date(submission.submittedAt) > deadlineDate && !assignment.allowLateSubmissions) { missed++; }
 				});
-
 				student.missedDeadlines = missed;
 			});
 
-			// Get student names
-			const studentNames = {};
-			for (const studentId of studentIds) {
-				try {
-					const studentDoc = await getDoc(doc(db, 'user', studentId));
-					if (studentDoc.exists()) {
-						studentNames[studentId] = studentDoc.data().name || 'Unknown';
-					}
-				} catch (err) {
-					console.error(`Error loading student ${studentId}:`, err);
-				}
-			}
-
-			// Calculate completion rates over time (last 7 weeks)
+			// Calculate completion rate trends (last 7 weeks)
 			const completionRates = [];
-			// now is already defined above for deadline calculations
 			for (let i = 6; i >= 0; i--) {
-				const weekStart = new Date(now);
-				weekStart.setDate(now.getDate() - (i * 7));
-				weekStart.setHours(0, 0, 0, 0);
-				const weekEnd = new Date(weekStart);
-				weekEnd.setDate(weekStart.getDate() + 7);
-
-				let totalProgress = 0;
-				let studentCount = 0;
+				const weekStart = new Date(now); weekStart.setDate(now.getDate() - (i * 7)); weekStart.setHours(0, 0, 0, 0);
+				const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 7);
+				let totalProgress = 0, studentCount = 0;
 				Object.values(studentData).forEach(student => {
-					// Only include students who were enrolled by this point in time
-					const enrolledAt = student.enrollment?.enrolledAt?.toDate
-						? student.enrollment.enrolledAt.toDate()
-						: new Date(student.enrollment?.enrolledAt || 0);
-
-					if (enrolledAt <= weekEnd) {
-						totalProgress += (student.overallProgress || 0);
-						studentCount++;
-					}
+					const enrolledAt = new Date(student.enrollment?.enrolledAt || 0);
+					if (enrolledAt <= weekEnd) { totalProgress += (student.overallProgress || 0); studentCount++; }
 				});
-
-				// Calculate average progress for the class
-				const rate = studentCount > 0 ? (totalProgress / studentCount) : 0;
 				completionRates.push({
 					week: `Week ${7 - i}`,
 					date: weekStart.toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', { month: 'short', day: 'numeric' }),
-					'Completion Rate': Math.round(rate),
+					'Completion Rate': studentCount > 0 ? Math.round(totalProgress / studentCount) : 0,
 				});
 			}
 
-			// Calculate average score trends (last 7 weeks)
+			// Calculate score trends (last 7 weeks)
 			const scoreTrends = [];
 			for (let i = 6; i >= 0; i--) {
-				const weekStart = new Date(now);
-				weekStart.setDate(now.getDate() - (i * 7));
-				weekStart.setHours(0, 0, 0, 0);
-				const weekEnd = new Date(weekStart);
-				weekEnd.setDate(weekStart.getDate() + 7);
-
-				const weekSubmissions = allSubmissions.filter(sub => {
-					if (!sub.submittedAt) return false;
-					const submitDate = sub.submittedAt.toDate ? sub.submittedAt.toDate() : new Date(sub.submittedAt);
-					return submitDate >= weekStart && submitDate < weekEnd;
+				const weekStart = new Date(now); weekStart.setDate(now.getDate() - (i * 7)); weekStart.setHours(0, 0, 0, 0);
+				const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 7);
+				const weekSubs = allSubmissions.filter(s => {
+					if (!s.submittedAt) return false;
+					const d = new Date(s.submittedAt);
+					return d >= weekStart && d < weekEnd;
 				});
-
-				let totalScore = 0;
-				let count = 0;
-				weekSubmissions.forEach(sub => {
-					if (sub.score !== undefined && sub.totalPoints) {
-						totalScore += (sub.score / sub.totalPoints) * 100;
-						count++;
-					} else if (sub.grade !== undefined) {
-						totalScore += sub.grade;
-						count++;
-					}
+				let totalScore = 0, count = 0;
+				weekSubs.forEach(s => {
+					if (typeof s.score === 'number' && s.totalPoints) { totalScore += (s.score / s.totalPoints) * 100; count++; }
+					else if (typeof s.grade === 'number') { totalScore += s.grade; count++; }
 				});
-
-				const avgScore = count > 0 ? totalScore / count : 0;
 				scoreTrends.push({
 					week: `Week ${7 - i}`,
 					date: weekStart.toLocaleDateString(language === 'bm' ? 'ms-MY' : 'en-US', { month: 'short', day: 'numeric' }),
-					'Average Score': Math.round(avgScore),
+					'Average Score': count > 0 ? Math.round(totalScore / count) : 0,
 				});
 			}
 
-			// Identify at-risk students (per-course, configurable thresholds)
+			// Build student array with risk analysis
 			const studentsArray = Object.values(studentData).map(student => {
 				const avgScore = student.scores.length > 0
-					? student.scores.reduce((sum, score) => sum + score, 0) / student.scores.length
-					: 0;
-				const daysSinceActivity = student.lastActivity?.toDate
-					? Math.floor((now - student.lastActivity.toDate()) / (1000 * 60 * 60 * 24))
-					: 999;
+					? student.scores.reduce((sum, s) => sum + s, 0) / student.scores.length : 0;
+				const daysSinceActivity = student.lastActivity
+					? Math.floor((now - new Date(student.lastActivity)) / (1000 * 60 * 60 * 24)) : 999;
 				const completionRate = student.totalLessons > 0
-					? (student.completedLessons / student.totalLessons) * 100
-					: 0;
+					? (student.completedLessons / student.totalLessons) * 100 : 0;
 				const missedDeadlines = student.missedDeadlines || 0;
 
-				// Engagement is approximated from days since last activity
 				const highScoreRisk = avgScore < (riskConfig.minAvgScore - 10);
 				const mediumScoreRisk = avgScore < riskConfig.minAvgScore;
-
 				const highDeadlineRisk = missedDeadlines > riskConfig.maxMissedDeadlines;
 				const mediumDeadlineRisk = missedDeadlines > 0;
-
 				const highEngagementRisk = daysSinceActivity > (riskConfig.maxDaysInactive * 2);
 				const mediumEngagementRisk = daysSinceActivity > riskConfig.maxDaysInactive;
 
 				let riskLevel = 'low';
-				if (highScoreRisk || highDeadlineRisk || highEngagementRisk) {
-					riskLevel = 'high';
-				} else if (mediumScoreRisk || mediumDeadlineRisk || mediumEngagementRisk) {
-					riskLevel = 'medium';
-				}
+				if (highScoreRisk || highDeadlineRisk || highEngagementRisk) riskLevel = 'high';
+				else if (mediumScoreRisk || mediumDeadlineRisk || mediumEngagementRisk) riskLevel = 'medium';
 
 				const reasons = [];
-				if (highScoreRisk || mediumScoreRisk) {
-					reasons.push(`Average assessment score below ${riskConfig.minAvgScore}%`);
-				}
-				if (missedDeadlines > 0) {
-					reasons.push(`Missed ${missedDeadlines} deadline${missedDeadlines > 1 ? 's' : ''}`);
-				}
-				if (mediumEngagementRisk || highEngagementRisk) {
-					reasons.push(`Low engagement (inactive for ${daysSinceActivity} day${daysSinceActivity !== 1 ? 's' : ''})`);
-				}
+				if (highScoreRisk || mediumScoreRisk) reasons.push(`Average assessment score below ${riskConfig.minAvgScore}%`);
+				if (missedDeadlines > 0) reasons.push(`Missed ${missedDeadlines} deadline${missedDeadlines > 1 ? 's' : ''}`);
+				if (mediumEngagementRisk || highEngagementRisk) reasons.push(`Low engagement (inactive for ${daysSinceActivity} day${daysSinceActivity !== 1 ? 's' : ''})`);
 
-				return {
-					...student,
-					studentName: studentNames[student.studentId] || 'Unknown',
-					avgScore,
-					daysSinceActivity,
-					completionRate,
-					missedDeadlines,
-					riskLevel,
-					riskReasons: reasons,
-				};
+				return { ...student, avgScore, daysSinceActivity, completionRate, missedDeadlines, riskLevel, riskReasons: reasons };
 			});
 
 			const atRiskStudents = studentsArray
@@ -727,123 +291,42 @@ export default function AnalyticsPage() {
 					return a.avgScore - b.avgScore;
 				});
 
-			// Class-level, anonymized risk summary (no student names)
 			const highRiskCount = atRiskStudents.filter(s => s.riskLevel === 'high').length;
 			const mediumRiskCount = atRiskStudents.filter(s => s.riskLevel === 'medium').length;
-
 			const avgMissedDeadlines = studentsArray.length > 0
-				? studentsArray.reduce((sum, s) => sum + (s.missedDeadlines || 0), 0) / studentsArray.length
-				: 0;
-
+				? studentsArray.reduce((sum, s) => sum + (s.missedDeadlines || 0), 0) / studentsArray.length : 0;
 			const avgDaysInactive = studentsArray.length > 0
-				? studentsArray.reduce((sum, s) => sum + (s.daysSinceActivity || 0), 0) / studentsArray.length
-				: 0;
+				? studentsArray.reduce((sum, s) => sum + (s.daysSinceActivity || 0), 0) / studentsArray.length : 0;
 
-			// Create topic heatmap (module-based)
+			// Topic heatmap
 			const topicHeatmap = modules.map(module => {
-				let totalStudents = 0;
-				let completedStudents = 0;
-				let totalScore = 0;
-				let scoreCount = 0;
-
+				let totalStudents = 0, completedStudents = 0, totalScore = 0, scoreCount = 0;
 				Object.values(studentData).forEach(student => {
 					totalStudents++;
-					if (student.completedModules >= modules.indexOf(module) + 1) {
-						completedStudents++;
-					}
-					// Get scores for assessments/assignments related to this module
+					if (student.completedModules >= modules.indexOf(module) + 1) completedStudents++;
 					student.submissions.forEach(sub => {
-						// For simplicity, we'll use overall scores
-						// In a real implementation, you'd link assessments to modules
-						if (sub.score !== undefined && sub.totalPoints) {
-							totalScore += (sub.score / sub.totalPoints) * 100;
-							scoreCount++;
-						} else if (sub.grade !== undefined) {
-							totalScore += sub.grade;
-							scoreCount++;
-						}
+						if (typeof sub.score === 'number' && sub.totalPoints) { totalScore += (sub.score / sub.totalPoints) * 100; scoreCount++; }
+						else if (typeof sub.grade === 'number') { totalScore += sub.grade; scoreCount++; }
 					});
 				});
-
-				const completionRate = totalStudents > 0 ? (completedStudents / totalStudents) * 100 : 0;
-				const avgScore = scoreCount > 0 ? totalScore / scoreCount : 0;
-				const struggleLevel = completionRate < 50 || avgScore < 60 ? 'high' :
-					completionRate < 70 || avgScore < 75 ? 'medium' : 'low';
-
 				return {
-					topic: module.title || 'Untitled Module',
-					completionRate: Math.round(completionRate),
-					avgScore: Math.round(avgScore),
-					struggleLevel,
-					studentsCompleted: completedStudents,
+					topic: module.title || 'Module',
+					completionRate: totalStudents > 0 ? Math.round((completedStudents / totalStudents) * 100) : 0,
+					avgScore: scoreCount > 0 ? Math.round(totalScore / scoreCount) : 0,
 					totalStudents,
+					completedStudents,
 				};
 			});
 
-			// Calculate overall stats
 			const totalStudents = studentsArray.length;
-			const avgCompletionRate = studentsArray.length > 0
-				? studentsArray.reduce((sum, s) => sum + s.completionRate, 0) / studentsArray.length
-				: 0;
-			const avgScore = studentsArray.length > 0 && studentsArray.some(s => s.scores.length > 0)
-				? studentsArray
-					.filter(s => s.scores.length > 0)
-					.reduce((sum, s) => sum + s.avgScore, 0) / studentsArray.filter(s => s.scores.length > 0).length
-				: 0;
-
-			// Get student emails for CSV export
-			const studentsWithEmails = await Promise.all(
-				studentsArray.map(async (student) => {
-					try {
-						const studentDoc = await getDoc(doc(db, 'user', student.studentId));
-						if (studentDoc.exists()) {
-							const userData = studentDoc.data();
-							return {
-								...student,
-								email: userData.email || 'N/A',
-							};
-						}
-					} catch (err) {
-						console.error(`Error loading student email for ${student.studentId}:`, err);
-					}
-					return {
-						...student,
-						email: 'N/A',
-					};
-				})
-			);
-
-			console.log('Analytics Debug - Total students:', totalStudents);
-			console.log('Analytics Debug - Students array:', studentsArray.length);
-
-			// Send notifications to at-risk students (medium or high risk)
-			for (const student of studentsArray) {
-				if (student.riskLevel === 'medium' || student.riskLevel === 'high') {
-					try {
-						// Send notification asynchronously (don't wait for response)
-						fetch('/api/notifications/at-risk', {
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({
-								courseId: courseId,
-								studentId: student.studentId,
-								riskLevel: student.riskLevel,
-								riskReasons: student.riskReasons || [],
-								guidance: null, // Teachers can add custom guidance later
-							}),
-						}).catch(err => {
-							console.error('Error sending risk notification:', err);
-							// Don't block analytics loading if notification fails
-						});
-					} catch (err) {
-						console.error('Error preparing risk notification:', err);
-					}
-				}
-			}
+			const avgCompletionRate = totalStudents > 0
+				? studentsArray.reduce((sum, s) => sum + s.completionRate, 0) / totalStudents : 0;
+			const avgScore = studentsArray.filter(s => s.scores.length > 0).length > 0
+				? studentsArray.filter(s => s.scores.length > 0).reduce((sum, s) => sum + s.avgScore, 0) / studentsArray.filter(s => s.scores.length > 0).length : 0;
 
 			setAnalyticsData({
 				enrollments,
-				students: studentsWithEmails,
+				students: studentsArray,
 				completionRates,
 				scoreTrends,
 				atRiskStudents,
@@ -854,33 +337,21 @@ export default function AnalyticsPage() {
 					avgMissedDeadlines: Math.round(avgMissedDeadlines * 10) / 10,
 					avgDaysInactive: Math.round(avgDaysInactive * 10) / 10,
 				},
-				overallStats: {
-					totalStudents,
-					avgCompletionRate: Math.round(avgCompletionRate),
-					avgScore: Math.round(avgScore),
-				},
-				courseTitle: courseData.title,
+				overallStats: { totalStudents, avgCompletionRate: Math.round(avgCompletionRate), avgScore: Math.round(avgScore) },
+				courseTitle: course.title,
 			});
 		} catch (err) {
 			console.error('Error loading analytics:', err);
-			// Set empty data on error so UI can still render
 			setAnalyticsData({
-				enrollments: [],
-				completionRates: [],
-				scoreTrends: [],
-				atRiskStudents: [],
-				topicHeatmap: [],
-				overallStats: {
-					totalStudents: 0,
-					avgCompletionRate: 0,
-					avgScore: 0,
-				},
+				enrollments: [], completionRates: [], scoreTrends: [], atRiskStudents: [], topicHeatmap: [],
+				overallStats: { totalStudents: 0, avgCompletionRate: 0, avgScore: 0 },
 				courseTitle: '',
 			});
 		} finally {
 			setAnalyticsLoading(false);
 		}
 	}
+
 
 	function handleExport() {
 		if (!analyticsData) return;
@@ -1025,7 +496,7 @@ export default function AnalyticsPage() {
 		URL.revokeObjectURL(url);
 	}
 
-	if (userRole !== 'teacher') {
+	if (userData?.role !== 'teacher' && userData?.role !== 'admin') {
 		return (
 			<div className="space-y-8">
 				<div>
@@ -2010,9 +1481,7 @@ export default function AnalyticsPage() {
 
 												setSendingNotification(true);
 												try {
-													// Create notification directly in Firestore (client-side)
-													// This works because the user is logged in as a teacher and has permission to create notifications
-													await addDoc(collection(db, 'notification'), {
+													await api.post('/api/notifications', {
 														userId: notificationStudent.studentId,
 														type: 'risk_alert',
 														title: language === 'bm'
@@ -2023,11 +1492,7 @@ export default function AnalyticsPage() {
 															: `Your teacher has sent a notification regarding your learning performance in this course.`,
 														courseId: selectedCourseId,
 														guidance: notificationGuidance.trim() || null,
-														read: false,
-														createdAt: serverTimestamp(),
 													});
-
-													console.log('Notification created successfully via client SDK');
 													setShowNotificationModal(false);
 													setNotificationStudent(null);
 													setNotificationGuidance('');

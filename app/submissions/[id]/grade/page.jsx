@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '@/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { api } from '@/lib/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,86 +27,55 @@ export default function GradeSubmissionPage() {
 	const [isReleased, setIsReleased] = useState(false);
 	const [allowRegrading, setAllowRegrading] = useState(true);
 	const [loading, setLoading] = useState(true);
+	const { userData, loading: authLoading } = useAuth();
 	const [saving, setSaving] = useState(false);
 	const [releasing, setReleasing] = useState(false);
 	const [autoSaveStatus, setAutoSaveStatus] = useState('');
-	const [userRole, setUserRole] = useState(null);
 	const [error, setError] = useState('');
+
+	// Auth guard
+	useEffect(() => {
+		if (authLoading) return;
+		if (!userData) { router.push('/login'); return; }
+		if (userData.role !== 'teacher' && userData.role !== 'admin') {
+			router.push('/dashboard/student');
+			return;
+		}
+		loadSubmission();
+	}, [authLoading, userData, router]);
 
 	// Auto-save timer
 	useEffect(() => {
-		if (!submission || !grade || !feedback) return;
+		if (!submission || !grade || !feedback || isReleased) return;
 
 		const autoSaveTimer = setTimeout(async () => {
 			await autoSaveGrade();
-		}, 2000); // Auto-save after 2 seconds of inactivity
+		}, 2000);
 
 		return () => clearTimeout(autoSaveTimer);
 	}, [grade, feedback, submission]);
-
-	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				const { doc, getDoc } = await import('firebase/firestore');
-				const userDoc = await getDoc(doc(db, 'user', user.uid));
-				if (userDoc.exists()) {
-					const role = userDoc.data().role;
-					setUserRole(role);
-					if (role !== 'teacher' && role !== 'admin') {
-						router.push('/dashboard/student');
-					} else {
-						loadSubmission();
-					}
-				}
-			} else {
-				router.push('/login');
-			}
-		});
-
-		return () => unsubscribe();
-	}, [router]);
 
 	async function loadSubmission() {
 		setLoading(true);
 		setError('');
 		try {
-			// Load submission
-			const submissionDoc = await getDoc(doc(db, 'submission', submissionId));
-			if (!submissionDoc.exists()) {
-				setError('Submission not found');
-				setLoading(false);
-				return;
-			}
-
-			const submissionData = { id: submissionDoc.id, ...submissionDoc.data() };
+			const submData = await api.get(`/api/submissions/${submissionId}`);
+			const submissionData = { ...submData.submission, id: submData.submission._id?.toString() || submData.submission.id };
 			setSubmission(submissionData);
-			setGrade(submissionData.grade?.toString() || '');
-			setFeedback(submissionData.feedback || '');
+			setGrade(submissionData.draftGrade?.toString() || submissionData.grade?.toString() || '');
+			setFeedback(submissionData.draftFeedback || submissionData.feedback || '');
 			setIsReleased(submissionData.feedbackReleased || false);
 			setAllowRegrading(submissionData.allowRegrading !== false);
 
-			// Load student info
-			if (submissionData.studentId) {
-				const studentDoc = await getDoc(doc(db, 'user', submissionData.studentId));
-				if (studentDoc.exists()) {
-					setStudent({ id: studentDoc.id, ...studentDoc.data() });
-				}
-			}
-
-			// Load assignment or assessment
-			if (submissionData.assignmentId) {
-				const assignmentDoc = await getDoc(doc(db, 'assignment', submissionData.assignmentId));
-				if (assignmentDoc.exists()) {
-					setAssignment({ id: assignmentDoc.id, ...assignmentDoc.data() });
-				}
-			}
-
-			if (submissionData.assessmentId) {
-				const assessmentDoc = await getDoc(doc(db, 'assessment', submissionData.assessmentId));
-				if (assessmentDoc.exists()) {
-					setAssessment({ id: assessmentDoc.id, ...assessmentDoc.data() });
-				}
-			}
+			// Load student, assignment, assessment in parallel
+			const [studentRes, assignmentRes, assessmentRes] = await Promise.allSettled([
+				submissionData.studentId ? api.get(`/api/users/${submissionData.studentId}`) : Promise.resolve(null),
+				submissionData.assignmentId ? api.get(`/api/assignments/${submissionData.assignmentId}`) : Promise.resolve(null),
+				submissionData.assessmentId ? api.get(`/api/assessments/${submissionData.assessmentId}`) : Promise.resolve(null),
+			]);
+			if (studentRes.status === 'fulfilled' && studentRes.value?.user) setStudent(studentRes.value.user);
+			if (assignmentRes.status === 'fulfilled' && assignmentRes.value?.assignment) setAssignment(assignmentRes.value.assignment);
+			if (assessmentRes.status === 'fulfilled' && assessmentRes.value?.assessment) setAssessment(assessmentRes.value.assessment);
 		} catch (err) {
 			console.error('Error loading submission:', err);
 			setError('Failed to load submission: ' + (err.message || 'Unknown error'));
@@ -117,16 +85,12 @@ export default function GradeSubmissionPage() {
 	}
 
 	async function autoSaveGrade() {
-		if (!submission || isReleased) return; // Don't auto-save if already released
-
+		if (!submission || isReleased) return;
 		try {
-			const updateData = {
+			await api.put(`/api/submissions/${submissionId}/grade`, {
 				draftGrade: grade ? parseFloat(grade) : null,
 				draftFeedback: feedback,
-				lastSavedAt: serverTimestamp(),
-			};
-
-			await updateDoc(doc(db, 'submission', submissionId), updateData);
+			});
 			setAutoSaveStatus('Saved');
 			setTimeout(() => setAutoSaveStatus(''), 2000);
 		} catch (err) {
@@ -137,28 +101,23 @@ export default function GradeSubmissionPage() {
 
 	async function handleSaveGrade() {
 		if (!grade && !feedback) {
-			alert(language === 'bm' 
-				? 'Sila masukkan gred atau maklum balas' 
+			alert(language === 'bm'
+				? 'Sila masukkan gred atau maklum balas'
 				: 'Please enter a grade or feedback');
 			return;
 		}
 
 		setSaving(true);
 		try {
-			const updateData = {
-				grade: grade ? parseFloat(grade) : null,
-				feedback: feedback,
-				gradedAt: serverTimestamp(),
-				gradedBy: auth.currentUser.uid,
-				lastSavedAt: serverTimestamp(),
-			};
-
-			await updateDoc(doc(db, 'submission', submissionId), updateData);
+			await api.put(`/api/submissions/${submissionId}/grade`, {
+				draftGrade: grade ? parseFloat(grade) : null,
+				draftFeedback: feedback,
+			});
 			setAutoSaveStatus(language === 'bm' ? 'Disimpan' : 'Saved');
 			setTimeout(() => setAutoSaveStatus(''), 2000);
 		} catch (err) {
 			console.error('Error saving grade:', err);
-			alert(language === 'bm' 
+			alert(language === 'bm'
 				? 'Gagal menyimpan gred: ' + (err.message || 'Ralat tidak diketahui')
 				: 'Failed to save grade: ' + (err.message || 'Unknown error'));
 		} finally {
@@ -168,13 +127,13 @@ export default function GradeSubmissionPage() {
 
 	async function handleReleaseFeedback() {
 		if (!grade && !feedback) {
-			alert(language === 'bm' 
-				? 'Sila masukkan gred atau maklum balas sebelum melepaskan' 
+			alert(language === 'bm'
+				? 'Sila masukkan gred atau maklum balas sebelum melepaskan'
 				: 'Please enter a grade or feedback before releasing');
 			return;
 		}
 
-		if (!confirm(language === 'bm' 
+		if (!confirm(language === 'bm'
 			? 'Adakah anda pasti mahu melepaskan maklum balas dan gred kepada pelajar? Tindakan ini tidak boleh dibatalkan.'
 			: 'Are you sure you want to release feedback and grade to the student? This action cannot be undone.')) {
 			return;
@@ -182,59 +141,25 @@ export default function GradeSubmissionPage() {
 
 		setReleasing(true);
 		try {
-			const updateData = {
-				grade: grade ? parseFloat(grade) : null,
-				feedback: feedback,
-				feedbackReleased: true,
-				releasedAt: serverTimestamp(),
-				releasedBy: auth.currentUser.uid,
-				gradedAt: serverTimestamp(),
-				gradedBy: auth.currentUser.uid,
-				allowRegrading: allowRegrading,
-			};
+			// Save draft first, then release
+			await api.put(`/api/submissions/${submissionId}/grade`, {
+				draftGrade: grade ? parseFloat(grade) : null,
+				draftFeedback: feedback,
+			});
+			await api.post(`/api/submissions/${submissionId}/release`, { allowRegrading });
 
-			await updateDoc(doc(db, 'submission', submissionId), updateData);
-
-			// Create notification for student
-			await createNotification(submission.studentId, submission.assignmentId || submission.assessmentId);
-
-			alert(language === 'bm' 
+			alert(language === 'bm'
 				? 'Maklum balas dan gred telah dilepaskan kepada pelajar'
 				: 'Feedback and grade have been released to the student');
-			
+
 			router.push('/assignments');
 		} catch (err) {
 			console.error('Error releasing feedback:', err);
-			alert(language === 'bm' 
+			alert(language === 'bm'
 				? 'Gagal melepaskan maklum balas: ' + (err.message || 'Ralat tidak diketahui')
 				: 'Failed to release feedback: ' + (err.message || 'Unknown error'));
 		} finally {
 			setReleasing(false);
-		}
-	}
-
-	async function createNotification(studentId, itemId) {
-		try {
-			const { collection, addDoc } = await import('firebase/firestore');
-			const itemTitle = assignment?.title || assessment?.title || 'Assignment';
-			
-			await addDoc(collection(db, 'notification'), {
-				userId: studentId,
-				type: 'feedback_released',
-				title: language === 'bm' 
-					? `Maklum balas telah dilepaskan untuk ${itemTitle}`
-					: `Feedback released for ${itemTitle}`,
-				message: language === 'bm' 
-					? `Guru anda telah melepaskan gred dan maklum balas untuk penyerahan anda.`
-					: `Your teacher has released the grade and feedback for your submission.`,
-				itemId: itemId,
-				submissionId: submissionId,
-				read: false,
-				createdAt: serverTimestamp(),
-			});
-		} catch (err) {
-			console.error('Error creating notification:', err);
-			// Don't fail the release if notification fails
 		}
 	}
 
@@ -283,7 +208,7 @@ export default function GradeSubmissionPage() {
 		);
 	}
 
-	if (userRole !== 'teacher' && userRole !== 'admin') {
+	if (userData?.role !== 'teacher' && userData?.role !== 'admin') {
 		return (
 			<div className="space-y-8">
 				<div>
