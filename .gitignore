@@ -54,5 +54,8 @@ CHECK_GIT_PATH.md
 GIT_SETUP_GUIDE.md
 PULL_INSTRUCTIONS.md
 
-# docs 
+# docs
 docs/
+
+# Local credentials reference (never commit)
+CREDENTIALS.local.md
