@@ -45,7 +45,6 @@ terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.backup
 terraform/*.tfvars
-terraform/.terraform.lock.hcl
 
 # Merge guides and analysis (internal use only)
 MERGE_*.md
