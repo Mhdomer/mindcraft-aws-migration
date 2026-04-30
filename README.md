@@ -12,6 +12,10 @@
 [![AWS](https://img.shields.io/badge/AWS-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)](https://aws.amazon.com)
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/features/actions)
 
+![CI](https://github.com/Mhdomer/mindcraft-aws-migration/actions/workflows/ci.yml/badge.svg)
+![Security Scan](https://github.com/Mhdomer/mindcraft-aws-migration/actions/workflows/security.yml/badge.svg)
+![Deploy](https://github.com/Mhdomer/mindcraft-aws-migration/actions/workflows/deploy.yml/badge.svg)
+
 </div>
 
 ---
@@ -49,12 +53,12 @@ This repository is my **solo extension**: taking the working application and re-
 |---|---|---|
 | Frontend | Next.js 14, React 18, TailwindCSS | App Router, standalone Docker output |
 | Backend | Express.js + Node.js | Standalone API, port 3001 |
-| Database | MongoDB + Mongoose | Replaces Firebase Firestore — 13 schemas |
+| Database | MongoDB + Mongoose | 13 schemas, private subnet EC2 |
 | Auth | JWT + bcrypt, httpOnly cookies | Replaces Firebase Auth |
 | AI | Google Gemini API | Proxied server-side — key never reaches browser |
-| Infra | Terraform + AWS EC2, VPC, ALB | Phase 3 |
-| CI/CD | GitHub Actions | Trivy → SonarCloud → ECR → EC2 — Phase 4 |
-| Observability | AWS CloudWatch | Logs, metrics, alarms — Phase 5 |
+| Infra | Terraform + AWS EC2, VPC, ALB | 35 resources, apply/destroy verified |
+| CI/CD | GitHub Actions + Amazon ECR | Trivy CVE scan → ECR push → SSM deploy |
+| Observability | AWS CloudWatch | Logs, metrics, alarms — Phase 4 |
 
 ---
 
@@ -64,10 +68,10 @@ This repository is my **solo extension**: taking the working application and re-
 |---|---|---|
 | **Phase 0** | App stabilization — fix build, clean repo, verify all routes | ✅ Complete |
 | **Phase 1** | Express API + MongoDB + JWT auth + full Firebase removal | ✅ Complete |
-| **Phase 2** | Docker — multi-stage builds, Docker Compose full-stack | 🔄 In Progress |
-| **Phase 3** | Terraform — VPC, EC2, ALB, Security Groups, S3 remote state | Planned |
-| **Phase 4** | GitHub Actions — lint → SonarCloud SAST → Trivy CVE → ECR → deploy | Planned |
-| **Phase 5** | CloudWatch observability + SSM Session Manager + Secrets Manager | Planned |
+| **Phase 2** | Docker — multi-stage builds, Docker Compose full-stack | ✅ Complete |
+| **Phase 3** | Terraform — VPC, EC2, ALB, Security Groups, S3 remote state | ✅ Complete |
+| **Phase 4** | GitHub Actions — Trivy CVE scan → ECR push → SSM deploy | ✅ Complete |
+| **Phase 5** | CloudWatch observability + Secrets Manager + HTTPS | 🔄 In Progress |
 
 Full details: [docs/PRD_DEVSECOPS_MIGRATION.md](docs/PRD_DEVSECOPS_MIGRATION.md)
 
@@ -134,8 +138,8 @@ mindcraft-aws-migration/
 │   └── config/             # DB connection, env validation
 ├── scripts/                # Firebase → MongoDB migration script
 ├── docs/                   # PRD, ADRs, architecture docs
-├── terraform/              # (Phase 3) AWS IaC
-├── .github/workflows/      # (Phase 4) CI/CD pipeline
+├── terraform/              # Phase 3 — AWS IaC (apply/destroy verified)
+├── .github/workflows/      # Phase 4 — CI/CD pipeline (ci, security, deploy)
 ├── Dockerfile.frontend     # Multi-stage Next.js container
 ├── Dockerfile.api          # Multi-stage Express API container
 └── docker-compose.yml      # Full-stack local orchestration
