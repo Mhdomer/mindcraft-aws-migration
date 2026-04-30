@@ -1,0 +1,188 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+jobs:
+  # ── Job 1: Build images, scan, push to ECR ─────────────────────────────────
+  scan-and-push:
+    name: Scan & Push to ECR
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build frontend image
+        run: |
+          docker build -f Dockerfile.frontend \
+            -t $ECR_REGISTRY/mindcraft-frontend:${{ github.sha }} \
+            -t $ECR_REGISTRY/mindcraft-frontend:latest \
+            .
+
+      - name: Scan frontend — fail on CRITICAL
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.ECR_REGISTRY }}/mindcraft-frontend:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL
+
+      - name: Push frontend to ECR
+        run: |
+          docker push $ECR_REGISTRY/mindcraft-frontend:${{ github.sha }}
+          docker push $ECR_REGISTRY/mindcraft-frontend:latest
+
+      - name: Build API image
+        run: |
+          docker build -f Dockerfile.api \
+            -t $ECR_REGISTRY/mindcraft-api:${{ github.sha }} \
+            -t $ECR_REGISTRY/mindcraft-api:latest \
+            .
+
+      - name: Scan API — fail on CRITICAL
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.ECR_REGISTRY }}/mindcraft-api:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL
+
+      - name: Push API to ECR
+        run: |
+          docker push $ECR_REGISTRY/mindcraft-api:${{ github.sha }}
+          docker push $ECR_REGISTRY/mindcraft-api:latest
+
+  # ── Job 2: Deploy to EC2 via SSM ───────────────────────────────────────────
+  deploy:
+    name: Deploy via SSM
+    runs-on: ubuntu-latest
+    needs: scan-and-push
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Discover web instance by tag
+        id: web
+        run: |
+          ID=$(aws ec2 describe-instances \
+            --filters \
+              "Name=tag:Project,Values=mindcraft" \
+              "Name=tag:Tier,Values=web" \
+              "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].InstanceId" \
+            --output text)
+          echo "id=$ID" >> $GITHUB_OUTPUT
+          echo "Web instance: $ID"
+
+      - name: Discover API instance by tag
+        id: api
+        run: |
+          ID=$(aws ec2 describe-instances \
+            --filters \
+              "Name=tag:Project,Values=mindcraft" \
+              "Name=tag:Tier,Values=app" \
+              "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].InstanceId" \
+            --output text)
+          echo "id=$ID" >> $GITHUB_OUTPUT
+          echo "API instance: $ID"
+
+      - name: Deploy frontend via SSM
+        if: steps.web.outputs.id != 'None' && steps.web.outputs.id != ''
+        env:
+          WEB_ID: ${{ steps.web.outputs.id }}
+        run: |
+          COMMANDS=$(jq -n \
+            --arg ecr "$ECR_REGISTRY" \
+            --arg region "$AWS_REGION" \
+            '[
+              ("aws ecr get-login-password --region " + $region + " | docker login --username AWS --password-stdin " + $ecr),
+              ("docker pull " + $ecr + "/mindcraft-frontend:latest"),
+              "docker stop mindcraft-frontend 2>/dev/null || true",
+              "docker rm   mindcraft-frontend 2>/dev/null || true",
+              ("docker run -d --name mindcraft-frontend -p 3000:3000 --restart unless-stopped " + $ecr + "/mindcraft-frontend:latest")
+            ]')
+
+          CMD_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --instance-ids "$WEB_ID" \
+            --parameters "commands=$COMMANDS" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "SSM command ID: $CMD_ID"
+
+          for i in $(seq 1 24); do
+            sleep 10
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$CMD_ID" --instance-id "$WEB_ID" \
+              --query "Status" --output text 2>/dev/null || echo "InProgress")
+            echo "[$i/24] $STATUS"
+            [ "$STATUS" = "Success" ] && { echo "Frontend deployed"; exit 0; }
+            [ "$STATUS" = "Failed" ] || [ "$STATUS" = "TimedOut" ] && { echo "Frontend deploy failed"; exit 1; }
+          done
+          echo "Timed out" && exit 1
+
+      - name: Deploy API via SSM
+        if: steps.api.outputs.id != 'None' && steps.api.outputs.id != ''
+        env:
+          API_ID: ${{ steps.api.outputs.id }}
+        run: |
+          COMMANDS=$(jq -n \
+            --arg ecr "$ECR_REGISTRY" \
+            --arg region "$AWS_REGION" \
+            '[
+              ("aws ecr get-login-password --region " + $region + " | docker login --username AWS --password-stdin " + $ecr),
+              ("docker pull " + $ecr + "/mindcraft-api:latest"),
+              "docker stop mindcraft-api 2>/dev/null || true",
+              "docker rm   mindcraft-api 2>/dev/null || true",
+              ("docker run -d --name mindcraft-api -p 3001:3001 --restart unless-stopped " + $ecr + "/mindcraft-api:latest")
+            ]')
+
+          CMD_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --instance-ids "$API_ID" \
+            --parameters "commands=$COMMANDS" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "SSM command ID: $CMD_ID"
+
+          for i in $(seq 1 24); do
+            sleep 10
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$CMD_ID" --instance-id "$API_ID" \
+              --query "Status" --output text 2>/dev/null || echo "InProgress")
+            echo "[$i/24] $STATUS"
+            [ "$STATUS" = "Success" ] && { echo "API deployed"; exit 0; }
+            [ "$STATUS" = "Failed" ] || [ "$STATUS" = "TimedOut" ] && { echo "API deploy failed"; exit 1; }
+          done
+          echo "Timed out" && exit 1
+
+      - name: Skip deploy — no running instances
+        if: steps.web.outputs.id == 'None' || steps.web.outputs.id == ''
+        run: |
+          echo "No running instances found (infrastructure may be down)."
+          echo "Run terraform apply first, then re-run this workflow."
