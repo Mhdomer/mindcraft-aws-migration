@@ -21,7 +21,7 @@ jobs:
         run: docker build -f Dockerfile.api -t mindcraft-api:scan .
 
       - name: Scan frontend — fail on CRITICAL
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: mindcraft-frontend:scan
           format: table
@@ -30,7 +30,7 @@ jobs:
           severity: CRITICAL
 
       - name: Scan API — fail on CRITICAL
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: mindcraft-api:scan
           format: table
