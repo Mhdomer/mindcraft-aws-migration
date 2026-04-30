@@ -9,7 +9,7 @@ locals {
 # ── ALB — accepts HTTP/HTTPS from internet ────────────────────────────────────
 resource "aws_security_group" "alb" {
   name        = "${var.project}-sg-alb"
-  description = "ALB — inbound HTTP and HTTPS from internet"
+  description = "ALB - inbound HTTP and HTTPS from internet"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -41,7 +41,7 @@ resource "aws_security_group" "alb" {
 # ── Web Tier — port 3000 from ALB only ───────────────────────────────────────
 resource "aws_security_group" "web" {
   name        = "${var.project}-sg-web"
-  description = "Web tier — inbound port 3000 from ALB only"
+  description = "Web tier - inbound port 3000 from ALB only"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -65,7 +65,7 @@ resource "aws_security_group" "web" {
 # ── App Tier — port 3001 from web tier only ───────────────────────────────────
 resource "aws_security_group" "api" {
   name        = "${var.project}-sg-api"
-  description = "App tier — inbound port 3001 from web tier only"
+  description = "App tier - inbound port 3001 from web tier only"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -89,7 +89,7 @@ resource "aws_security_group" "api" {
 # ── DB Tier — port 27017 from app tier only ───────────────────────────────────
 resource "aws_security_group" "db" {
   name        = "${var.project}-sg-db"
-  description = "DB tier — inbound port 27017 from app tier only"
+  description = "DB tier - inbound port 27017 from app tier only"
   vpc_id      = var.vpc_id
 
   ingress {
