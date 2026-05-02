@@ -30,6 +30,7 @@ jobs:
       - name: Build frontend image
         run: |
           docker build -f Dockerfile.frontend \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/mindcraft-frontend:${{ github.sha }} \
             -t $ECR_REGISTRY/mindcraft-frontend:latest \
             .
@@ -149,16 +150,21 @@ jobs:
         if: steps.api.outputs.id != 'None' && steps.api.outputs.id != ''
         env:
           API_ID: ${{ steps.api.outputs.id }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
         run: |
           COMMANDS=$(jq -n \
             --arg ecr "$ECR_REGISTRY" \
             --arg region "$AWS_REGION" \
+            --arg frontend_url "$FRONTEND_URL" \
             '[
               ("aws ecr get-login-password --region " + $region + " | docker login --username AWS --password-stdin " + $ecr),
               ("docker pull " + $ecr + "/mindcraft-api:latest"),
+              ("MONGODB_URI=$(aws secretsmanager get-secret-value --secret-id mindcraft/mongodb-uri --query SecretString --output text --region " + $region + ")"),
+              ("JWT_SECRET=$(aws secretsmanager get-secret-value --secret-id mindcraft/jwt-secret --query SecretString --output text --region " + $region + ")"),
+              ("GEMINI_API_KEY=$(aws secretsmanager get-secret-value --secret-id mindcraft/gemini-api-key --query SecretString --output text --region " + $region + ")"),
               "docker stop mindcraft-api 2>/dev/null || true",
               "docker rm   mindcraft-api 2>/dev/null || true",
-              ("docker run -d --name mindcraft-api -p 3001:3001 --restart unless-stopped " + $ecr + "/mindcraft-api:latest")
+              ("docker run -d --name mindcraft-api -p 3001:3001 --restart unless-stopped --env NODE_ENV=production --env FRONTEND_URL=" + $frontend_url + " --env MONGODB_URI=\"$MONGODB_URI\" --env JWT_SECRET=\"$JWT_SECRET\" --env GEMINI_API_KEY=\"$GEMINI_API_KEY\" " + $ecr + "/mindcraft-api:latest")
             ]')
 
           CMD_ID=$(aws ssm send-command \
