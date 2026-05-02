@@ -8,6 +8,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import { rateLimit } from 'express-rate-limit';
+import { logger, morganStream } from './logger.js';
 import { connectDB } from './config/database.js';
 
 import authRoutes from './routes/auth.js';
@@ -43,8 +44,7 @@ app.use(cors({
 }));
 
 // ─── Request Logging ──────────────────────────────────────────────────────────
-// Use concise format in production (no colour), verbose in dev
-app.use(morgan(isProd ? 'combined' : 'dev'));
+app.use(morgan(isProd ? 'combined' : 'dev', { stream: isProd ? morganStream : undefined }));
 
 // ─── Body Parsing ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
@@ -103,10 +103,10 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   // Never leak stack traces to the client in production
   const message = isProd ? 'Internal server error' : err.message;
-  console.error(`[ERROR] ${req.method} ${req.path}:`, err);
+  logger.error(`${req.method} ${req.path}`, { status: err.status, message: err.message });
   res.status(err.status || 500).json({ error: message });
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 MindCraft API running on port ${PORT} (${process.env.NODE_ENV})`);
+  logger.info(`MindCraft API running on port ${PORT}`, { env: process.env.NODE_ENV });
 });

@@ -5,6 +5,8 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # Tell Next.js to produce a standalone output bundle
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
@@ -29,6 +31,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/health || exit 1
+  CMD wget -qO- http://localhost:3000/ || exit 1
 
 CMD ["node", "server.js"]
