@@ -41,3 +41,19 @@ module "alb" {
   sg_alb_id       = module.security_groups.sg_alb_id
   web_instance_id = module.ec2.web_instance_id
 }
+
+module "cloudwatch" {
+  source      = "./modules/cloudwatch"
+  project     = var.project
+  environment = var.environment
+
+  alert_email     = var.alert_email
+  web_instance_id = module.ec2.web_instance_id
+  api_instance_id = module.ec2.api_instance_id
+}
+
+module "secrets" {
+  source      = "./modules/secrets"
+  project     = var.project
+  environment = var.environment
+}

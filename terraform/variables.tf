@@ -39,3 +39,9 @@ variable "instance_type_db" {
   type        = string
   default     = "t3.micro"
 }
+
+variable "alert_email" {
+  description = "Email address for CloudWatch alarm notifications (SNS subscription)"
+  type        = string
+  default     = "muhamedomar.g@gmail.com"
+}
