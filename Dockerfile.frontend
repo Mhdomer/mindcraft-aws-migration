@@ -5,7 +5,7 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 
-ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_URL=http://localhost:3001
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # Tell Next.js to produce a standalone output bundle
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -22,6 +22,7 @@ USER nextjs
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
 # standalone output bundles only what's needed to run — no dev deps
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
@@ -31,6 +32,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:3000/ || exit 1
+  CMD wget -qO- http://127.0.0.1:3000/ || exit 1
 
 CMD ["node", "server.js"]
