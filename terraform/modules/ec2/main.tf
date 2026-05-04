@@ -249,6 +249,7 @@ resource "aws_instance" "db" {
   vpc_security_group_ids = [var.sg_db_id]
   iam_instance_profile   = aws_iam_instance_profile.ec2.name
   user_data              = local.db_user_data
+  private_ip             = "10.0.5.10"
 
   root_block_device {
     volume_size           = 30

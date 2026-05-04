@@ -51,9 +51,3 @@ module "cloudwatch" {
   web_instance_id = module.ec2.web_instance_id
   api_instance_id = module.ec2.api_instance_id
 }
-
-module "secrets" {
-  source      = "./modules/secrets"
-  project     = var.project
-  environment = var.environment
-}
