@@ -71,7 +71,7 @@ This repository is my **solo extension**: taking the working application and re-
 | **Phase 2** | Docker — multi-stage builds, Docker Compose full-stack | ✅ Complete |
 | **Phase 3** | Terraform — VPC, EC2, ALB, Security Groups, S3 remote state | ✅ Complete |
 | **Phase 4** | GitHub Actions — Trivy CVE scan → ECR push → SSM deploy | ✅ Complete |
-| **Phase 5** | CloudWatch observability + Secrets Manager + HTTPS | 🔄 In Progress |
+| **Phase 5** | CloudWatch + Secrets Manager + winston + EBS snapshots + npm audit | 🔄 Code complete — HTTPS deferred |
 
 Full details: [docs/PRD_DEVSECOPS_MIGRATION.md](docs/PRD_DEVSECOPS_MIGRATION.md)
 
