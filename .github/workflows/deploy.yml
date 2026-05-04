@@ -28,11 +28,13 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build frontend image
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
         run: |
           docker build -f Dockerfile.frontend \
-            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
-            -t $ECR_REGISTRY/mindcraft-frontend:${{ github.sha }} \
-            -t $ECR_REGISTRY/mindcraft-frontend:latest \
+            --build-arg "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" \
+            -t "$ECR_REGISTRY/mindcraft-frontend:${{ github.sha }}" \
+            -t "$ECR_REGISTRY/mindcraft-frontend:latest" \
             .
 
       - name: Scan frontend — fail on CRITICAL
