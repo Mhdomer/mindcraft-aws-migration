@@ -39,7 +39,7 @@ This repository is my **solo extension**: taking the working application and re-
 
 | Source | Destination | Port | Why |
 |---|---|---|---|
-| Internet | ALB | 443 | HTTPS inbound only |
+| Internet | ALB | 80 | HTTP (HTTPS deferred — needs domain + ACM) |
 | ALB SG | Web Tier SG | 3000 | ALB → Next.js |
 | Web Tier SG | App Tier SG | 3001 | Frontend → Express API |
 | App Tier SG | DB Tier SG | 27017 | API → MongoDB only |
@@ -56,9 +56,11 @@ This repository is my **solo extension**: taking the working application and re-
 | Database | MongoDB + Mongoose | 13 schemas, private subnet EC2 |
 | Auth | JWT + bcrypt, httpOnly cookies | Replaces Firebase Auth |
 | AI | Google Gemini API | Proxied server-side — key never reaches browser |
-| Infra | Terraform + AWS EC2, VPC, ALB | 35 resources, apply/destroy verified |
-| CI/CD | GitHub Actions + Amazon ECR | Trivy CVE scan → ECR push → SSM deploy |
-| Observability | AWS CloudWatch | Logs, metrics, alarms — Phase 4 |
+| Infra | Terraform + AWS EC2, VPC, ALB | 47 resources, apply/destroy verified |
+| CI/CD | GitHub Actions + Amazon ECR | Trivy CVE scan + npm audit → ECR push → SSM deploy |
+| Observability | AWS CloudWatch + Winston | Per-tier log groups, CPU alarms, structured JSON logging |
+| Secrets | AWS Secrets Manager | JWT, MongoDB URI, Gemini key — fetched by EC2 IAM role at deploy time |
+| Backups | AWS DLM | Daily EBS snapshots of MongoDB volume, 7-day retention |
 
 ---
 
@@ -112,10 +114,14 @@ npm run dev                    # → http://localhost:3001
 ### Option 2 — Docker Compose (Phase 2)
 
 ```bash
-cp .env.example .env           # set JWT_SECRET and GEMINI_API_KEY
-docker compose up
-# → http://localhost:3000
+cp .env .env                   # .env is already in the repo with dev defaults
+# set GEMINI_API_KEY in .env if you want AI features
+docker compose up --build
+# Frontend → http://localhost:8080
+# API      → http://localhost:8081
 ```
+
+> Ports 3000/3001 are reserved by Windows Hyper-V — mapped to 8080/8081 instead.
 
 ### Seed test accounts
 
