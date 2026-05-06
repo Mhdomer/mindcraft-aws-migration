@@ -20,6 +20,10 @@
 
 ---
 
+<img width="1898" height="903" alt="Screenshot 2026-03-28 134137" src="https://github.com/user-attachments/assets/6b25d012-196e-4070-8cd3-b609d24924ee" />
+
+
+
 ## Overview
 
 MindCraft is an AI-powered learning platform for secondary school students — originally built by a team of 7 at **Universiti Teknologi Malaysia (UTM)** using Next.js + Firebase.
